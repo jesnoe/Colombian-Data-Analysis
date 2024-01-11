@@ -216,9 +216,6 @@ armed_groups_combined$y2016 %>%
 
 # matching with "colmaps" data
 municipios_id <- municipios@data %>% mutate(id=as.numeric(id)) %>% as_tibble
-cultivation %>% filter(CODMPIO %in% municipios_id$id) %>% select(CODMPIO, DEPARTAMENTO, MUNICIPIO)
-labs_HCl %>% filter(!(CODMPIO %in% municipios_id$id)) %>% select(CODMPIO, DEPARTAMENTO, MUNICIPIO)
-labs_PPI %>% filter(!(CODMPIO %in% municipios_id$id)) %>% select(CODMPIO, DEPARTAMENTO, MUNICIPIO)
 
 cultivation <- cultivation %>% rename(id="CODMPIO")
 labs_HCl <- labs_HCl %>% rename(id="CODMPIO")
@@ -286,14 +283,30 @@ for (year in names(armed_groups_combined)) {
 }
 armed_groups_combined$y2008 %>% select(-id_depto, -REGION)
 
-# for (year in names(armed_groups_combined)) {
-#   armed_groups_combined[[year]] %>%
-#     write.csv(paste("Colombia Data/Armed Groups (Combined)/Colombia-Armed groups-Paramilitar", substr(year,2,5) ,"(combined).xlsx"), row.names=F)
-# }
+for (year in names(armed_groups_combined)) {
+  armed_groups_combined[[year]] %>%
+    write.csv(paste("Colombia Data/Armed Groups (Combined)/Colombia-Armed groups-Paramilitar", substr(year,2,5) ,"(combined).csv"), row.names=F)
+}
 
-cultivation %>% select(-(CODDEPTO:MUNICIPIO)) %>% apply(2, summary)
-labs_HCl %>% select(-(CODDEPTO:MUNICIPIO)) %>% apply(2, summary)
-labs_PPI %>% select(-(CODDEPTO:MUNICIPIO)) %>% apply(2, summary)
+for (year_data in armed_groups_combined) {
+  print(max(year_data$n_armed_groups, na.rm=T))
+}
+
+for (year_data in armed_groups_combined) {
+  print(max(year_data[,7], na.rm=T))
+}
+
+for (year_data in armed_groups_combined) {
+  print(max(year_data[,8], na.rm=T))
+}
+
+for (year_data in armed_groups_combined) {
+  print(max(year_data[,9], na.rm=T))
+}
+
+map <- municipios
+map_df <- suppressMessages(fortify(map))
+palette <- colorRampPalette(c("grey60", "#b30000"))
 
 n_armed_groups_maps <- list()
 cultivation_maps <- list()
@@ -302,42 +315,45 @@ labs_PPI_maps <- list()
 for (year in names(armed_groups_combined)) {
   data_year <- armed_groups_combined[[year]]
   year_num <- substr(year,2,5)
-  n_armed_groups_year <- colmap(municipios,
-                                data=data_year,
-                                data_id="id",
-                                var="n_armed_groups") +
-    scale_fill_continuous(low = "grey60", high = "#b30000", na.value = "black") +
-    labs(fill = "", title=year_num) +
-    theme(legend.key.size = unit(.3, 'cm'))
+  n_armed_groups_year <- ggplot(data_year, aes_string(map_id = "id")) + 
+  geom_map(aes_string(fill = "n_armed_groups"),
+           map = map_df,
+           color = "black",
+           size = 0.1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  coord_quickmap() +
+  scale_fill_gradientn(colors = palette(7), na.value = "white", limits=c(0,6)) +
+  labs(fill = "", x="", y="", title=year_num) +
+  theme(legend.key.size = unit(.3, 'cm')) +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
   
-  # cultivation_year <- colmap(municipios,
-  #                               data=data_year,
-  #                               data_id="id",
-  #                               var=paste("cultivation", year_num, sep="_")) +
-  #   scale_fill_continuous(low = "grey60", high = "#b30000", na.value = "black") +
-  #   labs(fill = "", title=year_num) +
-  #   theme(legend.key.size = unit(.3, 'cm'))
-  #   
-  # labs_HCl_year <- colmap(municipios,
-  #                               data=data_year,
-  #                               data_id="id",
-  #                               var=paste("labs_HCl", year_num, sep="_")) +
-  #   scale_fill_continuous(low = "grey60", high = "#b30000", na.value = "black") +
-  #   labs(fill = "", title=year_num) +
-  #   theme(legend.key.size = unit(.3, 'cm'))
-  # 
-  # labs_PPI_year <- colmap(municipios,
-  #                         data=data_year,
-  #                         data_id="id",
-  #                         var=paste("labs_PPI", year_num, sep="_")) +
-  #   scale_fill_continuous(low = "grey60", high = "#b30000", na.value = "black") +
-  #   labs(fill = "", title=year_num) +
-  #   theme(legend.key.size = unit(.3, 'cm'))
+  cultivation_year <- n_armed_groups_year +
+    geom_map(aes_string(fill = paste("cultivation", year_num, sep="_")),
+             map = map_df,
+             color = "black",
+             size = 0.1) +
+    scale_fill_gradientn(colors = palette(100), na.value = "white", limits=c(0,23148))
+
+  labs_HCl_year <- n_armed_groups_year +
+    geom_map(aes_string(fill = paste("labs_HCl", year_num, sep="_")),
+             map = map_df,
+             color = "black",
+             size = 0.1) +
+    scale_fill_gradientn(colors = palette(20), na.value = "white", limits=c(0,42))
+
+  labs_PPI_year <- n_armed_groups_year +
+    geom_map(aes_string(fill = paste("labs_PPI", year_num, sep="_")),
+             map = map_df,
+             color = "black",
+             size = 0.1) +
+    scale_fill_gradientn(colors = palette(20), na.value = "white", limits=c(0,389))
   
   n_armed_groups_maps[[year]] <- n_armed_groups_year
-  # cultivation_maps[[year]] <- cultivation_year
-  # labs_HCl_maps[[year]] <- labs_HCl_year
-  # labs_PPI_maps[[year]] <-labs_PPI_year
+  cultivation_maps[[year]] <- cultivation_year
+  labs_HCl_maps[[year]] <- labs_HCl_year
+  labs_PPI_maps[[year]] <-labs_PPI_year
 }
 
 n_armed_groups_maps_2008_2012 <- grid.arrange(n_armed_groups_maps[[1]],
