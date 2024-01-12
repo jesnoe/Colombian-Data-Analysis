@@ -201,6 +201,13 @@ for (year in years) {
 armed_groups_table$y2008 %>% as.data.frame
 armed_groups_table$y2016 %>% as.data.frame
 
+for (i in 1:7) {
+  print(years[i])
+  print(armed_groups_table[[i]] %>% arrange(desc(total_num_of_Muni.)))
+}
+
+
+
 
 armed_groups_combined$y2016 %>% 
   select(REGION:labs_PPI_2016, `Clan del Golfo (Formerly Los Urabeños)`) %>% 
@@ -268,7 +275,7 @@ municipios_id$municipio <- ifelse(municipios_id$municipio == "Armero Guayabal", 
 municipios_id$municipio <- ifelse(municipios_id$municipio == "San Sebastián de Mariquita", "Mariquita", municipios_id$municipio)
 
 for (year in names(armed_groups_combined)) {
-  new_armed_groups_year <- full_join(municipios_id,
+  new_armed_groups_year <- left_join(municipios_id,
                                      armed_groups_combined[[year]] %>% mutate(depto=DEPARTAMENTO, municipio=MUNICIPIO),
                                      by=c("depto", "municipio")) %>% 
     select(-DEPARTAMENTO, -MUNICIPIO)
@@ -283,124 +290,11 @@ for (year in names(armed_groups_combined)) {
 }
 armed_groups_combined$y2008 %>% select(-id_depto, -REGION)
 
-for (year in names(armed_groups_combined)) {
-  armed_groups_combined[[year]] %>%
-    write.csv(paste("Colombia Data/Armed Groups (Combined)/Colombia-Armed groups-Paramilitar", substr(year,2,5) ,"(combined).csv"), row.names=F)
-}
+# for (year in names(armed_groups_combined)) {
+#   armed_groups_combined[[year]] %>%
+#     write.csv(paste("Colombia Data/Armed Groups (Combined)/Colombia-Armed groups-Paramilitar", substr(year,2,5) ,"(combined).csv"), row.names=F)
+# }
 
-for (year_data in armed_groups_combined) {
-  print(max(year_data$n_armed_groups, na.rm=T))
-}
-
-for (year_data in armed_groups_combined) {
-  print(max(year_data[,7], na.rm=T))
-}
-
-for (year_data in armed_groups_combined) {
-  print(max(year_data[,8], na.rm=T))
-}
-
-for (year_data in armed_groups_combined) {
-  print(max(year_data[,9], na.rm=T))
-}
-
-map <- municipios
-map_df <- suppressMessages(fortify(map))
-palette <- colorRampPalette(c("grey60", "#b30000"))
-
-n_armed_groups_maps <- list()
-cultivation_maps <- list()
-labs_HCl_maps <- list()
-labs_PPI_maps <- list()
-for (year in names(armed_groups_combined)) {
-  data_year <- armed_groups_combined[[year]]
-  year_num <- substr(year,2,5)
-  n_armed_groups_year <- ggplot(data_year, aes_string(map_id = "id")) + 
-  geom_map(aes_string(fill = "n_armed_groups"),
-           map = map_df,
-           color = "black",
-           size = 0.1) + 
-  expand_limits(x = map_df$long, y = map_df$lat) + 
-  coord_quickmap() +
-  scale_fill_gradientn(colors = palette(7), na.value = "white", limits=c(0,6)) +
-  labs(fill = "", x="", y="", title=year_num) +
-  theme(legend.key.size = unit(.3, 'cm')) +
-  theme_bw() + 
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank())
-  
-  cultivation_year <- n_armed_groups_year +
-    geom_map(aes_string(fill = paste("cultivation", year_num, sep="_")),
-             map = map_df,
-             color = "black",
-             size = 0.1) +
-    scale_fill_gradientn(colors = palette(100), na.value = "white", limits=c(0,23148))
-
-  labs_HCl_year <- n_armed_groups_year +
-    geom_map(aes_string(fill = paste("labs_HCl", year_num, sep="_")),
-             map = map_df,
-             color = "black",
-             size = 0.1) +
-    scale_fill_gradientn(colors = palette(20), na.value = "white", limits=c(0,42))
-
-  labs_PPI_year <- n_armed_groups_year +
-    geom_map(aes_string(fill = paste("labs_PPI", year_num, sep="_")),
-             map = map_df,
-             color = "black",
-             size = 0.1) +
-    scale_fill_gradientn(colors = palette(20), na.value = "white", limits=c(0,389))
-  
-  n_armed_groups_maps[[year]] <- n_armed_groups_year
-  cultivation_maps[[year]] <- cultivation_year
-  labs_HCl_maps[[year]] <- labs_HCl_year
-  labs_PPI_maps[[year]] <-labs_PPI_year
-}
-
-n_armed_groups_maps_2008_2012 <- grid.arrange(n_armed_groups_maps[[1]],
-                                              n_armed_groups_maps[[2]],
-                                              n_armed_groups_maps[[3]],
-                                              n_armed_groups_maps[[4]],
-                                              ncol=2)
-n_armed_groups_maps_2013_2016 <- grid.arrange(n_armed_groups_maps[[5]],
-                                              n_armed_groups_maps[[6]],
-                                              n_armed_groups_maps[[7]],
-                                              ncol=2)
-cultivation_maps_2008_2012 <- grid.arrange(cultivation_maps[[1]],
-                                           cultivation_maps[[2]],
-                                           cultivation_maps[[3]],
-                                           cultivation_maps[[4]],
-                                           ncol=2)
-cultivation_maps_2013_2016 <- grid.arrange(cultivation_maps[[5]],
-                                           cultivation_maps[[6]],
-                                           cultivation_maps[[7]],
-                                           ncol=2)
-labs_HCl_maps_2008_2012 <- grid.arrange(labs_HCl_maps[[1]],
-                                        labs_HCl_maps[[2]],
-                                        labs_HCl_maps[[3]],
-                                        labs_HCl_maps[[4]],
-                                        ncol=2)
-labs_HCl_maps_2013_2016 <- grid.arrange(labs_HCl_maps[[5]],
-                                        labs_HCl_maps[[6]],
-                                        labs_HCl_maps[[7]],
-                                        ncol=2)
-labs_PPI_maps_2008_2012 <- grid.arrange(labs_PPI_maps[[1]],
-                                        labs_PPI_maps[[2]],
-                                        labs_PPI_maps[[3]],
-                                        labs_PPI_maps[[4]],
-                                        ncol=2)
-labs_PPI_maps_2013_2016 <- grid.arrange(labs_PPI_maps[[5]],
-                                        labs_PPI_maps[[6]],
-                                        labs_PPI_maps[[7]],
-                                        ncol=2)
-
-# ggsave("num of armed groups map (2008-2012).pdf", n_armed_groups_maps_2008_2012, width=15, height=12, units="cm")
-# ggsave("num of armed groups map (2013-2016).pdf", n_armed_groups_maps_2013_2016, width=15, height=12, units="cm")
-# ggsave("cultivation map (2008-2012).pdf", cultivation_maps_2008_2012, width=15, height=12, units="cm")
-# ggsave("cultivation map (2013-2016).pdf", cultivation_maps_2013_2016, width=15, height=12, units="cm")
-# ggsave("labs HCl map (2008-2012).pdf", labs_HCl_maps_2008_2012, width=15, height=12, units="cm")
-# ggsave("labs HCl map (2013-2016).pdf", labs_HCl_maps_2013_2016, width=15, height=12, units="cm")
-# ggsave("labs PPI map (2008-2012).pdf", labs_PPI_maps_2008_2012, width=15, height=12, units="cm")
-# ggsave("labs PPI map (2013-2016).pdf", labs_PPI_maps_2013_2016, width=15, height=12, units="cm")
 
 # Zero vs. nonzero municipios comparisons
 zero_cultivation_maps <- list()
