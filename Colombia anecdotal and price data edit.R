@@ -33,7 +33,6 @@ base_to_base %>% filter(!(`source municipio` %in% unique(municipios_capital$muni
 # TUMACO, Narino -> SAN ANDRES DE TUMACO
 # RESINAS CARTAGENA -> CARTAGENA DE INDIAS
 # VEGALARGA -> NEIVA
-# PUERTA DEL SOL -> CALI, Valle del Cauca
 # CRUCE DE LAS DELICIAS (no information)
 # INSPECCIÓN BALSILLAS -> VILLAVIEJA, Huila
 # SAN VINCENTE DEL CAGUAN -> SAN VICENTE DEL CAGUAN
