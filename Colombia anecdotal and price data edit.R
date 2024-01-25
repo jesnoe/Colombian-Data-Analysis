@@ -134,6 +134,30 @@ price_2013_2016 <- price_2013_2016 %>%
 price_2013_2016 %>% filter(is.na(id))
 # write.csv(price_2013_2016, "Colombia Data/Colombia Price Data 2013-2016 edited.csv", row.names=F)
 
+price_2013_2016_region <- price_2013_2016$region
+price_2013_2016[price_2013_2016 == 1] <- 0
+price_2013_2016[price_2013_2016 == 0] <- NA
+price_2013_2016$id <- as.numeric(price_2013_2016$id)
+compressed_price_2013_2015 <- price_2013_2016 %>% filter(year < 2016) %>% 
+  mutate(id=as.numeric(id), id_depto=as.numeric(id_depto)) %>% 
+  group_by(id, id_depto, region, month, year, municipio, depto) %>% 
+  summarise(
+            paste_avg=mean(paste_avg, na.rm=T),
+            paste_wholesale=mean(paste_wholesale, na.rm=T),
+            paste_retail=mean(paste_retail, na.rm=T),
+            base_avg=mean(base_avg, na.rm=T),
+            base_wholesale=mean(base_wholesale, na.rm=T),
+            base_retail=mean(base_retail, na.rm=T),
+            hyd_avg=mean(hyd_avg, na.rm=T),
+            hyd_wholesale=mean(hyd_wholesale, na.rm=T),
+            hyd_retail=mean(hyd_retail, na.rm=T)
+  ) %>% arrange(id, year, month)
+
+compressed_price_2013_2015 <- rbind(compressed_price_2013_2015 %>% filter(year == 2013),
+                                    compressed_price_2013_2015 %>% filter(year > 2013) %>% 
+                           mutate(month=as.Date(paste0(1, month, "2000"), "%d%B%Y") %>% month) %>% 
+                           arrange(id, year, month) %>% mutate(month=as.character(month)))
+# write.csv(compressed_price_2013_2015, "Colombia Data/Colombia Price Data 2013-2015 edited.csv", row.names=F)
 
 
 #### for later 2013-2021 data
@@ -211,6 +235,23 @@ price_2013_2015 <- price_2013_2015 %>%
   left_join(municipios_capital %>% select(-id_depto), by=c("municipio", "depto")) %>% 
   left_join(municipios_capital %>% select(depto, id_depto) %>% unique, by="depto")
 price_2013_2015 %>% filter(is.na(id)) %>% view
+
+price_2013_2015_region <- price_2013_2015$region
+price_2013_2015[price_2013_2015 == 1] <- 0
+price_2013_2015$region <- price_2013_2015_region
+price_2013_2015[price_2013_2015 == 0] <- NA
+price_2013_2015$id <- as.numeric(price_2013_2015$id)
+price_2013_2015 %>% group_by(id, month, year, municipio, depto) %>% 
+  summarise(paste_avg=mean(paste_avg, na.rm=T),
+            paste_wholesale=mean(paste_wholesale, na.rm=T),
+            paste_retail=mean(paste_retail, na.rm=T),
+            base_avg=mean(base_avg, na.rm=T),
+            base_wholesale=mean(base_wholesale, na.rm=T),
+            base_retail=mean(base_retail, na.rm=T),
+            hyd_avg=mean(hyd_avg, na.rm=T),
+            hyd_wholesale=mean(hyd_wholesale, na.rm=T),
+            hyd_retail=mean(hyd_retail, na.rm=T)
+  ) %>% arrange(id)
 # write.csv(price_2013_2015, "Colombia Data/Colombia Price Data 2013-2015 edited.csv", row.names=F)
 
 municipios_capital %>% filter(grepl("CAUCASIA", municipio))
@@ -244,16 +285,43 @@ price_2016_2021 <- price_2016_2021 %>%
 
 # Some municipios has 2 rows of the same cocaine type. Cannot just sum for multiple rows
 price_2016_2021 %>% filter(is.na(id)) %>% view
-price_2016_2021 %>% group_by(month, year, id) %>% 
-  summarise(seeds=sum(seeds),
-            leaves=sum(leaves),
-            paste_avg=sum(paste_avg),
-            paste_wholesale=sum(paste_wholesale),
-            paste_retail=sum(paste_retail),
-            base_avg=sum(base_avg),
-            base_wholesale=sum(base_wholesale),
-            base_retail=sum(base_retail),
-            hyd_avg=sum(hyd_avg),
-            hyd_wholesale=sum(hyd_wholesale),
-            hyd_retail=sum(hyd_retail))
-# write.csv(price_2016_2021, "Colombia Data/Colombia Price Data 2013-2015 edited.csv", row.names=F)
+price_2016_2021 %>%
+  group_by(id, month, year, municipio, depto) %>% 
+  summarise(n_paste_avg=sum(paste_avg > 0),
+            n_paste_wholesale=sum(paste_wholesale > 0),
+            n_paste_retail=sum(paste_retail > 0),
+            n_base_avg=sum(base_avg > 0),
+            n_base_wholesale=sum(base_wholesale > 0),
+            n_base_retail=sum(base_retail > 0),
+            n_hyd_avg=sum(hyd_avg > 0),
+            n_hyd_wholesale=sum(hyd_wholesale > 0),
+            n_hyd_retail=sum(hyd_retail > 0),
+            ) %>% 
+  filter(n_paste_avg > 1 | n_paste_wholesale > 1 | n_paste_retail > 1 | n_base_avg > 1 | n_base_wholesale > 1 | n_base_retail > 1 | n_hyd_avg > 1 | n_hyd_wholesale > 1 | n_hyd_retail > 1 ) %>% 
+  view()
+
+price_2016_2021[price_2016_2021 == 0] <- NA
+
+compresse_price_2016_2021 <- price_2016_2021 %>%
+  group_by(id, id_depto, region, month, year, municipio, depto) %>% 
+  summarise(
+            seeds=mean(seeds, na.rm=T),
+            leaves=mean(leaves, na.rm=T),
+            paste_avg=mean(paste_avg, na.rm=T),
+            paste_wholesale=mean(paste_wholesale, na.rm=T),
+            paste_retail=mean(paste_retail, na.rm=T),
+            base_avg=mean(base_avg, na.rm=T),
+            base_wholesale=mean(base_wholesale, na.rm=T),
+            base_retail=mean(base_retail, na.rm=T),
+            hyd_avg=mean(hyd_avg, na.rm=T),
+            hyd_wholesale=mean(hyd_wholesale, na.rm=T),
+            hyd_retail=mean(hyd_retail, na.rm=T)
+            ) %>% 
+  mutate(month=as.Date(paste0(1, month, "2000"), "%d%B%Y") %>% month) %>% 
+  arrange(id, year, month) %>% mutate(month=as.character(month))
+  
+
+# write.csv(compresse_price_2016_2021, "Colombia Data/Colombia Price Data 2016-2021 edited.csv", row.names=F)
+price_2016_2021 %>% group_by(id, municipio, depto, month, year) %>%
+  filter(length(base_avg)>1 & year > 2016) %>% arrange(year, month, id) %>% as.data.frame
+

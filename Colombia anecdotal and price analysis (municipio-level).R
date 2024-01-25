@@ -6,28 +6,29 @@ library(tidyverse)
 library(gridExtra)
 library(lubridate)
 library(colmaps)
+library(fpp2)
 library(sf)
 
 base_to_base <- read.csv("Colombia Data/Anecdotal base to base with id.csv") %>% as_tibble
 price_2013_2016 <- read.csv("Colombia Data/Colombia Price Data 2013-2016 edited.csv") %>% as_tibble
 
-base_to_base
-price_2013_2016 %>% 
-  group_by(id, municipio, depto) %>% 
-  summarise(non0_paste_avg = sum(paste_avg > 0),
-            non0_base_avg = sum(base_avg > 0),
-            non0_hyd_avg = sum(hyd_avg > 0))
-
-price_2013_2016 %>% 
-  group_by(id, municipio, depto) %>% 
-  summarise(n_paste_avg = sum(!is.na(paste_avg)),
-            n_base_avg = sum(!is.na(base_avg)),
-            n_hyd_avg = sum(!is.na(hyd_avg)))
-
-price_2013_2016 %>% select(month, year) %>% unique
-
-price_2013_2016 %>% 
-  group_by(id, municipio, depto, month, year) %>% 
+# base_to_base
+# price_2013_2016 %>% 
+#   group_by(id, municipio, depto) %>% 
+#   summarise(non0_paste_avg = sum(paste_avg > 0),
+#             non0_base_avg = sum(base_avg > 0),
+#             non0_hyd_avg = sum(hyd_avg > 0))
+# 
+# price_2013_2016 %>% 
+#   group_by(id, municipio, depto) %>% 
+#   summarise(n_paste_avg = sum(!is.na(paste_avg)),
+#             n_base_avg = sum(!is.na(base_avg)),
+#             n_hyd_avg = sum(!is.na(hyd_avg)))
+# 
+# price_2013_2016 %>% select(month, year) %>% unique
+# 
+price_2013_2016 %>%
+  group_by(id, municipio, depto, month, year) %>%
   filter(length(base_avg)>1) %>% as.data.frame
 
 price_2013_2016 <- rbind(price_2013_2016 %>% filter(year == 2013),
@@ -128,7 +129,7 @@ for (i in 1:nrow(zero_corr_id)) {
     inner_join(destination_price[which(destination_price[["base_avg"]] > 0), c(2:3, which(names(destination_price)=="base_avg"))], by=c("month", "year"))
   zero_corr_price[[paste0("id", source_id, ",", destination_id)]] <- coexisting_MY
 }
-zero_corr_price # maybe we should use Spearman/Kendall's rank correlation -> still lots of 0 correlation
+zero_corr_price
 
 
 # price maps
@@ -139,13 +140,10 @@ map_df <- suppressMessages(fortify(map)) %>%
 palette <- colorRampPalette(c("grey60", "#b30000"))
 
 month_year <- price_2013_2016 %>% select(month, year) %>% unique
-month_year <- rbind(month_year[1:3,],
-month_year[-(1:3),] %>% 
-  mutate(month=as.Date(paste0(1, month, "2000"), "%d%B%Y") %>% month) %>% 
-  arrange(year, month))
-
 
 for (i in 1:nrow(month_year)) {
+  month_i <- month_year$month[i]
+  year_i <- month_year$year[i]
   price_2013_2016_map <- price_2013_2016 %>%
     filter(month == month_i & year == year_i) %>% 
     mutate(base_avg=ifelse(base_avg > 0, T, NA),
@@ -154,8 +152,6 @@ for (i in 1:nrow(month_year)) {
     select(id, base_avg, paste_avg, hyd_avg) %>% 
     as.data.frame
   map_df_i <- left_join(map_df, price_2013_2016_map, by="id")
-  month_i <- month_year$month[i]
-  year_i <- month_year$year[i]
   month_year_i <- paste(year_i, month_i, sep="-")
   
   base_price_map_i <- ggplot(map_df_i, aes_string(map_id = "id")) + 
@@ -197,3 +193,18 @@ for (i in 1:nrow(month_year)) {
   # ggsave(paste0("Colombia Data/Figs/Price map/hyd avg price map (", month_year_i, ").png"), hyd_price_map_i, scale=1)
 }
 
+## time series plot
+price_47001 <- price_2013_2016 %>% filter(id==47001)
+price_47001 %>% ggplot() +
+  geom_line(aes(x=1:33, y=base_avg, color="Base")) +
+  geom_line(aes(x=1:33, y=paste_avg, color="Paste")) +
+  geom_line(aes(x=1:33, y=hyd_avg, color="Hyd")) +
+  labs(color="Price", x="", y="price", title="SANTA MARTA, Magdalena")
+
+price_85001 <- price_2013_2016 %>% filter(id==85001)
+price_85001 <- left_join(month_year, price_85001, by=c("month", "year"))
+price_85001 %>% ggplot() +
+  geom_line(aes(x=1:33, y=base_avg, color="Base")) +
+  geom_line(aes(x=1:33, y=paste_avg, color="Paste")) +
+  geom_line(aes(x=1:33, y=hyd_avg, color="Hyd")) +
+  labs(color="Price", x="", y="price", title="YOPAL, Casanare")
