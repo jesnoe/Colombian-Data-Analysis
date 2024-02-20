@@ -384,3 +384,73 @@ for (depto in unique(general$`Destine Depto.`)) {
     theme(legend.position="none")
   ggsave(paste0("Colombia Data/Figs/Anecdotal flows map/General map ", "(", depto, ").png"), general_sub, scale=1)
 }
+
+## Annual map
+towns <- read.csv("Colombia Data/cities and towns.csv") %>% as_tibble
+
+for (i in 1:nrow(towns)) {
+  long_i <- towns$long[i]
+  lat_i <- towns$lat[i]
+  dep_index <- which(abs(long_i - map_df$long) < 0.005)
+  candidate_dep <- map_df[dep_index,]
+  candidate_dep_minmax <- candidate_dep %>%
+    group_by(id) %>%
+    summarise(min_lat = min(lat), max_lat=max(lat), depto=depto[1])
+  for (j in 1:nrow(candidate_dep_minmax)) {
+    depto_j <- candidate_dep_minmax[j,]
+    if (lat_i >= depto_j$min_lat & lat_i <= depto_j$max_lat) {
+      towns$department[i] <- depto_j$depto
+    }
+  }
+}
+towns <- towns %>% 
+  group_by(city, department) %>% 
+  summarise(lat=lat[1], long=long[1])
+# write.csv(towns, "Colombia Data/cities and towns 2.csv", row.names=F)
+
+remove_space <- function(string) {
+  n_letters <- str_length(string)
+  result <- ifelse(substr(string, n_letters, n_letters) == " ", substr(string, 1, n_letters-1), string)
+  return(result)
+}
+{
+anecdotal_annual <- read.csv("Colombia Data/Anecdotal annual.csv") %>% as_tibble
+anecdotal_annual <- anecdotal_annual %>% 
+  mutate(SOURCE.MUNICIPIO.CITY=stri_trans_general(SOURCE.MUNICIPIO.CITY, "Latin-ASCII"),
+         SOURCE.DEPARTAMENTO=stri_trans_general(SOURCE.DEPARTAMENTO, "Latin-ASCII") %>% str_to_title,
+         DESTINATION..CITY.=stri_trans_general(DESTINATION..CITY., "Latin-ASCII"),
+         DESTINATION.DEPARTAMENTO=stri_trans_general(DESTINATION.DEPARTAMENTO, "Latin-ASCII") %>% str_to_title)
+anecdotal_annual$SOURCE.DEPARTAMENTO <- gsub(" De ", " de ", anecdotal_annual$SOURCE.DEPARTAMENTO)
+anecdotal_annual$SOURCE.DEPARTAMENTO <- gsub(" Del ", " del ", anecdotal_annual$SOURCE.DEPARTAMENTO)
+anecdotal_annual$SOURCE.DEPARTAMENTO[which(anecdotal_annual$SOURCE.MUNICIPIO.CITY == "BOGOTA")] <- "Bogota"
+
+anecdotal_annual$DESTINATION.DEPARTAMENTO <- gsub(" De ", " de ", anecdotal_annual$DESTINATION.DEPARTAMENTO)
+anecdotal_annual$DESTINATION.DEPARTAMENTO <- gsub(" Del ", " del ", anecdotal_annual$DESTINATION.DEPARTAMENTO)
+anecdotal_annual$DESTINATION.DEPARTAMENTO[which(anecdotal_annual$DESTINATION..CITY. == "BOGOTA")] <- "Bogota"
+
+anecdotal_annual$SOURCE.MUNICIPIO.CITY <- str_to_upper(anecdotal_annual$SOURCE.MUNICIPIO.CITY)
+anecdotal_annual$DESTINATION..CITY. <- str_to_upper(anecdotal_annual$DESTINATION..CITY.)
+}
+
+towns <- read.csv("Colombia Data/cities and towns 2.csv") %>% as_tibble
+annual_data_match <- anecdotal_annual[,3:4] %>%
+  rename(city=SOURCE.MUNICIPIO.CITY,
+         department=SOURCE.DEPARTAMENTO)
+annual_data_match <- left_join(annual_data_match, towns, by=c("city", "department"))
+annual_data_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
+# ALBAN, Narino is entire municipio
+# ALBANIA, Tolima -> LA ALBANIA
+# BELEN, Caqueta -> BELEN DE LOS ANDAQUIES
+
+anecdotal_annual$source_lat <- annual_data_match$lat
+anecdotal_annual$source_long <- annual_data_match$long
+
+annual_data_match <- anecdotal_annual[,5:6] %>%
+  rename(city=DESTINATION..CITY.,
+         department=DESTINATION.DEPARTAMENTO)
+annual_data_match <- left_join(annual_data_match, towns, by=c("city", "department"))
+annual_data_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
+
+anecdotal_annual$destination_lat <- annual_data_match$lat
+anecdotal_annual$destination_long <- annual_data_match$long
+# write.csv(anecdotal_annual, "Colombia Data/Anecdotal annual with coordinates.csv", row.names=F)

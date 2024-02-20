@@ -56,6 +56,8 @@ coca_seizures <- coca_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric
 base_seizures <- base_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
 HCl_seizures <- HCl_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
 
+price_2013_2015 <- read.csv("Colombia Data/Colombia Price Data 2013-2015 edited.csv") %>% as_tibble
+price_2016_2021 <- read.csv("Colombia Data/Colombia Price Data 2016-2021 edited.csv") %>% as_tibble
 # eradication_aerial <- left_join(municipios_id, eradication_aerial, by="id")
 # eradication_manual <- left_join(municipios_id, eradication_manual, by="id")
 # coca_seizures <- left_join(municipios_id, coca_seizures, by="id")
@@ -136,3 +138,20 @@ base_seizures %>% filter(!(id %in% c(base_to_base_source_id, base_to_base_destin
 base_seizures %>% filter(id %in% base_to_base_source_id) %>% select(`1999`:`2022`) %>% apply(2, function(x) mean(x, na.rm=T))
 base_seizures %>% filter(id %in% base_to_base_destination_id) %>% select(`1999`:`2022`) %>% apply(2, function(x) mean(x, na.rm=T))
 base_seizures %>% filter(!(id %in% c(base_to_base_source_id, base_to_base_destination_id))) %>% select(`1999`:`2022`) %>% apply(2, function(x) mean(x, na.rm=T))
+
+
+price_2013_2015 %>% filter(id %in% base_to_base_source_id) %>% select(month:hyd_retail) %>% view
+price_2013_2015 %>% filter(id %in% base_to_base_source_id) %>% pull(id) %>% unique
+price_2013_2015 %>% filter(id %in% base_to_base_source_id) %>%
+  group_by(id) %>% 
+  summarise(n_base_wholesale=sum(!is.na(base_wholesale)),
+            n_hyd_wholesale=sum(!is.na(hyd_wholesale)))
+
+price_2016_2021 %>% filter(id %in% base_to_base_source_id) %>% select(month:hyd_retail) %>% view
+price_2016_2021 %>% filter(id %in% base_to_base_source_id) %>% pull(id) %>% unique
+
+
+price_2016_2021 %>% filter(id %in% base_to_base_source_id) %>%
+  group_by(id) %>% 
+  summarise(n_base_wholesale=sum(!is.na(base_wholesale)),
+            n_hyd_wholesale=sum(!is.na(hyd_wholesale)))
