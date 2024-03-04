@@ -11,6 +11,8 @@ library(sf)
 waterways <- st_read("Colombia Data/gis_osm_waterways_free_1.shp")
 waterways$fclass %>% unique
 waterways$geometry[1]
+transport <- st_read("Colombia Data/gis_osm_transport_free_1.shp")
+
 
 map <- departamentos
 map_df <- suppressMessages(fortify(map)) %>% 
@@ -56,9 +58,9 @@ waterway_map <- waterways %>% ggplot() +
         line = element_blank(),
         legend.position="none"
   )
-ggsave("Colombia Data/Figs/waterways.png", waterway_map, scale=1)
+# ggsave("Colombia Data/Figs/waterways.png", waterway_map, scale=1)
 
-
+rivers <- waterways %>% filter(fclass == "river")
 river_map <- rivers %>% ggplot() + 
   expand_limits(x = map_df$long, y = map_df$lat) + 
   geom_sf(color="blue", linewidth = 0.2) +
@@ -79,7 +81,7 @@ river_map <- rivers %>% ggplot() +
         line = element_blank(),
         legend.position="none"
   )
-ggsave("Colombia Data/Figs/rivers.png", river_map, scale=1)
+# ggsave("Colombia Data/Figs/rivers.png", river_map, scale=1)
 
 broad_river_map <- rivers %>%
   filter(width > 0) %>% 
@@ -104,7 +106,7 @@ broad_river_map <- rivers %>%
         line = element_blank(),
         legend.position="none"
   )
-ggsave("Colombia Data/Figs/broad rivers.png", broad_river_map, scale=1)
+# ggsave("Colombia Data/Figs/broad rivers.png", broad_river_map, scale=1)
 
 canals <- waterways %>% filter(fclass == "canal")
 canal_map <- canals %>% ggplot() + 
@@ -127,4 +129,60 @@ canal_map <- canals %>% ggplot() +
         line = element_blank(),
         legend.position="none"
   )
-ggsave("Colombia Data/Figs/canals.png", canal_map, scale=1)
+# ggsave("Colombia Data/Figs/canals.png", canal_map, scale=1)
+
+ferry <- transport %>% filter(fclass == "ferry_terminal")
+river_ferry_map <- rivers %>% ggplot() + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  geom_sf(color="blue", linewidth = 0.2) +
+  geom_polygon(data=map_df,
+               aes(x=long,
+                   y=lat,
+                   group=group),
+               color = "black",
+               fill = NA,
+               linewidth = 0.1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  labs(fill="", x="", y="", title="All Rivers") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank(),
+        legend.position="none"
+  ) +
+  geom_point(data=st_coordinates(ferry$geometry) %>% as.data.frame,
+             aes(x=X, y=Y),
+             color="red",
+             size=0.2)
+# ggsave("Colombia Data/Figs/rivers and ports.png", river_ferry_map, scale=1)
+
+broad_river_ferry_map <- rivers %>%
+  filter(width > 0) %>% 
+  ggplot() + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  geom_sf(color="blue", linewidth = 0.2) +
+  geom_polygon(data=map_df,
+               aes(x=long,
+                   y=lat,
+                   group=group),
+               color = "black",
+               fill = NA,
+               linewidth = 0.1,
+               alpha=1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  labs(fill="", x="", y="", title="Rivers (Width > 0)") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank(),
+        legend.position="none"
+  ) +
+  geom_point(data=st_coordinates(ferry$geometry) %>% as.data.frame,
+             aes(x=X, y=Y),
+             color="red",
+             size=0.2)
+# ggsave("Colombia Data/Figs/broad rivers and ports.png", broad_river_ferry_map, scale=1)
