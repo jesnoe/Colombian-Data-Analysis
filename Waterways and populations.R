@@ -1,8 +1,16 @@
+# setwd("/Users/R")
+# setwd("C:/Users/gkfrj/Documents/R")
+library(readxl)
+library(stringi)
+library(tidyverse)
+library(gridExtra)
+library(lubridate)
+library(colmaps)
+library(sf)
+
 waterways <- st_read("Colombia Data/gis_osm_waterways_free_1.shp")
 waterways$fclass %>% unique
 waterways$geometry[1]
-
-st_layers("Colombia Data/gis_osm_waterways_free_1.shp")
 
 map <- departamentos
 map_df <- suppressMessages(fortify(map)) %>% 
