@@ -119,9 +119,9 @@ base_to_base_match <- base_to_base[,3:4] %>%
 base_to_base_match <- left_join(base_to_base_match, towns, by=c("city", "department"))
 base_to_base_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
 # LORICA, Cordoba -> SANTA CRUZ DE LORICA
-base_to_base$destine_lat <- base_to_base_match$lat
-base_to_base$destine_long <- base_to_base_match$long
-# write.csv(base_to_base, "Colombia Data/Anecdotal base to base with coordinates.csv", row.names=F)
+base_to_base$destination_lat <- base_to_base_match$lat
+base_to_base$destination_long <- base_to_base_match$long
+# write.csv(base_to_base, "Colombia Data/Anecdotal base to base with coordinates2.csv", row.names=F)
 
 map <- departamentos
 map_df <- suppressMessages(fortify(map)) %>% 
@@ -176,8 +176,8 @@ base_to_base_map <- base_to_base_map +
   geom_segment(data=base_to_base %>% filter(`source Depto` != "?" & `Destine Depto.` != "?"),
                aes(x=source_long, 
                    y=source_lat, 
-                   xend=destine_long,
-                   yend=destine_lat,
+                   xend=destination_long,
+                   yend=destination_lat,
                    color=`source Depto`),
                linewidth = 0.1,
                arrow=arrow(angle=10,
@@ -256,8 +256,8 @@ HCl_to_HCl_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
 # PAZ DE ARIPOSO, Casanare -> PAZ DE ARIPORO
 # PROVINDENCIA, Narino -> PROVIDENCIA
 # Paraguachón MAICAO, La Guajira -> Paraguachón
-HCl_to_HCl$destine_lat <- HCl_to_HCl_match$lat
-HCl_to_HCl$destine_long <- HCl_to_HCl_match$long
+HCl_to_HCl$destination_lat <- HCl_to_HCl_match$lat
+HCl_to_HCl$destination_long <- HCl_to_HCl_match$long
 # write.csv(HCl_to_HCl, "Colombia Data/Anecdotal HCl to HCl with coordinates.csv", row.names=F)
 
 HCl_to_HCl <- HCl_to_HCl %>% filter(!grepl("\\?", `source Depto`) & !grepl("\\?", `Destine Depto.`))
@@ -271,8 +271,8 @@ HCl_to_HCl_map <- HCl_to_HCl_map +
   geom_segment(data=HCl_to_HCl,
                aes(x=source_long, 
                    y=source_lat, 
-                   xend=destine_long,
-                   yend=destine_lat,
+                   xend=destination_long,
+                   yend=destination_lat,
                    color=`source Depto`),
                linewidth = 0.1,
                arrow=arrow(angle=10,
@@ -294,8 +294,8 @@ for (depto in unique(HCl_to_HCl$`source Depto`)) {
     geom_segment(data=HCl_to_HCl_depto,
                  aes(x=source_long, 
                      y=source_lat, 
-                     xend=destine_long,
-                     yend=destine_lat,
+                     xend=destination_long,
+                     yend=destination_lat,
                      color=`source Depto`),
                  linewidth = 0.1,
                  arrow=arrow(angle=10,
@@ -336,8 +336,10 @@ general_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
 # SANTA CRUZ DE MONPOX, Bolivar -> SANTA CRUZ DE MOMPOX
 # TIERRASALTA, Cordoba -> TIERRALTA
 # VAGACHI, Antioquia -> VEGACHI
-general$destine_lat <- general_match$lat
-general$destine_long <- general_match$long
+general$destination_lat <- general_match$lat
+general$destination_long <- general_match$long
+
+# write.csv(general, "Colombia Data/Anecdotal general with coordinates.csv", row.names=F)
 
 general_map <- empty_map
 general_map <- general_map +
@@ -349,8 +351,8 @@ general_map <- general_map +
   geom_segment(data=general,
                aes(x=source_long, 
                    y=source_lat, 
-                   xend=destine_long,
-                   yend=destine_lat,
+                   xend=destination_long,
+                   yend=destination_lat,
                    color=`source Depto`),
                linewidth = 0.1,
                arrow=arrow(angle=10,
@@ -372,8 +374,8 @@ for (depto in unique(general$`Destine Depto.`)) {
     geom_segment(data=general_depto,
                  aes(x=source_long, 
                      y=source_lat, 
-                     xend=destine_long,
-                     yend=destine_lat,
+                     xend=destination_long,
+                     yend=destination_lat,
                      color=`Destine Depto.`),
                  linewidth = 0.1,
                  arrow=arrow(angle=10,
@@ -413,46 +415,46 @@ for (depto in unique(general$`Destine Depto.`)) {
 #   result <- ifelse(substr(string, n_letters, n_letters) == " ", substr(string, 1, n_letters-1), string)
 #   return(result)
 # }
-# {
-# anecdotal_annual <- read.csv("Colombia Data/Anecdotal annual.csv") %>% as_tibble
-# anecdotal_annual <- anecdotal_annual %>% 
-#   mutate(SOURCE.MUNICIPIO.CITY=stri_trans_general(SOURCE.MUNICIPIO.CITY, "Latin-ASCII"),
-#          SOURCE.DEPARTAMENTO=stri_trans_general(SOURCE.DEPARTAMENTO, "Latin-ASCII") %>% str_to_title,
-#          DESTINATION..CITY.=stri_trans_general(DESTINATION..CITY., "Latin-ASCII"),
-#          DESTINATION.DEPARTAMENTO=stri_trans_general(DESTINATION.DEPARTAMENTO, "Latin-ASCII") %>% str_to_title)
-# anecdotal_annual$SOURCE.DEPARTAMENTO <- gsub(" De ", " de ", anecdotal_annual$SOURCE.DEPARTAMENTO)
-# anecdotal_annual$SOURCE.DEPARTAMENTO <- gsub(" Del ", " del ", anecdotal_annual$SOURCE.DEPARTAMENTO)
-# anecdotal_annual$SOURCE.DEPARTAMENTO[which(anecdotal_annual$SOURCE.MUNICIPIO.CITY == "BOGOTA")] <- "Bogota"
-# 
-# anecdotal_annual$DESTINATION.DEPARTAMENTO <- gsub(" De ", " de ", anecdotal_annual$DESTINATION.DEPARTAMENTO)
-# anecdotal_annual$DESTINATION.DEPARTAMENTO <- gsub(" Del ", " del ", anecdotal_annual$DESTINATION.DEPARTAMENTO)
-# anecdotal_annual$DESTINATION.DEPARTAMENTO[which(anecdotal_annual$DESTINATION..CITY. == "BOGOTA")] <- "Bogota"
-# 
-# anecdotal_annual$SOURCE.MUNICIPIO.CITY <- str_to_upper(anecdotal_annual$SOURCE.MUNICIPIO.CITY)
-# anecdotal_annual$DESTINATION..CITY. <- str_to_upper(anecdotal_annual$DESTINATION..CITY.)
-# }
+{
+anecdotal_annual <- read.csv("Colombia Data/Anecdotal annual.csv") %>% as_tibble
+anecdotal_annual <- anecdotal_annual %>%
+  mutate(SOURCE.MUNICIPIO.CITY=stri_trans_general(SOURCE.MUNICIPIO.CITY, "Latin-ASCII"),
+         SOURCE.DEPARTAMENTO=stri_trans_general(SOURCE.DEPARTAMENTO, "Latin-ASCII") %>% str_to_title,
+         DESTINATION..CITY.=stri_trans_general(DESTINATION..CITY., "Latin-ASCII"),
+         DESTINATION.DEPARTAMENTO=stri_trans_general(DESTINATION.DEPARTAMENTO, "Latin-ASCII") %>% str_to_title)
+anecdotal_annual$SOURCE.DEPARTAMENTO <- gsub(" De ", " de ", anecdotal_annual$SOURCE.DEPARTAMENTO)
+anecdotal_annual$SOURCE.DEPARTAMENTO <- gsub(" Del ", " del ", anecdotal_annual$SOURCE.DEPARTAMENTO)
+anecdotal_annual$SOURCE.DEPARTAMENTO[which(anecdotal_annual$SOURCE.MUNICIPIO.CITY == "BOGOTA")] <- "Bogota"
+
+anecdotal_annual$DESTINATION.DEPARTAMENTO <- gsub(" De ", " de ", anecdotal_annual$DESTINATION.DEPARTAMENTO)
+anecdotal_annual$DESTINATION.DEPARTAMENTO <- gsub(" Del ", " del ", anecdotal_annual$DESTINATION.DEPARTAMENTO)
+anecdotal_annual$DESTINATION.DEPARTAMENTO[which(anecdotal_annual$DESTINATION..CITY. == "BOGOTA")] <- "Bogota"
+
+anecdotal_annual$SOURCE.MUNICIPIO.CITY <- str_to_upper(anecdotal_annual$SOURCE.MUNICIPIO.CITY)
+anecdotal_annual$DESTINATION..CITY. <- str_to_upper(anecdotal_annual$DESTINATION..CITY.)
+}
 # 
 # towns <- read.csv("Colombia Data/cities and towns 2.csv") %>% as_tibble
-# annual_data_match <- anecdotal_annual[,3:4] %>%
-#   rename(city=SOURCE.MUNICIPIO.CITY,
-#          department=SOURCE.DEPARTAMENTO)
-# annual_data_match <- left_join(annual_data_match, towns, by=c("city", "department"))
-# annual_data_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
+annual_data_match <- anecdotal_annual[,3:4] %>%
+  rename(city=SOURCE.MUNICIPIO.CITY,
+         department=SOURCE.DEPARTAMENTO)
+annual_data_match <- left_join(annual_data_match, towns, by=c("city", "department"))
+annual_data_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
 # ALBAN, Narino is entire municipio
 # ALBANIA, Tolima -> LA ALBANIA
 # BELEN, Caqueta -> BELEN DE LOS ANDAQUIES
 
-# anecdotal_annual$source_lat <- annual_data_match$lat
-# anecdotal_annual$source_long <- annual_data_match$long
-# 
-# annual_data_match <- anecdotal_annual[,5:6] %>%
-#   rename(city=DESTINATION..CITY.,
-#          department=DESTINATION.DEPARTAMENTO)
-# annual_data_match <- left_join(annual_data_match, towns, by=c("city", "department"))
-# annual_data_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
-# 
-# anecdotal_annual$destination_lat <- annual_data_match$lat
-# anecdotal_annual$destination_long <- annual_data_match$long
+anecdotal_annual$source_lat <- annual_data_match$lat
+anecdotal_annual$source_long <- annual_data_match$long
+
+annual_data_match <- anecdotal_annual[,5:6] %>%
+  rename(city=DESTINATION..CITY.,
+         department=DESTINATION.DEPARTAMENTO)
+annual_data_match <- left_join(annual_data_match, towns, by=c("city", "department"))
+annual_data_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
+
+anecdotal_annual$destination_lat <- annual_data_match$lat
+anecdotal_annual$destination_long <- annual_data_match$long
 # write.csv(anecdotal_annual, "Colombia Data/Anecdotal annual with coordinates.csv", row.names=F)
 
 anecdotal_annual <- read.csv("Colombia Data/Anecdotal annual with coordinates.csv") %>% as_tibble
