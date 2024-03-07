@@ -293,9 +293,11 @@ general_pop_diff <- general_pop_diff %>%
   rename(destination_pop=log_population)
 general_pop_diff$pop_diff <- general_pop_diff$destination_pop - general_pop_diff$source_pop
 
-summary(base_to_base_pop_diff$pop_diff)
-summary(HCl_to_HCl_pop_diff$pop_diff)
-summary(general_pop_diff$pop_diff)
+par(mfrow=c(1,3))
+hist(base_to_base_pop_diff$pop_diff, breaks=20, main="Base to Base", xlab="Log Population Diff.", ylab="")
+hist(HCl_to_HCl_pop_diff$pop_diff, breaks=20, main="HCl to HCl", xlab="Log Population Diff.", ylab="")
+hist(general_pop_diff$pop_diff, breaks=20, main="General", xlab="Log Population Diff.", ylab="")
+par(mfrow=c(1,1))
 
   # population map
 population_coord <- left_join(map_df, population %>% select(id, population), by="id") %>% 
