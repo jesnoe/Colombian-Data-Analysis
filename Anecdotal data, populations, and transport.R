@@ -49,6 +49,15 @@ population$log_population <- log(population$population)
 
 ## Labeling big/small rivers
 ferry_points <- st_coordinates(ferry$geometry) %>% as.data.frame
+river_coords <- st_coordinates(rivers$geometry) %>% as.data.frame
+rivers <- cbind(rivers,
+                river_coords %>% 
+                  group_by(L1) %>% 
+                  summarise(min_long=min(X),
+                            max_long=max(X),
+                            min_lat=min(Y),
+                            max_lat=max(Y)) %>% 
+                  select(-L1))
 rivers$size <- "small"
 for (i in 1:nrow(ferry_points)) {
   long_i <- ferry_points$X[i]
@@ -76,16 +85,6 @@ river_length_muni <- map_df %>%
             max_long=max(long),
             min_lat=min(lat),
             max_lat=max(lat))
-
-river_coords <- st_coordinates(rivers$geometry) %>% as.data.frame
-rivers <- cbind(rivers,
-                river_coords %>% 
-                  group_by(L1) %>% 
-                  summarise(min_long=min(X),
-                            max_long=max(X),
-                            min_lat=min(Y),
-                            max_lat=max(Y)) %>% 
-                  select(-L1))
 
 get_river_length <- function(coords) {
   long <- coords$X
@@ -233,6 +232,19 @@ river_length_muni %>% filter(!(id %in% c(general$source_id, general$destination_
 par(mfrow=c(1,1))
 
 river_length_muni %>% arrange(desc(n_rivers))
+
+  # n_rivers > 0
+river_length_muni %>% filter(id %in% base_to_base$source_id) %>% pull(n_rivers) %>% table
+river_length_muni %>% filter(id %in% base_to_base$destination_id) %>% pull(n_rivers) %>% table
+river_length_muni %>% filter(!(id %in% c(base_to_base$source_id, base_to_base$destination_id))) %>% pull(n_rivers) %>% table
+
+river_length_muni %>% filter(id %in% HCl_to_HCl$source_id) %>% pull(n_rivers) %>% table
+river_length_muni %>% filter(id %in% HCl_to_HCl$destination_id) %>% pull(n_rivers) %>% table
+river_length_muni %>% filter(!(id %in% c(HCl_to_HCl$source_id, HCl_to_HCl$destination_id))) %>% pull(n_rivers) %>% table
+
+river_length_muni %>% filter(id %in% general$source_id) %>% pull(n_rivers) %>% table
+river_length_muni %>% filter(id %in% general$destination_id) %>% pull(n_rivers) %>% table
+river_length_muni %>% filter(!(id %in% c(general$source_id, general$destination_id))) %>% pull(n_rivers) %>% table
 
 ## population
   # population histogram
