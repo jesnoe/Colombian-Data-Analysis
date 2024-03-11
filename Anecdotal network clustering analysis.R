@@ -158,54 +158,6 @@ n_obs_list_depto <- n_obs_list_municipios %>%
 
 # write.csv(n_obs_list_depto, "Colombia Data/n of observations (department).csv", row.names=F)
 
-# convert anecdotal data cities into municipios
-base_to_base  <- read.csv("Colombia Data/Anecdotal base to base with id.csv") %>% as_tibble
-HCl_to_HCl  <- read.csv("Colombia Data/Anecdotal HCl to HCl with coordinates.csv") %>% as_tibble
-anecdotal_annual  <- read.csv("Colombia Data/Anecdotal annual.csv") %>% as_tibble
-anecdotal_annual %>% select(SOURCE.MUNICIPIO.CITY, SOURCE.DEPARTAMENTO) %>% unique
-anecdotal_annual %>% select(DESTINATION..CITY., DESTINATION.DEPARTAMENTO) %>% unique
-
-map <- municipios
-map_df <- suppressMessages(fortify(map)) %>% 
-  mutate(id=as.numeric(id)) %>% 
-  filter(!(id %in% c(88001, 88564))) # excludes islands in Caribbean
-map_df <- left_join(map_df, municipios_capital %>% select(id, municipio, depto) %>% unique, by="id")
-
-for (i in 1:nrow(HCl_to_HCl)) {
-  source_long_i <- HCl_to_HCl$source_long[i]
-  source_lat_i <- HCl_to_HCl$source_lat[i]
-  destination_long_i <- HCl_to_HCl$destine_long[i]
-  destination_lat_i <- HCl_to_HCl$destine_lat[i]
-  # mun_index <- which(abs(source_long_i - map_df$long) < 0.005)
-  # candidate_mun <- map_df[mun_index,]
-  # candidate_mun_minmax <- candidate_mun %>%
-  #   group_by(id) %>%
-  #   summarise(min_lat = min(lat), max_lat=max(lat), municipio=municipio[1], depto=depto[1])
-  search_index <- c(0,0)
-  for (id_i in (unique(municipios_capital$id) %>% sort)) {
-    municipio_id <- map_df %>% filter(id == id_i)
-    
-    if (point.in.polygon(source_long_i, source_lat_i, municipio_id$long, municipio_id$lat)) {
-      source_id <- id_i
-      search_index[1] <- 1
-    }
-    if (point.in.polygon(destination_long_i, destination_lat_i, municipio_id$long, municipio_id$lat)) {
-      destination_id <- id_i
-      search_index[2] <- 1
-    }
-    
-    if (sum(search_index) == 2) break
-  }
-  # candidate_index <- which(source_lat_i >= candidate_mun_minmax$min_lat & source_lat_i <= candidate_mun_minmax$max_lat)
-  # matched_municipio <- candidate_mun_minmax[candidate_index[which.max(candidate_mun_minmax$min_lat[candidate_index])],]
-  HCl_to_HCl$source_id[i] <- source_id
-  HCl_to_HCl$source_municipio[i] <- municipios_capital %>% filter(id == source_id) %>% pull(municipio)
-  HCl_to_HCl$destination_id[i] <- destination_id
-  HCl_to_HCl$destination_municipio[i] <- municipios_capital %>% filter(id == destination_id) %>% pull(municipio)
-}
-
-HCl_to_HCl[which(is.na(HCl_to_HCl$source_id)),] %>% as.data.frame
-
 # map checking
 base_to_base_source_id <- base_to_base %>% filter(!is.na(source_id)) %>% pull(source_id) %>% unique
 base_to_base_destination_id <- base_to_base %>% filter(!is.na(destination_id)) %>% pull(destination_id) %>% unique

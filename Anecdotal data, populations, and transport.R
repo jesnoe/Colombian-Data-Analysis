@@ -149,86 +149,86 @@ river_length_muni <- read.csv("Colombia Data/rivers.csv") %>% as_tibble
   # river_length
 par(mfrow=c(1,3))
 river_length_muni %>% filter(id %in% base_to_base$source_id) %>% pull(river_length) %>% 
-  hist(breaks=50, main="Base to Base Sources", xlab="River Length", ylab="")
+  hist(breaks=50, main="Base to Base Sources", xlab="River Length", ylab="", xlim=c(0, 44))
 river_length_muni %>% filter(id %in% base_to_base$destination_id) %>% pull(river_length) %>% 
-  hist(breaks=50, main="Destinations", xlab="River Length", ylab="")
+  hist(breaks=50, main="Destinations", xlab="River Length", ylab="", xlim=c(0, 44))
 river_length_muni %>% filter(!(id %in% c(base_to_base$source_id, base_to_base$destination_id))) %>% pull(river_length) %>% 
-  hist(breaks=50, main="Unlabeled", xlab="River Length", ylab="")
+  hist(breaks=50, main="Unlabeled", xlab="River Length", ylab="", xlim=c(0, 44))
 par(mfrow=c(1,1))
 
 par(mfrow=c(1,3))
 river_length_muni %>% filter(id %in% HCl_to_HCl$source_id) %>% pull(river_length) %>% 
-  hist(breaks=50, main="HCl to HCl Sources", xlab="River Length", ylab="")
+  hist(breaks=50, main="HCl to HCl Sources", xlab="River Length", ylab="", xlim=c(0, 44))
 river_length_muni %>% filter(id %in% HCl_to_HCl$destination_id) %>% pull(river_length) %>% 
-  hist(breaks=50, main="Destinations", xlab="River Length", ylab="")
+  hist(breaks=50, main="Destinations", xlab="River Length", ylab="", xlim=c(0, 44))
 river_length_muni %>% filter(!(id %in% c(HCl_to_HCl$source_id, HCl_to_HCl$destination_id))) %>% pull(river_length) %>% 
-  hist(breaks=50, main="Unlabeled", xlab="River Length", ylab="")
+  hist(breaks=50, main="Unlabeled", xlab="River Length", ylab="", xlim=c(0, 44))
 par(mfrow=c(1,1))
 
 par(mfrow=c(1,3))
 river_length_muni %>% filter(id %in% general$source_id) %>% pull(river_length) %>% 
-  hist(breaks=50, main="General Sources", xlab="River Length", ylab="")
+  hist(breaks=50, main="General Sources", xlab="River Length", ylab="", xlim=c(0, 44))
 river_length_muni %>% filter(id %in% general$destination_id) %>% pull(river_length) %>% 
-  hist(breaks=50, main="Destinations", xlab="River Length", ylab="")
+  hist(breaks=50, main="Destinations", xlab="River Length", ylab="", xlim=c(0, 44))
 river_length_muni %>% filter(!(id %in% c(general$source_id, general$destination_id))) %>% pull(river_length) %>% 
-  hist(breaks=50, main="Unlabeled", xlab="River Length", ylab="")
+  hist(breaks=50, main="Unlabeled", xlab="River Length", ylab="", xlim=c(0, 44))
 par(mfrow=c(1,1))
 
   # n_rivers
 par(mfrow=c(1,3))
 river_length_muni %>% filter(id %in% base_to_base$source_id) %>% pull(n_rivers) %>% 
-  hist(breaks=50, main="Base to Base Sources", xlab="# of Rivers", ylab="")
+  hist(breaks=50, main="Base to Base Sources", xlab="# of Rivers", ylab="", xlim=c(0, 250))
 river_length_muni %>% filter(id %in% base_to_base$destination_id) %>% pull(n_rivers) %>% 
-  hist(breaks=50, main="Destinations", xlab="# of Rivers", ylab="")
+  hist(breaks=50, main="Destinations", xlab="# of Rivers", ylab="", xlim=c(0, 250))
 river_length_muni %>% filter(!(id %in% c(base_to_base$source_id, base_to_base$destination_id))) %>% pull(n_rivers) %>% 
-  hist(breaks=50, main="Unlabeled", xlab="# of Rivers", ylab="")
+  hist(breaks=50, main="Unlabeled", xlab="# of Rivers", ylab="", xlim=c(0, 250))
 par(mfrow=c(1,1))
 
 par(mfrow=c(1,3))
 river_length_muni %>% filter(id %in% base_to_base$source_id) %>% pull(n_big_rivers) %>% 
-  hist(breaks=50, main="Base to Base Sources", xlab="# of Big Rivers", ylab="")
+  hist(breaks=50, main="Base to Base Sources", xlab="# of Big Rivers", ylab="", xlim=c(0, 4))
 river_length_muni %>% filter(id %in% base_to_base$destination_id) %>% pull(n_big_rivers) %>% 
-  hist(breaks=50, main="Destinations", xlab="# of Big Rivers", ylab="")
+  hist(breaks=50, main="Destinations", xlab="# of Big Rivers", ylab="", xlim=c(0, 4))
 river_length_muni %>% filter(!(id %in% c(base_to_base$source_id, base_to_base$destination_id))) %>% pull(n_big_rivers) %>% 
-  hist(breaks=50, main="Unlabeled", xlab="# of Big Rivers", ylab="")
+  hist(breaks=50, main="Unlabeled", xlab="# of Big Rivers", ylab="", xlim=c(0, 4))
 par(mfrow=c(1,1))
 
 
 par(mfrow=c(1,3))
 river_length_muni %>% filter(id %in% HCl_to_HCl$source_id) %>% pull(n_rivers) %>% 
-  hist(breaks=50, main="HCl to HCl Sources", xlab="# of Rivers", ylab="")
+  hist(breaks=50, main="HCl to HCl Sources", xlab="# of Rivers", ylab="", xlim=c(0, 250))
 river_length_muni %>% filter(id %in% HCl_to_HCl$destination_id) %>% pull(n_rivers) %>% 
-  hist(breaks=50, main="Destinations", xlab="# of Rivers", ylab="")
+  hist(breaks=50, main="Destinations", xlab="# of Rivers", ylab="", xlim=c(0, 250))
 river_length_muni %>% filter(!(id %in% c(HCl_to_HCl$source_id, HCl_to_HCl$destination_id))) %>% pull(n_rivers) %>% 
-  hist(breaks=50, main="Unlabeled", xlab="# of Rivers", ylab="")
+  hist(breaks=50, main="Unlabeled", xlab="# of Rivers", ylab="", xlim=c(0, 250))
 par(mfrow=c(1,1))
 
 par(mfrow=c(1,3))
 river_length_muni %>% filter(id %in% HCl_to_HCl$source_id) %>% pull(n_big_rivers) %>% 
-  hist(breaks=50, main="HCl to HCl Sources", xlab="# of Big Rivers", ylab="")
+  hist(breaks=50, main="HCl to HCl Sources", xlab="# of Big Rivers", ylab="", xlim=c(0, 4))
 river_length_muni %>% filter(id %in% HCl_to_HCl$destination_id) %>% pull(n_big_rivers) %>% 
-  hist(breaks=50, main="Destinations", xlab="# of Big Rivers", ylab="")
+  hist(breaks=50, main="Destinations", xlab="# of Big Rivers", ylab="", xlim=c(0, 4))
 river_length_muni %>% filter(!(id %in% c(HCl_to_HCl$source_id, HCl_to_HCl$destination_id))) %>% pull(n_big_rivers) %>% 
-  hist(breaks=50, main="Unlabeled", xlab="# of Big Rivers", ylab="")
+  hist(breaks=50, main="Unlabeled", xlab="# of Big Rivers", ylab="", xlim=c(0, 4))
 par(mfrow=c(1,1))
 
 
 par(mfrow=c(1,3))
 river_length_muni %>% filter(id %in% general$source_id) %>% pull(n_rivers) %>% 
-  hist(breaks=50, main="General Sources", xlab="# of Rivers", ylab="")
+  hist(breaks=50, main="General Sources", xlab="# of Rivers", ylab="", xlim=c(0, 250))
 river_length_muni %>% filter(id %in% general$destination_id) %>% pull(n_rivers) %>% 
-  hist(breaks=50, main="Destinations", xlab="# of Rivers", ylab="")
+  hist(breaks=50, main="Destinations", xlab="# of Rivers", ylab="", xlim=c(0, 250))
 river_length_muni %>% filter(!(id %in% c(general$source_id, general$destination_id))) %>% pull(n_rivers) %>% 
-  hist(breaks=50, main="Unlabeled", xlab="# of Rivers", ylab="")
+  hist(breaks=50, main="Unlabeled", xlab="# of Rivers", ylab="", xlim=c(0, 250))
 par(mfrow=c(1,1))
 
 par(mfrow=c(1,3))
 river_length_muni %>% filter(id %in% general$source_id) %>% pull(n_big_rivers) %>% 
-  hist(breaks=50, main="General Sources", xlab="# of Big Rivers", ylab="")
+  hist(breaks=50, main="General Sources", xlab="# of Big Rivers", ylab="", xlim=c(0, 4))
 river_length_muni %>% filter(id %in% general$destination_id) %>% pull(n_big_rivers) %>% 
-  hist(breaks=50, main="Destinations", xlab="# of Big Rivers", ylab="")
+  hist(breaks=50, main="Destinations", xlab="# of Big Rivers", ylab="", xlim=c(0, 4))
 river_length_muni %>% filter(!(id %in% c(general$source_id, general$destination_id))) %>% pull(n_big_rivers) %>% 
-  hist(breaks=50, main="Unlabeled", xlab="# of Big Rivers", ylab="")
+  hist(breaks=50, main="Unlabeled", xlab="# of Big Rivers", ylab="", xlim=c(0, 4))
 par(mfrow=c(1,1))
 
 river_length_muni %>% arrange(desc(n_rivers))
@@ -250,29 +250,29 @@ river_length_muni %>% filter(!(id %in% c(general$source_id, general$destination_
   # population histogram
 par(mfrow=c(1,3))
 population %>% filter(id %in% base_to_base$source_id) %>% pull(log_population) %>% 
-  hist(breaks=20, main="Base to Base Sources", xlab="Log Population", ylab="")
+  hist(breaks=20, main="Base to Base Sources", xlab="Log Population", ylab="", xlim=c(5, 16))
 population %>% filter(id %in% base_to_base$destination_id) %>% pull(log_population) %>% 
-  hist(breaks=20, main="Destinations", xlab="Log Population", ylab="")
+  hist(breaks=20, main="Destinations", xlab="Log Population", ylab="", xlim=c(5, 16))
 population %>% filter(!(id %in% c(base_to_base$source_id, base_to_base$destination_id))) %>% pull(log_population) %>% 
-  hist(breaks=20, main="Unlabeled", xlab="Log Population", ylab="")
+  hist(breaks=20, main="Unlabeled", xlab="Log Population", ylab="", xlim=c(5, 16))
 par(mfrow=c(1,1))
 
 par(mfrow=c(1,3))
 population %>% filter(id %in% HCl_to_HCl$source_id) %>% pull(log_population) %>% 
-  hist(breaks=20, main="HCl to HCl Sources", xlab="Log Population", ylab="")
+  hist(breaks=20, main="HCl to HCl Sources", xlab="Log Population", ylab="", xlim=c(5, 16))
 population %>% filter(id %in% HCl_to_HCl$destination_id) %>% pull(log_population) %>% 
-  hist(breaks=20, main="Destinations", xlab="Log Population", ylab="")
+  hist(breaks=20, main="Destinations", xlab="Log Population", ylab="", xlim=c(5, 16))
 population %>% filter(!(id %in% c(HCl_to_HCl$source_id, HCl_to_HCl$destination_id))) %>% pull(log_population) %>% 
-  hist(breaks=20, main="Unlabeled", xlab="Log Population", ylab="")
+  hist(breaks=20, main="Unlabeled", xlab="Log Population", ylab="", xlim=c(5, 16))
 par(mfrow=c(1,1))
 
 par(mfrow=c(1,3))
 population %>% filter(id %in% general$source_id) %>% pull(log_population) %>% 
-  hist(breaks=20, main="General Sources", xlab="Log Population", ylab="")
+  hist(breaks=20, main="General Sources", xlab="Log Population", ylab="", xlim=c(5, 16))
 population %>% filter(id %in% general$destination_id) %>% pull(log_population) %>% 
-  hist(breaks=20, main="Destinations", xlab="Log Population", ylab="")
+  hist(breaks=20, main="Destinations", xlab="Log Population", ylab="", xlim=c(5, 16))
 population %>% filter(!(id %in% c(general$source_id, general$destination_id))) %>% pull(log_population) %>% 
-  hist(breaks=20, main="Unlabeled", xlab="Log Population", ylab="")
+  hist(breaks=20, main="Unlabeled", xlab="Log Population", ylab="", xlim=c(5, 16))
 par(mfrow=c(1,1))
 
 population$source_id <- population$id
@@ -306,9 +306,9 @@ general_pop_diff <- general_pop_diff %>%
 general_pop_diff$pop_diff <- general_pop_diff$destination_pop - general_pop_diff$source_pop
 
 par(mfrow=c(1,3))
-hist(base_to_base_pop_diff$pop_diff, breaks=20, main="Base to Base", xlab="Log Population Diff.", ylab="")
-hist(HCl_to_HCl_pop_diff$pop_diff, breaks=20, main="HCl to HCl", xlab="Log Population Diff.", ylab="")
-hist(general_pop_diff$pop_diff, breaks=20, main="General", xlab="Log Population Diff.", ylab="")
+hist(base_to_base_pop_diff$pop_diff, breaks=20, main="Base to Base", xlab="Log Population Diff.", ylab="", xlim=c(-5, 7))
+hist(HCl_to_HCl_pop_diff$pop_diff, breaks=20, main="HCl to HCl", xlab="Log Population Diff.", ylab="", xlim=c(-5, 7))
+hist(general_pop_diff$pop_diff, breaks=20, main="General", xlab="Log Population Diff.", ylab="", xlim=c(-5, 7))
 par(mfrow=c(1,1))
 
   # population map

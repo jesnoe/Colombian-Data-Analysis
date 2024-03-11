@@ -37,6 +37,8 @@ ferry <- transport %>% filter(fclass == "ferry_terminal")
 roads <- st_read("Colombia Data/Shape Data/gis_osm_roads_free_1.shp")
 trunk_roads <- roads %>% filter(fclass == "trunk")
 primary_roads <- roads %>% filter(fclass == "primary")
+secondary_roads <- roads %>% filter(fclass == "secondary")
+tertiary_roads <- roads %>% filter(fclass == "tertiary")
 railways <- st_read("Colombia Data/Shape Data/gis_osm_railways_free_1.shp")
 
 base_to_base <- read.csv("Colombia Data/Anecdotal base to base municipality only.csv") %>% as_tibble
@@ -247,9 +249,15 @@ broad_river_ferry_map <- rivers %>%
              size=0.2)
 # ggsave("Colombia Data/Figs/broad rivers and ports.png", broad_river_ferry_map, scale=1)
 
-trunk_primary <- roads %>% filter(fclass %in% c("primary", "trunk"))
-roads_map <- trunk_primary %>% ggplot() + 
-  geom_sf(aes(color=ifelse(fclass=="primary", "primary", "trunk")), linewidth = 0.3) +
+major_roads <- roads %>% filter(fclass %in% c("trunk", "primary", "secondary", "tertiary"))
+# major_roads <- roads %>% filter(fclass %in% c("trunk", "primary", "secondary"))
+roads_map <- major_roads %>% ggplot() + 
+  geom_sf(aes(color=ifelse(fclass == "trunk", "trunk",
+                           ifelse(fclass == "primary","primary", 
+                                  ifelse(fclass == "secondary", "secondary", "tertiary")
+                                  )
+                           )
+              ), linewidth = 0.3) +
   geom_polygon(data=depto_map_df,
                aes(x=long,
                    y=lat,
@@ -266,7 +274,7 @@ roads_map <- trunk_primary %>% ggplot() +
         axis.text = element_blank(),
         line = element_blank()
   )
-# ggsave("Colombia Data/Figs/roads.png", roads_map, scale=1)
+# ggsave("Colombia Data/Figs/major roads without tertiary.png", roads_map, scale=1)
 
 railways_map <- railways %>% ggplot() + 
   expand_limits(x = map_df$long, y = map_df$lat) + 
