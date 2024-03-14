@@ -37,6 +37,8 @@ ferry <- transport %>% filter(fclass == "ferry_terminal")
 roads <- st_read("Colombia Data/Shape Data/gis_osm_roads_free_1.shp")
 trunk_roads <- roads %>% filter(fclass == "trunk")
 primary_roads <- roads %>% filter(fclass == "primary")
+secondary_roads <- roads %>% filter(fclass == "secondary")
+tertiary_roads <- roads %>% filter(fclass == "tertiary")
 railways <- st_read("Colombia Data/Shape Data/gis_osm_railways_free_1.shp")
 
 base_to_base <- read.csv("Colombia Data/Anecdotal base to base municipality only.csv") %>% as_tibble
@@ -105,7 +107,7 @@ get_river_length <- function(coords) {
 river_length_muni$river_length <- 0
 river_length_muni$n_rivers <- 0
 river_length_muni$n_big_rivers <- 0
-for (i in 1:nrow(river_lenght_muni)) {
+for (i in 1:nrow(river_length_muni)) {
   min_long_i <- river_length_muni$min_long[i]
   max_long_i <- river_length_muni$max_long[i]
   min_lat_i <- river_length_muni$min_lat[i]
@@ -114,7 +116,7 @@ for (i in 1:nrow(river_lenght_muni)) {
   candidates <- rivers %>%
     filter(min_long <= max_long_i & max_long >= min_long_i & min_lat <= max_lat_i & max_lat >= min_lat_i)
   
-  municipio_id_i <- river_lenght_muni$id[i]
+  municipio_id_i <- river_length_muni$id[i]
   municipio_coords_i <- map_df %>% filter(id == municipio_id_i) %>% select(long, lat)
   
   if (nrow(candidates) < 1) next
@@ -407,3 +409,77 @@ HCl_to_HCl_2017_population_map <- population_map +
                            length=unit(0.1, "cm"),
                            type="closed"))
 # ggsave("Colombia Data/Figs/HCl to HCl with population (2017).png", HCl_to_HCl_2017_population_map, scale=2)
+
+## road length per municipio
+road_length_muni <- map_df %>% 
+  group_by(id, municipio, depto) %>% 
+  summarize(min_long=min(long),
+            max_long=max(long),
+            min_lat=min(lat),
+            max_lat=max(lat))
+
+major_roads <- roads %>% filter(fclass %in% c("trunk", "primary", "secondary"))
+major_roads_coords <- st_coordinates(major_roads$geometry) %>% as.data.frame
+major_roads <- cbind(major_roads,
+                     major_roads_coords %>% 
+                       group_by(L1) %>% 
+                       summarise(min_long=min(X),
+                                 max_long=max(X),
+                                 min_lat=min(Y),
+                                 max_lat=max(Y)) %>% 
+                       select(-L1))
+
+get_road_length <- function(coords) {
+  long <- coords$X
+  lat <- coords$Y
+  result <- 0
+  
+  if (nrow(coords) < 2) {
+    return(result)
+  }
+  
+  for (i in 1:(nrow(coords)-1)) {
+    result <- result + sqrt((long[i] - long[i+1])^2 + (lat[i] - lat[i+1])^2)
+  }
+  
+  return(result)
+}
+
+road_length_muni$road_length <- 0
+road_length_muni$n_roads <- 0
+for (i in 1:nrow(road_length_muni)) {
+  min_long_i <- road_length_muni$min_long[i]
+  max_long_i <- road_length_muni$max_long[i]
+  min_lat_i <- road_length_muni$min_lat[i]
+  max_lat_i <- road_length_muni$max_lat[i]
+  
+  candidates <- major_roads %>%
+    filter(min_long <= max_long_i & max_long >= min_long_i & min_lat <= max_lat_i & max_lat >= min_lat_i)
+  
+  municipio_id_i <- road_length_muni$id[i]
+  municipio_coords_i <- map_df %>% filter(id == municipio_id_i) %>% select(long, lat)
+  
+  if (nrow(candidates) < 1) next
+  
+  in_roads_index <- c()
+  road_length_i <- 0
+  for (j in 1:nrow(candidates)) {
+    road_coords_i <- st_coordinates(candidates$geometry[j]) %>% as_tibble
+    in_points_index <- point.in.polygon(road_coords_i$X, road_coords_i$Y, municipio_coords_i$long, municipio_coords_i$lat)
+    
+    if (sum(in_points_index) > 0) {
+      in_roads_index <- c(in_roads_index, j)
+      road_coords_ij <- road_coords_i[which(in_points_index == 1),-3]
+      road_length_i <- road_length_i + get_road_length(road_coords_ij)
+    }
+  }
+  n_roads <- length(in_roads_index)
+  road_length_muni$road_length[i] <- road_length_i
+  road_length_muni$n_roads[i] <- n_roads
+}
+
+road_length_muni %>% filter(n_roads > 0) %>% select(-(min_long:max_lat))
+
+# write.csv(road_length_muni %>% select(-(min_long:max_lat)), "Colombia Data/major roads without tertiary.csv", row.names=F)
+
+road_length_muni <- read.csv("Colombia Data/major roads without tertiary.csv") %>% as_tibble

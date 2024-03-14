@@ -76,6 +76,7 @@ for (year in years[-1]) {
   # coca_seizures <- left_join(municipios_id, coca_seizures, by="id")
 
   river_length_muni <- read.csv("Colombia Data/rivers.csv") %>% as_tibble
+  road_length_muni <- read.csv("Colombia Data/roads without tertiary.csv") %>% as_tibble
   
 population <- read_xlsx("Colombia Data/Census population by municipios (2018).xlsx") %>% 
   filter(!is.na(municipio)) %>% 
@@ -97,14 +98,14 @@ price <- rbind(price_2013_2015, price_2016_2021 %>% select(-seeds, -leaves))
 
 price %>% select(month, year) %>% unique %>% nrow # 86 months (except for 2013 with "Jan to Apr", "May to Aug", "Sep to Dec")
 }
-
+{
 data1 <- left_join(population, river_length_muni %>% select(-municipio, -depto), by="id")
-data1$base_source <- ifelse(data1$id %in% unique(base_to_base$source_id), 1, 0)
-data1$base_destination <- ifelse(data1$id %in% unique(base_to_base$destination_id), 1, 0)
-data1$HCl_source <- ifelse(data1$id %in% unique(HCl_to_HCl$source_id), 1, 0)
-data1$HCl_destination <- ifelse(data1$id %in% unique(HCl_to_HCl$destination_id), 1, 0)
-data1$general_source <- ifelse(data1$id %in% unique(general$source_id), 1, 0)
-data1$general_destination <- ifelse(data1$id %in% unique(general$destination_id), 1, 0)
+data1$base_source <- ifelse(data1$id %in% unique(base_to_base$source_id), 1, 0) %>% as.factor
+data1$base_destination <- ifelse(data1$id %in% unique(base_to_base$destination_id), 1, 0) %>% as.factor
+data1$HCl_source <- ifelse(data1$id %in% unique(HCl_to_HCl$source_id), 1, 0) %>% as.factor
+data1$HCl_destination <- ifelse(data1$id %in% unique(HCl_to_HCl$destination_id), 1, 0) %>% as.factor
+data1$general_source <- ifelse(data1$id %in% unique(general$source_id), 1, 0) %>% as.factor
+data1$general_destination <- ifelse(data1$id %in% unique(general$destination_id), 1, 0) %>% as.factor
 model1_base_source <- glm(base_source~., family="binomial",  data=data1 %>% select(population:n_big_rivers, base_source)); summary(model1_base_source)
 
 base_source_positive_index <- which(data1$base_source == 1)
@@ -119,7 +120,7 @@ general_source_positive_index <- which(data1$general_source == 1)
 general_source_unlabeled_index <- which(data1$general_source == 0)
 general_destination_positive_index <- which(data1$general_destination == 1)
 general_destination_unlabeled_index <- which(data1$general_destination == 0)
-
+}
 sample_positive_unlabeled <- function(positive, unlabeled) {
   positive_samples <- positive[sample(1:nrow(positive), 50),]
   unlabeled_samples <- unlabeled[sample(1:nrow(unlabeled), 50),]
@@ -127,27 +128,50 @@ sample_positive_unlabeled <- function(positive, unlabeled) {
   return(result)
 }
 
+shuffle <- function(positive, unlabeled) {
+  result <- tibble(positive=sample(positive, 50),
+                   unlabeled=sample(unlabeled, 50))
+  return(result)
+}
+
 {
 set.seed(100)
-data1_base_source1 <- sample_positive_unlabeled(data1[base_source_positive_index, ], data1[base_source_unlabeled_index, ])
-data1_base_source2 <- sample_positive_unlabeled(data1[base_source_positive_index, ], data1[base_source_unlabeled_index, ])
-data1_base_source3 <- sample_positive_unlabeled(data1[base_source_positive_index, ], data1[base_source_unlabeled_index, ])
-data1_base_destination1 <- sample_positive_unlabeled(data1[base_destination_positive_index, ], data1[base_destination_unlabeled_index, ])
-data1_base_destination2 <- sample_positive_unlabeled(data1[base_destination_positive_index, ], data1[base_destination_unlabeled_index, ])
-data1_base_destination3 <- sample_positive_unlabeled(data1[base_destination_positive_index, ], data1[base_destination_unlabeled_index, ])
-data1_HCl_source1 <- sample_positive_unlabeled(data1[HCl_source_positive_index, ], data1[HCl_source_unlabeled_index, ])
-data1_HCl_source2 <- sample_positive_unlabeled(data1[HCl_source_positive_index, ], data1[HCl_source_unlabeled_index, ])
-data1_HCl_source3 <- sample_positive_unlabeled(data1[HCl_source_positive_index, ], data1[HCl_source_unlabeled_index, ])
-data1_HCl_destination1 <- sample_positive_unlabeled(data1[HCl_destination_positive_index, ], data1[HCl_destination_unlabeled_index, ])
-data1_HCl_destination2 <- sample_positive_unlabeled(data1[HCl_destination_positive_index, ], data1[HCl_destination_unlabeled_index, ])
-data1_HCl_destination3 <- sample_positive_unlabeled(data1[HCl_destination_positive_index, ], data1[HCl_destination_unlabeled_index, ])
-data1_general_destination1 <- sample_positive_unlabeled(data1[general_destination_positive_index, ], data1[general_destination_unlabeled_index, ])
-data1_general_destination2 <- sample_positive_unlabeled(data1[general_destination_positive_index, ], data1[general_destination_unlabeled_index, ])
-data1_general_destination3 <- sample_positive_unlabeled(data1[general_destination_positive_index, ], data1[general_destination_unlabeled_index, ])
+data1_base_source1_index <- shuffle(base_source_positive_index, base_source_unlabeled_index)
+data1_base_source1 <- data1[c(data1_base_source1_index$positive, data1_base_source1_index$unlabeled), ]
+data1_base_source2_index <- shuffle(base_source_positive_index, base_source_unlabeled_index)
+data1_base_source2 <- data1[c(data1_base_source1_index$positive, data1_base_source1_index$unlabeled), ]
+data1_base_source3_index <- shuffle(base_source_positive_index, base_source_unlabeled_index)
+data1_base_source3 <- data1[c(data1_base_source1_index$positive, data1_base_source1_index$unlabeled), ]
+data1_base_destination1_index <- shuffle(base_destination_positive_index, base_destination_unlabeled_index)
+data1_base_destination1 <- data1[c(data1_base_destination1_index$positive, data1_base_destination1_index$unlabeled), ]
+data1_base_destination2_index <- shuffle(base_destination_positive_index, base_destination_unlabeled_index)
+data1_base_destination2 <- data1[c(data1_base_destination1_index$positive, data1_base_destination1_index$unlabeled), ]
+data1_base_destination3_index <- shuffle(base_destination_positive_index, base_destination_unlabeled_index)
+data1_base_destination3 <- data1[c(data1_base_destination1_index$positive, data1_base_destination1_index$unlabeled), ]
+
+data1_HCl_source1_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index)
+data1_HCl_source1 <- data1[c(data1_HCl_source1_index$positive, data1_HCl_source1_index$unlabeled), ]
+data1_HCl_source2_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index)
+data1_HCl_source2 <- data1[c(data1_HCl_source1_index$positive, data1_HCl_source1_index$unlabeled), ]
+data1_HCl_source3_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index)
+data1_HCl_source3 <- data1[c(data1_HCl_source1_index$positive, data1_HCl_source1_index$unlabeled), ]
+data1_HCl_destination1_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index)
+data1_HCl_destination1 <- data1[c(data1_HCl_destination1_index$positive, data1_HCl_destination1_index$unlabeled), ]
+data1_HCl_destination2_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index)
+data1_HCl_destination2 <- data1[c(data1_HCl_destination1_index$positive, data1_HCl_destination1_index$unlabeled), ]
+data1_HCl_destination3_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index)
+data1_HCl_destination3 <- data1[c(data1_HCl_destination1_index$positive, data1_HCl_destination1_index$unlabeled), ]
+
+data1_general_destination1_index <- shuffle(general_destination_positive_index, general_destination_unlabeled_index)
+data1_general_destination1 <- data1[c(data1_general_destination1_index$positive, data1_general_destination1_index$unlabeled), ]
+data1_general_destination2_index <- shuffle(general_destination_positive_index, general_destination_unlabeled_index)
+data1_general_destination2 <- data1[c(data1_general_destination1_index$positive, data1_general_destination1_index$unlabeled), ]
+data1_general_destination3_index <- shuffle(general_destination_positive_index, general_destination_unlabeled_index)
+data1_general_destination3 <- data1[c(data1_general_destination1_index$positive, data1_general_destination1_index$unlabeled), ]
 }
 
 ## regression with data1 (population and rivers)
-  # base source
+  # base source/destination
 data1_base_source_glm <- glm(base_source~., family="binomial",  data=data1 %>% select(population:n_big_rivers, base_source))
 summary(data1_base_source_glm)
 data1_base_source1_glm <- glm(base_source~., family="binomial",  data=data1_base_source1 %>% select(population:n_big_rivers, base_source))
@@ -166,7 +190,36 @@ summary(data1_base_destination2_glm)
 data1_base_destination3_glm <- glm(base_destination~., family="binomial",  data=data1_base_destination3 %>% select(population:n_big_rivers, base_destination))
 summary(data1_base_destination3_glm)
 
-  # HCl source
+F1_PU <- function(glm_model, test_data, positive) {
+  n_data <- nrow(test_data)
+  positive <- as.numeric(positive)
+  n_positive <- sum(positive, na.rm=T)
+  y_hat <- ifelse(predict(glm_model, test_data) > .5, 1, 0)
+  recall <- sum(positive*y_hat, na.rm=T)/n_positive
+  result <- recall^2/(sum(y_hat/n_data, na.rm=T))
+  return(result)
+}
+test_data_source1 <- data1[c(base_source_positive_index[!(base_source_positive_index %in% data1_base_source1_index$positive)],
+                     sample(base_source_unlabeled_index[!(base_source_unlabeled_index %in% data1_base_source1_index$unlabeled)], 50)), ]
+F1_PU(data1_base_source1_glm, test_data_source1, test_data_source1$base_source)
+test_data_source2 <- data1[c(base_source_positive_index[!(base_source_positive_index %in% data1_base_source2_index$positive)],
+                     sample(base_source_unlabeled_index[!(base_source_unlabeled_index %in% data1_base_source2_index$unlabeled)], 50)), ]
+F1_PU(data1_base_source2_glm, test_data_source2, test_data_source2$base_source)
+test_data_source3 <- data1[c(base_source_positive_index[!(base_source_positive_index %in% data1_base_source3_index$positive)],
+                             sample(base_source_unlabeled_index[!(base_source_unlabeled_index %in% data1_base_source3_index$unlabeled)], 50)), ]
+F1_PU(data1_base_source3_glm, test_data_source3, test_data_source3$base_source)
+
+test_data_destination1 <- data1[c(base_destination_positive_index[!(base_destination_positive_index %in% data1_base_destination1_index$positive)],
+                                  sample(base_destination_unlabeled_index[!(base_destination_unlabeled_index %in% data1_base_destination1_index$unlabeled)], 50)), ]
+F1_PU(data1_base_destination1_glm, test_data_destination1, test_data_destination1$base_destination)
+test_data_destination2 <- data1[c(base_destination_positive_index[!(base_destination_positive_index %in% data1_base_destination2_index$positive)],
+                                  sample(base_destination_unlabeled_index[!(base_destination_unlabeled_index %in% data1_base_destination2_index$unlabeled)], 50)), ]
+F1_PU(data1_base_destination2_glm, test_data_destination2, test_data_destination2$base_destination)
+test_data_destination3 <- data1[c(base_destination_positive_index[!(base_destination_positive_index %in% data1_base_destination3_index$positive)],
+                                  sample(base_destination_unlabeled_index[!(base_destination_unlabeled_index %in% data1_base_destination3_index$unlabeled)], 50)), ]
+F1_PU(data1_base_destination3_glm, test_data_destination3, test_data_destination3$base_destination)
+
+  # HCl source/destination
 data1_HCl_source_glm <- glm(HCl_source~., family="binomial",  data=data1 %>% select(population:n_big_rivers, HCl_source))
 summary(data1_HCl_source_glm)
 data1_HCl_source1_glm <- glm(HCl_source~., family="binomial",  data=data1_HCl_source1 %>% select(population:n_big_rivers, HCl_source))
@@ -185,15 +238,29 @@ summary(data1_HCl_destination2_glm)
 data1_HCl_destination3_glm <- glm(HCl_destination~., family="binomial",  data=data1_HCl_destination3 %>% select(population:n_big_rivers, HCl_destination))
 summary(data1_HCl_destination3_glm)
 
-# general source
+test_data_source1 <- data1[c(HCl_source_positive_index[!(HCl_source_positive_index %in% data1_HCl_source1_index$positive)],
+                             sample(HCl_source_unlabeled_index[!(HCl_source_unlabeled_index %in% data1_HCl_source1_index$unlabeled)], 50)), ]
+F1_PU(data1_HCl_source1_glm, test_data_source1, test_data_source1$HCl_source)
+test_data_source2 <- data1[c(HCl_source_positive_index[!(HCl_source_positive_index %in% data1_HCl_source2_index$positive)],
+                             sample(HCl_source_unlabeled_index[!(HCl_source_unlabeled_index %in% data1_HCl_source2_index$unlabeled)], 50)), ]
+F1_PU(data1_HCl_source2_glm, test_data_source2, test_data_source2$HCl_source)
+test_data_source3 <- data1[c(HCl_source_positive_index[!(HCl_source_positive_index %in% data1_HCl_source3_index$positive)],
+                             sample(HCl_source_unlabeled_index[!(HCl_source_unlabeled_index %in% data1_HCl_source3_index$unlabeled)], 50)), ]
+F1_PU(data1_HCl_source3_glm, test_data_source3, test_data_source3$HCl_source)
+
+test_data_destination1 <- data1[c(HCl_destination_positive_index[!(HCl_destination_positive_index %in% data1_HCl_destination1_index$positive)],
+                                  sample(HCl_destination_unlabeled_index[!(HCl_destination_unlabeled_index %in% data1_HCl_destination1_index$unlabeled)], 50)), ]
+F1_PU(data1_HCl_destination1_glm, test_data_destination1, test_data_destination1$HCl_destination)
+test_data_destination2 <- data1[c(HCl_destination_positive_index[!(HCl_destination_positive_index %in% data1_HCl_destination2_index$positive)],
+                                  sample(HCl_destination_unlabeled_index[!(HCl_destination_unlabeled_index %in% data1_HCl_destination2_index$unlabeled)], 50)), ]
+F1_PU(data1_HCl_destination2_glm, test_data_destination2, test_data_destination2$HCl_destination)
+test_data_destination3 <- data1[c(HCl_destination_positive_index[!(HCl_destination_positive_index %in% data1_HCl_destination3_index$positive)],
+                                  sample(HCl_destination_unlabeled_index[!(HCl_destination_unlabeled_index %in% data1_HCl_destination3_index$unlabeled)], 50)), ]
+F1_PU(data1_HCl_destination3_glm, test_data_destination3, test_data_destination3$HCl_destination)
+
+# general source/destination
 data1_general_source_glm <- glm(general_source~., family="binomial",  data=data1 %>% select(population:n_big_rivers, general_source))
 summary(data1_general_source_glm)
-data1_general_source1_glm <- glm(general_source~., family="binomial",  data=data1_general_source1 %>% select(population:n_big_rivers, general_source))
-summary(data1_general_source1_glm)
-data1_general_source2_glm <- glm(general_source~., family="binomial",  data=data1_general_source2 %>% select(population:n_big_rivers, general_source))
-summary(data1_general_source2_glm)
-data1_general_source3_glm <- glm(general_source~., family="binomial",  data=data1_general_source3 %>% select(population:n_big_rivers, general_source))
-summary(data1_general_source3_glm)
 
 data1_general_destination_glm <- glm(general_destination~., family="binomial",  data=data1 %>% select(population:n_big_rivers, general_destination))
 summary(data1_general_destination_glm)
@@ -204,30 +271,59 @@ summary(data1_general_destination2_glm)
 data1_general_destination3_glm <- glm(general_destination~., family="binomial",  data=data1_general_destination3 %>% select(population:n_big_rivers, general_destination))
 summary(data1_general_destination3_glm)
 
+test_data_destination1 <- data1[c(general_destination_positive_index[!(general_destination_positive_index %in% data1_general_destination1_index$positive)],
+                                  sample(general_destination_unlabeled_index[!(general_destination_unlabeled_index %in% data1_general_destination1_index$unlabeled)], 50)), ]
+F1_PU(data1_general_destination1_glm, test_data_destination1, test_data_destination1$general_destination)
+test_data_destination2 <- data1[c(general_destination_positive_index[!(general_destination_positive_index %in% data1_general_destination2_index$positive)],
+                                  sample(general_destination_unlabeled_index[!(general_destination_unlabeled_index %in% data1_general_destination2_index$unlabeled)], 50)), ]
+F1_PU(data1_general_destination2_glm, test_data_destination2, test_data_destination2$general_destination)
+test_data_destination3 <- data1[c(general_destination_positive_index[!(general_destination_positive_index %in% data1_general_destination3_index$positive)],
+                                  sample(general_destination_unlabeled_index[!(general_destination_unlabeled_index %in% data1_general_destination3_index$unlabeled)], 50)), ]
+F1_PU(data1_general_destination3_glm, test_data_destination3, test_data_destination3$general_destination)
+
+
 ## regression with data2 (data1 + cultivation, 1999~2016)
 data2 <- left_join(data1, cultivation %>% select(id, X1999:X2016), by="id")
 
 {
 set.seed(5478)
-data2_base_source1 <- sample_positive_unlabeled(data2[base_source_positive_index, ], data2[base_source_unlabeled_index, ])
-data2_base_source2 <- sample_positive_unlabeled(data2[base_source_positive_index, ], data2[base_source_unlabeled_index, ])
-data2_base_source3 <- sample_positive_unlabeled(data2[base_source_positive_index, ], data2[base_source_unlabeled_index, ])
-data2_base_destination1 <- sample_positive_unlabeled(data2[base_destination_positive_index, ], data2[base_destination_unlabeled_index, ])
-data2_base_destination2 <- sample_positive_unlabeled(data2[base_destination_positive_index, ], data2[base_destination_unlabeled_index, ])
-data2_base_destination3 <- sample_positive_unlabeled(data2[base_destination_positive_index, ], data2[base_destination_unlabeled_index, ])
-data2_HCl_source1 <- sample_positive_unlabeled(data2[HCl_source_positive_index, ], data2[HCl_source_unlabeled_index, ])
-data2_HCl_source2 <- sample_positive_unlabeled(data2[HCl_source_positive_index, ], data2[HCl_source_unlabeled_index, ])
-data2_HCl_source3 <- sample_positive_unlabeled(data2[HCl_source_positive_index, ], data2[HCl_source_unlabeled_index, ])
-data2_HCl_destination1 <- sample_positive_unlabeled(data2[HCl_destination_positive_index, ], data2[HCl_destination_unlabeled_index, ])
-data2_HCl_destination2 <- sample_positive_unlabeled(data2[HCl_destination_positive_index, ], data2[HCl_destination_unlabeled_index, ])
-data2_HCl_destination3 <- sample_positive_unlabeled(data2[HCl_destination_positive_index, ], data2[HCl_destination_unlabeled_index, ])
-data2_general_destination1 <- sample_positive_unlabeled(data2[general_destination_positive_index, ], data2[general_destination_unlabeled_index, ])
-data2_general_destination2 <- sample_positive_unlabeled(data2[general_destination_positive_index, ], data2[general_destination_unlabeled_index, ])
-data2_general_destination3 <- sample_positive_unlabeled(data2[general_destination_positive_index, ], data2[general_destination_unlabeled_index, ])
+data2_base_source1_index <- shuffle(base_source_positive_index, base_source_unlabeled_index)
+data2_base_source1 <- data2[c(data2_base_source1_index$positive, data2_base_source1_index$unlabeled), ]
+data2_base_source2_index <- shuffle(base_source_positive_index, base_source_unlabeled_index)
+data2_base_source2 <- data2[c(data2_base_source1_index$positive, data2_base_source1_index$unlabeled), ]
+data2_base_source3_index <- shuffle(base_source_positive_index, base_source_unlabeled_index)
+data2_base_source3 <- data2[c(data2_base_source1_index$positive, data2_base_source1_index$unlabeled), ]
+data2_base_destination1_index <- shuffle(base_destination_positive_index, base_destination_unlabeled_index)
+data2_base_destination1 <- data2[c(data2_base_destination1_index$positive, data2_base_destination1_index$unlabeled), ]
+data2_base_destination2_index <- shuffle(base_destination_positive_index, base_destination_unlabeled_index)
+data2_base_destination2 <- data2[c(data2_base_destination1_index$positive, data2_base_destination1_index$unlabeled), ]
+data2_base_destination3_index <- shuffle(base_destination_positive_index, base_destination_unlabeled_index)
+data2_base_destination3 <- data2[c(data2_base_destination1_index$positive, data2_base_destination1_index$unlabeled), ]
+
+data2_HCl_source1_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index)
+data2_HCl_source1 <- data2[c(data2_HCl_source1_index$positive, data2_HCl_source1_index$unlabeled), ]
+data2_HCl_source2_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index)
+data2_HCl_source2 <- data2[c(data2_HCl_source1_index$positive, data2_HCl_source1_index$unlabeled), ]
+data2_HCl_source3_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index)
+data2_HCl_source3 <- data2[c(data2_HCl_source1_index$positive, data2_HCl_source1_index$unlabeled), ]
+data2_HCl_destination1_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index)
+data2_HCl_destination1 <- data2[c(data2_HCl_destination1_index$positive, data2_HCl_destination1_index$unlabeled), ]
+data2_HCl_destination2_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index)
+data2_HCl_destination2 <- data2[c(data2_HCl_destination1_index$positive, data2_HCl_destination1_index$unlabeled), ]
+data2_HCl_destination3_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index)
+data2_HCl_destination3 <- data2[c(data2_HCl_destination1_index$positive, data2_HCl_destination1_index$unlabeled), ]
+
+data2_general_destination1_index <- shuffle(general_destination_positive_index, general_destination_unlabeled_index)
+data2_general_destination1 <- data2[c(data2_general_destination1_index$positive, data2_general_destination1_index$unlabeled), ]
+data2_general_destination2_index <- shuffle(general_destination_positive_index, general_destination_unlabeled_index)
+data2_general_destination2 <- data2[c(data2_general_destination1_index$positive, data2_general_destination1_index$unlabeled), ]
+data2_general_destination3_index <- shuffle(general_destination_positive_index, general_destination_unlabeled_index)
+data2_general_destination3 <- data2[c(data2_general_destination1_index$positive, data2_general_destination1_index$unlabeled), ]
 }
 
 na.omit(data2) # only 67 rows out of 1122 have no missing cultivation
 na.omit(data2_base_source1)
+
   # base source
 data2_base_source_glm <- glm(base_source~., family="binomial",  data=data2 %>% select(population:n_big_rivers, base_source, X1999:X2016))
 summary(data2_base_source_glm)
@@ -246,6 +342,26 @@ data2_base_destination2_glm <- glm(base_destination~., family="binomial",  data=
 summary(data2_base_destination2_glm)
 data2_base_destination3_glm <- glm(base_destination~., family="binomial",  data=data2_base_destination3 %>% select(population:n_big_rivers, base_destination, X1999:X2016))
 summary(data2_base_destination3_glm)
+
+test_data_source1 <- data2[c(base_source_positive_index[!(base_source_positive_index %in% data2_base_source1_index$positive)],
+                             sample(base_source_unlabeled_index[!(base_source_unlabeled_index %in% data2_base_source1_index$unlabeled)], 50)), ]
+F1_PU(data2_base_source1_glm, test_data_source1, test_data_source1$base_source)
+test_data_source2 <- data2[c(base_source_positive_index[!(base_source_positive_index %in% data2_base_source2_index$positive)],
+                             sample(base_source_unlabeled_index[!(base_source_unlabeled_index %in% data2_base_source2_index$unlabeled)], 50)), ]
+F1_PU(data2_base_source2_glm, test_data_source2, test_data_source2$base_source)
+test_data_source3 <- data2[c(base_source_positive_index[!(base_source_positive_index %in% data2_base_source3_index$positive)],
+                             sample(base_source_unlabeled_index[!(base_source_unlabeled_index %in% data2_base_source3_index$unlabeled)], 50)), ]
+F1_PU(data2_base_source3_glm, test_data_source3, test_data_source3$base_source)
+
+test_data_destination1 <- data2[c(base_destination_positive_index[!(base_destination_positive_index %in% data2_base_destination1_index$positive)],
+                                  sample(base_destination_unlabeled_index[!(base_destination_unlabeled_index %in% data2_base_destination1_index$unlabeled)], 50)), ]
+F1_PU(data2_base_destination1_glm, test_data_destination1, test_data_destination1$base_destination)
+test_data_destination2 <- data2[c(base_destination_positive_index[!(base_destination_positive_index %in% data2_base_destination2_index$positive)],
+                                  sample(base_destination_unlabeled_index[!(base_destination_unlabeled_index %in% data2_base_destination2_index$unlabeled)], 50)), ]
+F1_PU(data2_base_destination2_glm, test_data_destination2, test_data_destination2$base_destination)
+test_data_destination3 <- data2[c(base_destination_positive_index[!(base_destination_positive_index %in% data2_base_destination3_index$positive)],
+                                  sample(base_destination_unlabeled_index[!(base_destination_unlabeled_index %in% data2_base_destination3_index$unlabeled)], 50)), ]
+F1_PU(data2_base_destination3_glm, test_data_destination3, test_data_destination3$base_destination)
 
   # HCl source
 data2_HCl_source_glm <- glm(HCl_source~., family="binomial",  data=data2 %>% select(population:n_big_rivers, HCl_source, X1999:X2016))
