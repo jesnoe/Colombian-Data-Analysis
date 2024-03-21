@@ -283,7 +283,15 @@ F1_PU(data1_general_destination3_glm, test_data_destination3, test_data_destinat
 
 
 ## regression with data2 (data1 + cultivation, 1999~2016)
-data2 <- left_join(data1, cultivation %>% select(id, X1999:X2016), by="id")
+labs_PPI$lab_PPI_exist <- apply(labs_PPI, 1, function(x) return(sum(!is.na(x[5:30]))>0))
+labs_HCl$lab_HCl_exist <- apply(labs_HCl, 1, function(x) return(sum(!is.na(x[5:30]))>0))
+coca_seizures$coca_seizures <- apply(coca_seizures, 1, function(x) return(sum(!is.na(x[5:28]))>0))
+data2 <- left_join(data1, labs_PPI %>% select(id, lab_PPI_exist), by="id") %>% 
+  left_join(labs_HCl %>% select(id, lab_HCl_exist), by="id") %>% 
+  left_join(coca_seizures %>% select(id, coca_seizures), by="id")
+data2$lab_PPI_exist <- ifelse(is.na(data2$lab_PPI_exist), F, T)
+data2$lab_HCl_exist <- ifelse(is.na(data2$lab_HCl_exist), F, T)
+data2$coca_seizures <- ifelse(is.na(data2$coca_seizures), F, T)
 
 {
 set.seed(5478)
@@ -321,26 +329,32 @@ data2_general_destination3_index <- shuffle(general_destination_positive_index, 
 data2_general_destination3 <- data2[c(data2_general_destination1_index$positive, data2_general_destination1_index$unlabeled), ]
 }
 
-na.omit(data2) # only 67 rows out of 1122 have no missing cultivation
-na.omit(data2_base_source1)
 
   # base source
-data2_base_source_glm <- glm(base_source~., family="binomial",  data=data2 %>% select(population:n_big_rivers, base_source, X1999:X2016))
+data2_base_source_glm <- glm(base_source~., family="binomial",  data=data2 %>%
+                               select(population:n_big_rivers, base_source, lab_PPI_exist, lab_HCl_exist, coca_seizures))
 summary(data2_base_source_glm)
-data2_base_source1_glm <- glm(base_source~., family="binomial",  data=data2_base_source1 %>% select(population:n_big_rivers, base_source, X1999:X2016))
+data2_base_source1_glm <- glm(base_source~., family="binomial",  data=data2_base_source1 %>% 
+                                select(population:n_big_rivers, base_source, lab_PPI_exist, lab_HCl_exist, coca_seizures))
 summary(data2_base_source1_glm)
-data2_base_source2_glm <- glm(base_source~., family="binomial",  data=data2_base_source2 %>% select(population:n_big_rivers, base_source, X1999:X2016))
+data2_base_source2_glm <- glm(base_source~., family="binomial",  data=data2_base_source2 %>%
+                                select(population:n_big_rivers, base_source, lab_PPI_exist, lab_HCl_exist, coca_seizures))
 summary(data2_base_source2_glm)
-data2_base_source3_glm <- glm(base_source~., family="binomial",  data=data2_base_source3 %>% select(population:n_big_rivers, base_source, X1999:X2016))
+data2_base_source3_glm <- glm(base_source~., family="binomial",  data=data2_base_source3 %>% 
+                                select(population:n_big_rivers, base_source, lab_PPI_exist, lab_HCl_exist, coca_seizures))
 summary(data2_base_source3_glm)
 
-data2_base_destination_glm <- glm(base_destination~., family="binomial",  data=data2 %>% select(population:n_big_rivers, base_destination, X1999:X2016))
+data2_base_destination_glm <- glm(base_destination~., family="binomial",  data=data2 %>%
+                                    select(population:n_big_rivers, base_destination, lab_PPI_exist, lab_HCl_exist, coca_seizures))
 summary(data2_base_destination_glm)
-data2_base_destination1_glm <- glm(base_destination~., family="binomial",  data=data2_base_destination1 %>% select(population:n_big_rivers, base_destination, X1999:X2016))
+data2_base_destination1_glm <- glm(base_destination~., family="binomial",  data=data2_base_destination1 %>%
+                                     select(population:n_big_rivers, base_destination, lab_PPI_exist, lab_HCl_exist, coca_seizures))
 summary(data2_base_destination1_glm)
-data2_base_destination2_glm <- glm(base_destination~., family="binomial",  data=data2_base_destination2 %>% select(population:n_big_rivers, base_destination, X1999:X2016))
+data2_base_destination2_glm <- glm(base_destination~., family="binomial",  data=data2_base_destination2 %>% 
+                                     select(population:n_big_rivers, base_destination, lab_PPI_exist, lab_HCl_exist, coca_seizures))
 summary(data2_base_destination2_glm)
-data2_base_destination3_glm <- glm(base_destination~., family="binomial",  data=data2_base_destination3 %>% select(population:n_big_rivers, base_destination, X1999:X2016))
+data2_base_destination3_glm <- glm(base_destination~., family="binomial",  data=data2_base_destination3 %>% 
+                                     select(population:n_big_rivers, base_destination, lab_PPI_exist, lab_HCl_exist, coca_seizures))
 summary(data2_base_destination3_glm)
 
 test_data_source1 <- data2[c(base_source_positive_index[!(base_source_positive_index %in% data2_base_source1_index$positive)],
