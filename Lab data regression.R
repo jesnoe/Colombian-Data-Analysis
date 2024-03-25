@@ -22,6 +22,7 @@ library(caret)
   municipios_capital$depto <- gsub("Bogota, D. C.", "Bogota", municipios_capital$depto)
   municipios_capital$municipio <- gsub(", D.C.", "", municipios_capital$municipio)
   municipios_capital$municipio <- gsub("GUADALAJARA DE BUGA", "BUGA", municipios_capital$municipio)
+  municipios_capital <- municipios_capital %>% filter(!(id %in% c(88001, 88564))) %>% as_tibble
   map <- municipios
   map_df <- suppressMessages(fortify(map)) %>% 
     mutate(id=as.numeric(id))
@@ -30,24 +31,42 @@ library(caret)
   population <- read.csv("Colombia Data/Census population by municipios (2018).csv") %>% as_tibble
   population$log_population <- log(population$population)
   
-  armed_groups_combined <- list()
-  years <- (2008:2016)[-c(2,8)]
+  armed_groups <- list()
+  years <- (2008:2020)[-c(2,8,12)]
   for (year in years) {
-    armed_groups_combined_year <- read.csv(paste("Colombia Data/Armed Groups (Combined)/Colombia-Armed groups-Paramilitar", year ,"(combined).csv")) %>%
-      as_tibble
-    armed_groups_combined[[paste0("y", year)]] <- armed_groups_combined_year
+    armed_groups_year <- read_xlsx(paste0("Colombia Data/Colombia-Armed groups-Paramilitar ", year ,".xlsx")) %>% 
+      filter(!grepl("Archipiélago", DEPARTAMENTO)) %>% 
+      rename(municipio=MUNICIPIO, depto=DEPARTAMENTO) %>% 
+      mutate(municipio=str_to_upper(stri_trans_general(municipio, "Latin-ASCII"))) %>% 
+      filter(municipio != "RIO ORO") %>% 
+      select(-Pais, -REGION)
+    
+    armed_groups_year$municipio <- gsub("BELEN DE BAJIRA", "RIOSUCIO", armed_groups_year$municipio)
+    RIOSUCIO_index <- which(armed_groups_year$municipio == "RIOSUCIO" & armed_groups_year$depto == "Choco")
+    colsum_row <- c(as.vector(armed_groups_year[RIOSUCIO_index[2], 1:2]) %>% unlist, colSums(armed_groups_year[RIOSUCIO_index, -(1:2)], na.rm=T))
+    for (i in 3:ncol(armed_groups_year)) {
+      if (colsum_row[i] != "0") {
+        armed_groups_year[RIOSUCIO_index[2], i] <- as.numeric(colsum_row[i])
+      }
+    }
+    armed_groups_year <- armed_groups_year[-RIOSUCIO_index[1],]
+    
+    armed_groups_year$n_armed_groups <- apply(armed_groups_year, 1, function(x) sum(!is.na(x[3:ncol(armed_groups_year)])))
+    armed_groups_year <- armed_groups_year %>% 
+      left_join(municipios_capital %>% select(-id_depto), by=c("municipio", "depto")) %>% 
+      relocate(id, municipio, depto, n_armed_groups)
+    armed_groups[[paste0("y", year)]] <- armed_groups_year
   }
-  armed_groups_combined$y2008
+  armed_groups$y2008
   
-  n_armed_groups <- armed_groups_combined$y2008 %>% select(id, n_armed_groups) %>% rename(X2008=n_armed_groups)
+  n_armed_groups <- armed_groups$y2008 %>% select(id, n_armed_groups) %>% rename(X2008=n_armed_groups)
   for (year in years[-1]) {
-    n_armed_groups <- full_join(n_armed_groups, armed_groups_combined[[paste0("y", year)]] %>% select(id, n_armed_groups), by="id")
+    n_armed_groups <- full_join(n_armed_groups, armed_groups[[paste0("y", year)]] %>% select(id, n_armed_groups), by="id")
     names(n_armed_groups)[ncol(n_armed_groups)] <- paste0("X", year)
   }
   n_armed_groups_long <- n_armed_groups %>% 
     pivot_longer(-id, names_to="year", values_to="n_armed_groups") %>% 
-    mutate(year=substr(year,2,5) %>% as.integer) %>% 
-    filter(!is.na(n_armed_groups))
+    mutate(year=substr(year,2,5) %>% as.integer)
   
   cultivation <- read.csv("Colombia Data/Colombia Coca Cultivation 1999-2016 renamed (Ha).csv") %>% as_tibble
   cultivation <- cultivation %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
@@ -122,7 +141,31 @@ library(caret)
 }
 
 ## price correlation
-
+price_annual <- price %>% 
+  group_by(id, year) %>% 
+  summarise(paste_avg=mean(paste_avg, na.rm=T),
+            paste_wholesale=mean(paste_wholesale, na.rm=T),
+            paste_retail=mean(paste_retail, na.rm=T),
+            base_avg=mean(base_avg, na.rm=T),
+            base_wholesale=mean(base_wholesale, na.rm=T),
+            base_retail=mean(base_retail, na.rm=T),
+            hyd_avg=mean(hyd_avg, na.rm=T),
+            hyd_wholesale=mean(hyd_wholesale, na.rm=T),
+            hyd_retail=mean(hyd_retail, na.rm=T)
+            ) %>% 
+  mutate(paste_avg=ifelse(is.nan(paste_avg), NA, paste_avg),
+         paste_wholesale=ifelse(is.nan(paste_wholesale), NA, paste_wholesale),
+         paste_retail=ifelse(is.nan(paste_retail), NA, paste_retail),
+         base_avg=ifelse(is.nan(base_avg), NA, base_avg),
+         base_wholesale=ifelse(is.nan(base_wholesale), NA, base_wholesale),
+         base_retail=ifelse(is.nan(base_retail), NA, base_retail),
+         hyd_avg=ifelse(is.nan(hyd_avg), NA, hyd_avg),
+         hyd_wholesale=ifelse(is.nan(hyd_wholesale), NA, hyd_wholesale),
+         hyd_retail=ifelse(is.nan(hyd_retail), NA, hyd_retail),
+         ) %>% 
+  filter(!is.na(id))
+price_annual
+  
 ## regression
 {
 municipio_centroid <- map_df %>% 
@@ -171,6 +214,67 @@ for (i in no_coca_index) { # the closest distance to a coca cultivated municipio
   labs_PPI_reg_data$coca_distance[i] <- distance_i
 }
 labs_PPI_reg_data$coca_distance <- ifelse(is.infinite(labs_PPI_reg_data$coca_distance), NA, labs_PPI_reg_data$coca_distance)
+labs_PPI_reg_data <- labs_PPI_reg_data %>% filter(!is.na(year))
+
+labs_PPI_reg_data <- labs_PPI_reg_data %>% 
+  left_join(price_annual %>% select(id, year, paste_avg, base_avg, hyd_avg), by=c("id", "year"))
+labs_PPI_reg_data$paste_price_distance <- 0
+no_paste_index <- which(is.na(labs_PPI_reg_data$paste_avg))
+no_paste_index <- no_paste_index[which(labs_PPI_reg_data$year[no_paste_index]>2012 & labs_PPI_reg_data$year[no_paste_index]<2022)]
+
+for (i in no_paste_index) { # the closest distance to a municipio with paste price observation from municipios and years without price
+  id_i <- labs_PPI_reg_data$id[i]
+  year_i <- labs_PPI_reg_data$year[i]
+  municipio_index <- which(municipio_centroid$id == id_i)
+  long_i <- municipio_centroid$long[municipio_index]
+  lat_i <- municipio_centroid$lat[municipio_index]
+  neighbors_id_price <- price_annual %>% filter(year == year_i & !is.na(paste_avg)) %>% select(id, paste_avg)
+  neighbors_id_price <- neighbors_id_price %>% left_join(municipio_centroid, by="id")
+  neighbors_distances <- sqrt((long_i - neighbors_id_price$long)^2 + (lat_i - neighbors_id_price$lat)^2)
+  distance_i <- min(neighbors_distances)
+  
+  labs_PPI_reg_data$paste_price_distance[i] <- distance_i
+  labs_PPI_reg_data$paste_avg[i] <- neighbors_id_price$paste_avg[which.min(neighbors_distances)]
+}
+
+labs_PPI_reg_data$base_price_distance <- 0
+no_base_index <- which(is.na(labs_PPI_reg_data$base_avg))
+no_base_index <- no_base_index[which(labs_PPI_reg_data$year[no_base_index]>2012 & labs_PPI_reg_data$year[no_base_index]<2022)]
+
+for (i in no_base_index) { # the closest distance to a municipio with base price observation from municipios and years without price
+  id_i <- labs_PPI_reg_data$id[i]
+  year_i <- labs_PPI_reg_data$year[i]
+  municipio_index <- which(municipio_centroid$id == id_i)
+  long_i <- municipio_centroid$long[municipio_index]
+  lat_i <- municipio_centroid$lat[municipio_index]
+  neighbors_id_price <- price_annual %>% filter(year == year_i & !is.na(base_avg)) %>% select(id, base_avg)
+  neighbors_id_price <- neighbors_id_price %>% left_join(municipio_centroid, by="id")
+  neighbors_distances <- sqrt((long_i - neighbors_id_price$long)^2 + (lat_i - neighbors_id_price$lat)^2)
+  distance_i <- min(neighbors_distances)
+  
+  labs_PPI_reg_data$base_price_distance[i] <- distance_i
+  labs_PPI_reg_data$base_avg[i] <- neighbors_id_price$base_avg[which.min(neighbors_distances)]
+}
+
+labs_PPI_reg_data$hyd_price_distance <- 0
+no_hyd_index <- which(is.na(labs_PPI_reg_data$hyd_avg))
+no_hyd_index <- no_hyd_index[which(labs_PPI_reg_data$year[no_hyd_index]>2012 & labs_PPI_reg_data$year[no_hyd_index]<2022)]
+
+for (i in no_hyd_index) { # the closest distance to a municipio with hyd price observation from municipios and years without price
+  id_i <- labs_PPI_reg_data$id[i]
+  year_i <- labs_PPI_reg_data$year[i]
+  municipio_index <- which(municipio_centroid$id == id_i)
+  long_i <- municipio_centroid$long[municipio_index]
+  lat_i <- municipio_centroid$lat[municipio_index]
+  neighbors_id_price <- price_annual %>% filter(year == year_i & !is.na(hyd_avg)) %>% select(id, hyd_avg)
+  neighbors_id_price <- neighbors_id_price %>% left_join(municipio_centroid, by="id")
+  neighbors_distances <- sqrt((long_i - neighbors_id_price$long)^2 + (lat_i - neighbors_id_price$lat)^2)
+  distance_i <- min(neighbors_distances)
+  
+  labs_PPI_reg_data$hyd_price_distance[i] <- distance_i
+  labs_PPI_reg_data$hyd_avg[i] <- neighbors_id_price$hyd_avg[which.min(neighbors_distances)]
+}
+labs_PPI_reg_data %>% filter(year > 2012) %>% view
 
 labs_PPI_reg_data <- labs_PPI_reg_data %>% 
   full_join(river_length_muni %>% select(-municipio, -depto), by="id") %>%
@@ -208,8 +312,10 @@ labs_HCl_reg_data <- labs_HCl_reg_data %>%
   left_join(coca_seizures_long %>% select(id, year, coca_seizures), by=c("id", "year")) %>%
   left_join(base_seizures_long %>% select(id, year, base_seizures), by=c("id", "year")) %>% 
   left_join(HCl_seizures_long %>% select(id, year, HCl_seizures), by=c("id", "year"))
-}
+
 labs_HCl_reg_data$coca_distance <- ifelse(is.infinite(labs_HCl_reg_data$coca_distance), NA, labs_HCl_reg_data$coca_distance)
+labs_HCl_reg_data <- labs_HCl_reg_data %>% filter(!is.na(year))
+}
 
 labs_PPI_pois_2010 <- glm(n_labs~., data=labs_PPI_reg_data %>%
                             filter(year == 2010) %>%
@@ -551,3 +657,45 @@ labs_HCl_cor_seizures[-(1:2),] %>%
   ggplot() + ggtitle("Correlation Between # of HCl Labs and Seizures") + ylim(-0.3, 1) +
   geom_point(aes(x=year, y=correlation, color=cocaine_type)) +
   geom_line(aes(x=year, y=correlation, color=cocaine_type))
+
+
+pois_data <- labs_PPI_reg_data %>%
+  filter(year == 2014) %>%
+  select(n_labs, coca_distance:hyd_price_distance, river_length, road_length, n_armed_groups:HCl_seizures) %>% 
+  mutate(n_labs=ifelse(is.na(n_labs), 0, n_labs),
+         erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
+         erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
+         n_armed_groups=ifelse(is.na(n_armed_groups), 0, n_armed_groups),
+         coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
+         base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
+         HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures))
+pois_data %>% summary
+
+pois_data <- labs_PPI_reg_data %>%
+  filter(year == 2014) %>%
+  select(n_labs, coca_distance, base_avg, base_price_distance, river_length, road_length, n_armed_groups:HCl_seizures) %>% 
+  mutate(n_labs=ifelse(is.na(n_labs), 0, n_labs),
+         erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
+         erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
+         n_armed_groups=ifelse(is.na(n_armed_groups), 0, n_armed_groups),
+         coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
+         base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
+         HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures))
+
+glm(n_labs~., data=pois_data,
+    family="poisson") %>% 
+  summary
+
+
+glm(n_labs~., data=labs_PPI_reg_data %>%
+      filter(year == 2014) %>%
+      select(n_labs, coca_distance:hyd_price_distance, river_length, road_length, n_armed_groups:HCl_seizures) %>% 
+      mutate(n_labs=ifelse(is.na(n_labs), 0, 1),
+             erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
+             erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
+             n_armed_groups=ifelse(is.na(n_armed_groups), 0, n_armed_groups),
+             coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
+             base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
+             HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures)),
+    family="binomial") %>% 
+  summary

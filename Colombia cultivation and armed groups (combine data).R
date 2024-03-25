@@ -29,6 +29,9 @@ armed_groups$y2012 <- read_xlsx("Colombia Data/Colombia-Armed groups-Paramilitar
 armed_groups$y2013 <- read_xlsx("Colombia Data/Colombia-Armed groups-Paramilitar 2013.xlsx") %>% filter(Pais == "Colombia") %>% select(-Pais)
 armed_groups$y2014 <- read_xlsx("Colombia Data/Colombia-Armed groups-Paramilitar 2014.xlsx") %>% filter(Pais == "Colombia") %>% select(-Pais)
 armed_groups$y2016 <- read_xlsx("Colombia Data/Colombia-Armed groups-Paramilitar 2016.xlsx") %>% filter(Pais == "Colombia") %>% select(-Pais)
+armed_groups$y2017 <- read_xlsx("Colombia Data/Colombia-Armed groups-Paramilitar 2017.xlsx") %>% filter(Pais == "Colombia") %>% select(-Pais)
+armed_groups$y2018 <- read_xlsx("Colombia Data/Colombia-Armed groups-Paramilitar 2018.xlsx") %>% filter(Pais == "Colombia") %>% select(-Pais)
+armed_groups$y2020 <- read_xlsx("Colombia Data/Colombia-Armed groups-Paramilitar 2020.xlsx") %>% filter(Pais == "Colombia") %>% select(-Pais)
 
 # 
 # cultivation$DEPARTAMENTO <- str_to_title(cultivation$DEPARTAMENTO, locale="sp")
@@ -69,20 +72,20 @@ armed_groups$y2016 <- read_xlsx("Colombia Data/Colombia-Armed groups-Paramilitar
 # cultivation_longer$cultivation %>% summary
 # 
 # armed_groups_regions <- armed_groups$y2008 %>% select(DEPARTAMENTO, MUNICIPIO) %>% unique %>% arrange(DEPARTAMENTO, MUNICIPIO)
-# for (i in 2:7) {
-#   armed_groups_regions <- rbind(armed_groups_regions, armed_groups[[i]] %>% select(DEPARTAMENTO, MUNICIPIO) %>% unique %>% arrange(DEPARTAMENTO, MUNICIPIO)) %>% 
+# for (i in 2:10) {
+#   armed_groups_regions <- rbind(armed_groups_regions, armed_groups[[i]] %>% select(DEPARTAMENTO, MUNICIPIO) %>% unique %>% arrange(DEPARTAMENTO, MUNICIPIO)) %>%
 #     unique %>% arrange(DEPARTAMENTO, MUNICIPIO)
 # }
-# cultivation %>% 
-#   filter(!(MUNICIPIO %in% armed_groups_regions$MUNICIPIO)) %>% 
+# cultivation %>%
+#   filter(!(MUNICIPIO %in% armed_groups_regions$MUNICIPIO)) %>%
 #   select(DEPARTAMENTO, MUNICIPIO) %>%
 #   arrange(DEPARTAMENTO, MUNICIPIO)
-# labs_HCl %>% 
-#   filter(!(MUNICIPIO %in% armed_groups_regions$MUNICIPIO)) %>% 
+# labs_HCl %>%
+#   filter(!(MUNICIPIO %in% armed_groups_regions$MUNICIPIO)) %>%
 #   select(DEPARTAMENTO, MUNICIPIO) %>%
 #   arrange(DEPARTAMENTO, MUNICIPIO)
-# labs_PPI %>% 
-#   filter(!(MUNICIPIO %in% armed_groups_regions$MUNICIPIO)) %>% 
+# labs_PPI %>%
+#   filter(!(MUNICIPIO %in% armed_groups_regions$MUNICIPIO)) %>%
 #   select(DEPARTAMENTO, MUNICIPIO) %>%
 #   arrange(DEPARTAMENTO, MUNICIPIO)
 

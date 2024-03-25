@@ -21,9 +21,11 @@ library(sp)
   municipios_capital$depto <- gsub("Bogota, D. C.", "Bogota", municipios_capital$depto)
   municipios_capital$municipio <- gsub(", D.C.", "", municipios_capital$municipio)
   municipios_capital$municipio <- gsub("GUADALAJARA DE BUGA", "BUGA", municipios_capital$municipio)
+  municipios_capital <- municipios_capital %>% filter(!(id %in% c(88001, 88564))) %>% as_tibble
   map <- municipios
   map_df <- suppressMessages(fortify(map)) %>% 
-    mutate(id=as.numeric(id))
+    mutate(id=as.numeric(id)) %>%
+    filter(!(id %in% c(88001, 88564)))
   map_df <- left_join(map_df, municipios_capital %>% select(id, municipio, depto) %>% unique, by="id")
 
 
