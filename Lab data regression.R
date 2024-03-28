@@ -55,6 +55,9 @@ library(caret)
     armed_groups_year <- armed_groups_year %>% 
       left_join(municipios_capital %>% select(-id_depto), by=c("municipio", "depto")) %>% 
       relocate(id, municipio, depto, n_armed_groups)
+    names(armed_groups_year) <- gsub("\r", " ", names(armed_groups_year), fixed=T)
+    names(armed_groups_year) <- gsub("\n", "", names(armed_groups_year), fixed=T)
+    names(armed_groups_year) <- gsub("/", "", names(armed_groups_year))
     armed_groups[[paste0("y", year)]] <- armed_groups_year
   }
   armed_groups$y2008
@@ -274,7 +277,6 @@ for (i in no_hyd_index) { # the closest distance to a municipio with hyd price o
   labs_PPI_reg_data$hyd_price_distance[i] <- distance_i
   labs_PPI_reg_data$hyd_avg[i] <- neighbors_id_price$hyd_avg[which.min(neighbors_distances)]
 }
-labs_PPI_reg_data %>% filter(year > 2012) %>% view
 
 labs_PPI_reg_data <- labs_PPI_reg_data %>% 
   full_join(river_length_muni %>% select(-municipio, -depto), by="id") %>%
@@ -618,6 +620,56 @@ labs_PPI_cor_seizures[-(1:2),] %>%
   geom_point(aes(x=year, y=correlation, color=cocaine_type)) +
   geom_line(aes(x=year, y=correlation, color=cocaine_type))
   
+  # PPI price
+pois_data <- labs_PPI_reg_data %>%
+  filter(year == 2014) %>%
+  select(n_labs, coca_distance:hyd_price_distance, base_price_distance, river_length, road_length, n_armed_groups:HCl_seizures) %>% 
+  mutate(n_labs=ifelse(is.na(n_labs), 0, n_labs),
+         erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
+         erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
+         n_armed_groups=ifelse(is.na(n_armed_groups), 0, n_armed_groups),
+         coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
+         base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
+         HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures))
+
+glm(n_labs~., data=pois_data,
+    family="poisson") %>% 
+  summary
+
+glm(n_labs~.+base_avg*base_price_distance+paste_avg*paste_price_distance+hyd_avg*hyd_price_distance,
+    data=pois_data,
+    family="poisson") %>% 
+  summary
+
+
+glm(n_labs~.+, data=labs_PPI_reg_data %>%
+      filter(year == 2014) %>%
+      select(n_labs, coca_distance:hyd_price_distance, river_length, road_length, n_armed_groups:HCl_seizures) %>% 
+      mutate(n_labs=ifelse(is.na(n_labs), 0, 1),
+             erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
+             erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
+             n_armed_groups=ifelse(is.na(n_armed_groups), 0, n_armed_groups),
+             coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
+             base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
+             HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures)),
+    family="binomial") %>% 
+  summary
+
+glm(n_labs~.+base_avg*base_price_distance+paste_avg*paste_price_distance+hyd_avg*hyd_price_distance,
+    data=labs_PPI_reg_data %>%
+      filter(year == 2014) %>%
+      select(n_labs, coca_distance:hyd_price_distance, river_length, road_length, n_armed_groups:HCl_seizures) %>% 
+      mutate(n_labs=ifelse(is.na(n_labs), 0, 1),
+             erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
+             erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
+             n_armed_groups=ifelse(is.na(n_armed_groups), 0, n_armed_groups),
+             coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
+             base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
+             HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures)),
+    family="binomial") %>% 
+  summary
+
+
   # HCl
 labs_HCl_cor_seizures <- tibble(year=1997:2022)
 cor_column <- c()
@@ -686,16 +738,3 @@ glm(n_labs~., data=pois_data,
     family="poisson") %>% 
   summary
 
-
-glm(n_labs~., data=labs_PPI_reg_data %>%
-      filter(year == 2014) %>%
-      select(n_labs, coca_distance:hyd_price_distance, river_length, road_length, n_armed_groups:HCl_seizures) %>% 
-      mutate(n_labs=ifelse(is.na(n_labs), 0, 1),
-             erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
-             erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
-             n_armed_groups=ifelse(is.na(n_armed_groups), 0, n_armed_groups),
-             coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
-             base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
-             HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures)),
-    family="binomial") %>% 
-  summary

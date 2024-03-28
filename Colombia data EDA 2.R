@@ -25,8 +25,14 @@ library(caret)
   municipios_capital <- municipios_capital %>% filter(!(id %in% c(88001, 88564))) %>% as_tibble
   map <- municipios
   map_df <- suppressMessages(fortify(map)) %>% 
-    mutate(id=as.numeric(id))
+    mutate(id=as.numeric(id)) %>% 
+    filter(!(id %in% c(88001, 88564)))
   map_df <- left_join(map_df, municipios_capital %>% select(id, municipio, depto) %>% unique, by="id")
+  
+  base_to_base <- read.csv("Colombia Data/Anecdotal base to base municipality only.csv") %>% as_tibble
+  HCl_to_HCl <- read.csv("Colombia Data/Anecdotal HCl to HCl municipality only.csv") %>% as_tibble
+  general <- read.csv("Colombia Data/Anecdotal general municipality only.csv") %>% as_tibble
+  anecdotal_annual <- read.csv("Colombia Data/Anecdotal annual municipality only.csv") %>% as_tibble
   
   population <- read.csv("Colombia Data/Census population by municipios (2018).csv") %>% as_tibble
   population$log_population <- log(population$population)
@@ -55,6 +61,9 @@ library(caret)
     armed_groups_year <- armed_groups_year %>% 
       left_join(municipios_capital %>% select(-id_depto), by=c("municipio", "depto")) %>% 
       relocate(id, municipio, depto, n_armed_groups)
+    names(armed_groups_year) <- gsub("\r", " ", names(armed_groups_year), fixed=T)
+    names(armed_groups_year) <- gsub("\n", "", names(armed_groups_year), fixed=T)
+    names(armed_groups_year) <- gsub("/", "", names(armed_groups_year))
     armed_groups[[paste0("y", year)]] <- armed_groups_year
   }
   armed_groups$y2008
@@ -268,13 +277,14 @@ table(n_armed_groups2$n_non_zero)/nrow(n_armed_groups2) %>% round(-3)
 for (year in years) {
   n_armed_groups_coord <- left_join(map_df, n_armed_groups[,c(1, grep(year, names(n_armed_groups)))], by="id")
   names(n_armed_groups_coord)[ncol(n_armed_groups_coord)] <- "n_armed_groups"
-  n_armed_groups_map <- ggplot(n_armed_groups_coord) + 
+  n_armed_groups_map <- ggplot(n_armed_groups_coord) +
     geom_polygon(aes(x = long,
                      y = lat,
                      group = group,
                      fill = n_armed_groups),
                  color = "black",
                  linewidth = 0.1) +
+    expand_limits(x = map_df$long, y = map_df$lat) + 
     scale_fill_viridis_c(limits=c(0,6)) +
     labs(fill = "n_armed_groups", x="", y="", title=year) +
     theme_bw() +
@@ -284,4 +294,153 @@ for (year in years) {
           axis.text = element_blank(),
           line = element_blank())
   ggsave(paste0("Colombia Data/Figs/Armed groups maps/n_armed_groups (", year, ")", ".png"), n_armed_groups_map, scale=1)
+}
+# 
+# armed_groups$y2008[,-(1:4)] %>% apply(2, function(x) sum(x, na.rm=T))
+# 
+# armed_groups_names <- c()
+# for (year in years) {
+#   armed_groups_year <- armed_groups[[paste0("y", year)]]
+#   n_municipio_group <- armed_groups_year[,-(1:4)] %>% apply(2, function(x) sum(x, na.rm=T))
+#   armed_groups_names <- c(armed_groups_names, names(armed_groups_year)[-(1:4)][which(n_municipio_group > 0)])
+# }
+# armed_groups_names <- unique(armed_groups_names) %>% sort
+# 
+# n_each_armed_groups <- matrix(0, length(years), length(armed_groups_names)) %>%
+#   as_tibble %>%
+#   mutate(year=years) %>%
+#   relocate(year)
+# names(n_each_armed_groups)[-1] <- armed_groups_names
+# for (year in years) {
+#   armed_groups_year <- armed_groups[[paste0("y", year)]]
+#   n_municipio_group <- armed_groups_year[,-(1:4)] %>% apply(2, function(x) sum(x, na.rm=T))
+#   non_zero_index <- which(n_municipio_group > 0)
+# 
+#   for (i in non_zero_index) {
+#     n_each_armed_groups[which(years == year), grep(paste0("^", names(n_municipio_group)[i], "$"), names(n_each_armed_groups))] <- n_municipio_group[i]
+#   }
+# }
+# t(n_each_armed_groups) %>% write.csv("Colombia Data/number of municipals for each armed group.csv")
+
+active_groups_1016 <- c("Las Águilas Negras",
+                        "Los Paisas",
+                        "Los Rastrojos",
+                        "Los Urabeños")
+    # For 2016
+# Los Pelusos
+# Los Puntilleros
+
+for (year in 2010:2014) {
+  armed_groups_year <- armed_groups[[paste0("y", year)]]
+  
+  for (group_name in active_groups_1016) {
+    if (sum(armed_groups_year[, grep(group_name, names(armed_groups_year))], na.rm=T) == 0) next
+    group_coord <- armed_groups_year[, c(1, grep(group_name, names(armed_groups_year)))] %>% 
+      right_join(map_df, by="id")
+    names(group_coord)[2] <- "presence"
+    group_coord$presence <- ifelse(is.na(group_coord$presence), group_coord$presence, 1)
+    group_map <- ggplot(group_coord) +
+      geom_polygon(aes(x = long,
+                       y = lat,
+                       group = group,
+                       fill = presence),
+                   color = "black",
+                   linewidth = 0.1) +
+      labs(fill = "", x="", y="", title=paste(group_name, year)) +
+      theme_bw() +
+      theme(legend.position ="none",
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.border = element_blank(),
+            axis.text = element_blank(),
+            line = element_blank())
+    ggsave(paste0("Colombia Data/Figs/Armed groups maps/",
+                  year,
+                  "/",
+                  stri_trans_general(group_name, "Latin-ASCII"),
+                  " (",
+                  year,
+                  ")",
+                  ".png"),
+           group_map, width=10, unit="cm")
+  }
+}
+
+for (group_name in c("Las Águilas Negras", "Los Pelusos", "Los Puntilleros", "Los Rastrojos")) {
+  if (sum(armed_groups$y2016[, grep(group_name, names(armed_groups$y2016))], na.rm=T) == 0) next
+  group_coord <- armed_groups$y2016[, c(1, grep(group_name, names(armed_groups$y2016)))] %>% 
+    right_join(map_df, by="id")
+  names(group_coord)[2] <- "presence"
+  group_coord$presence <- ifelse(is.na(group_coord$presence), group_coord$presence, 1)
+  group_map <- ggplot(group_coord) +
+    geom_polygon(aes(x = long,
+                     y = lat,
+                     group = group,
+                     fill = presence),
+                 color = "black",
+                 linewidth = 0.1) +
+    labs(fill = "", x="", y="", title=paste(group_name, 2016)) +
+    theme_bw() +
+    theme(legend.position ="none",
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank())
+  ggsave(paste0("Colombia Data/Figs/Armed groups maps/2016/",
+                stri_trans_general(group_name, "Latin-ASCII"),
+                " (2016)",
+                ".png"),
+         group_map, width=10, unit="cm")
+}
+
+
+for (year_ in years) {
+  labs_PPI_coord <- left_join(map_df,
+                                    labs_PPI_reg_data %>%
+                                      filter(year == year_) %>% 
+                                      select(id, n_labs),
+                                    by="id")
+  labs_PPI_map <- ggplot(labs_PPI_coord) +
+    geom_polygon(aes(x = long,
+                     y = lat,
+                     group = group,
+                     fill = n_labs),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = map_df$long, y = map_df$lat) + 
+    scale_fill_viridis_c(na.value="white") +
+    labs(fill = "# of PPI Labs", x="", y="", title=year_) +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank())
+  ggsave(paste0("Colombia Data/Figs/Lab maps/Number of PPI Labs (", year_, ")", ".png"), labs_PPI_map, scale=1)
+}
+
+for (year_ in years) {
+  labs_HCl_coord <- left_join(map_df,
+                              labs_HCl_reg_data %>%
+                                filter(year == year_) %>% 
+                                select(id, n_labs),
+                              by="id")
+  labs_HCl_map <- ggplot(labs_HCl_coord) +
+    geom_polygon(aes(x = long,
+                     y = lat,
+                     group = group,
+                     fill = n_labs),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = map_df$long, y = map_df$lat) + 
+    scale_fill_viridis_c(na.value="white") +
+    labs(fill = "# of HCl Labs", x="", y="", title=year_) +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank())
+  ggsave(paste0("Colombia Data/Figs/Lab maps/Number of HCl Labs (", year_, ")", ".png"), labs_HCl_map, scale=1)
 }
