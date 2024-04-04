@@ -9,6 +9,7 @@ library(colmaps)
 library(sf)
 library(sp)
 library(caret)
+library(corrplot)
 
 {
   municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
@@ -64,6 +65,34 @@ library(caret)
     names(armed_groups_year) <- gsub("\r", " ", names(armed_groups_year), fixed=T)
     names(armed_groups_year) <- gsub("\n", "", names(armed_groups_year), fixed=T)
     names(armed_groups_year) <- gsub("/", "", names(armed_groups_year))
+    
+    armed_groups_year[is.na(armed_groups_year)] <- 0
+    
+    if ("Las Autodefensas Gaitanistas de Colombia (AGC)" %in% names(armed_groups_year) & "Clan del Golfo (Formerly Los Urabeños)" %in% names(armed_groups_year)) {
+      AGC_index <- which(names(armed_groups_year) == "Las Autodefensas Gaitanistas de Colombia (AGC)")
+      Golfo_index <- which(names(armed_groups_year) == "Clan del Golfo (Formerly Los Urabeños)")
+      armed_groups_year <- armed_groups_year %>% 
+        mutate(`Clan del Golfo (Formerly Los Urabeños)`=`Clan del Golfo (Formerly Los Urabeños)` + `Las Autodefensas Gaitanistas de Colombia (AGC)`) %>% 
+        mutate(`Clan del Golfo (Formerly Los Urabeños)`=ifelse(`Clan del Golfo (Formerly Los Urabeños)` > 0, 1, 0)) %>% 
+        select(-`Las Autodefensas Gaitanistas de Colombia (AGC)`)
+    }
+    
+    if ("La Oficina" %in% names(armed_groups_year)) {
+      sum_to_index <- which(names(armed_groups_year) == "La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA")
+      sum_from_index <- which(names(armed_groups_year) == "La Oficina")
+      armed_groups_year <- armed_groups_year %>% 
+        mutate(`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA`=`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA` + `La Oficina`) %>% 
+        mutate(`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA`=ifelse(`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA` > 0, 1, 0)) %>% 
+        select(-`La Oficina`)
+    }
+    
+    if ("Autodefensas" %in% substr(names(armed_groups_year), 1, 12)) {
+      sum_from_index <- which(substr(names(armed_groups_year), 1, 12) == "Autodefensas")
+      armed_groups_year$`Autodefensas Unidas de Colombia (AUC)` <- armed_groups_year[,sum_from_index] %>% apply(1, sum)
+      armed_groups_year <- armed_groups_year[, -sum_from_index] %>% 
+        mutate(`Autodefensas Unidas de Colombia (AUC)`=ifelse(`Autodefensas Unidas de Colombia (AUC)` > 0, 1, 0))
+    }
+    
     armed_groups[[paste0("y", year)]] <- armed_groups_year
   }
   armed_groups$y2008
@@ -265,61 +294,72 @@ labs_HCl_reg_data %>% filter(year == 2010 & is.na(n_labs) & is.na(HCl_seizures))
 labs_HCl_reg_data %>% filter(year == 2010 & is.na(n_labs) & is.na(coca_seizures) & is.na(base_seizures) & is.na(HCl_seizures)) # 109
 labs_HCl_reg_data %>% filter(year == 2010 & !is.na(n_labs) & !is.na(coca_seizures)) %>% select(id:n_labs, coca_seizures:HCl_seizures) # 44
 
-n_armed_groups2 <- n_armed_groups %>%
-  left_join(municipios_capital[,-2], by="id") %>%
-  relocate(id, municipio, depto) %>%
-  mutate(n_non_zero=apply(n_armed_groups[,-1], 1, function(x) sum(x > 0))) %>%
-  arrange(desc(n_non_zero))
-# write.csv(n_armed_groups2, "Colombia Data/number of armed groups.csv", row.names=F)
-table(n_armed_groups2$n_non_zero)
-table(n_armed_groups2$n_non_zero)/nrow(n_armed_groups2) %>% round(-3)
+labs_PPI_reg_data # 14,647 rows
+labs_PPI_reg_data %>% filter(n_labs > 0 & n_armed_groups > 0) # 1,100
+labs_PPI_reg_data %>% filter(is.na(n_labs) & n_armed_groups == 0) # 2,253
+labs_PPI_reg_data %>% filter(is.na(n_labs) & n_armed_groups > 0) # 1,143
 
-for (year in years) {
-  n_armed_groups_coord <- left_join(map_df, n_armed_groups[,c(1, grep(year, names(n_armed_groups)))], by="id")
-  names(n_armed_groups_coord)[ncol(n_armed_groups_coord)] <- "n_armed_groups"
-  n_armed_groups_map <- ggplot(n_armed_groups_coord) +
-    geom_polygon(aes(x = long,
-                     y = lat,
-                     group = group,
-                     fill = n_armed_groups),
-                 color = "black",
-                 linewidth = 0.1) +
-    expand_limits(x = map_df$long, y = map_df$lat) + 
-    scale_fill_viridis_c(limits=c(0,6)) +
-    labs(fill = "n_armed_groups", x="", y="", title=year) +
-    theme_bw() +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.border = element_blank(),
-          axis.text = element_blank(),
-          line = element_blank())
-  ggsave(paste0("Colombia Data/Figs/Armed groups maps/n_armed_groups (", year, ")", ".png"), n_armed_groups_map, scale=1)
-}
+
+labs_HCl_reg_data # 12,948 rows
+labs_HCl_reg_data %>% filter(n_labs > 0 & n_armed_groups > 0) # 544
+labs_HCl_reg_data %>% filter(is.na(n_labs) & n_armed_groups == 0) # 2,395
+labs_HCl_reg_data %>% filter(is.na(n_labs) & n_armed_groups > 0) # 1,662
+
+# n_armed_groups2 <- n_armed_groups %>%
+#   left_join(municipios_capital[,-2], by="id") %>%
+#   relocate(id, municipio, depto) %>%
+#   mutate(n_non_zero=apply(n_armed_groups[,-1], 1, function(x) sum(x > 0))) %>%
+#   arrange(desc(n_non_zero))
+# # write.csv(n_armed_groups2, "Colombia Data/number of armed groups.csv", row.names=F)
+# table(n_armed_groups2$n_non_zero)
+# table(n_armed_groups2$n_non_zero)/nrow(n_armed_groups2) %>% round(-3)
 # 
+# for (year in years) {
+#   n_armed_groups_coord <- left_join(map_df, n_armed_groups[,c(1, grep(year, names(n_armed_groups)))], by="id")
+#   names(n_armed_groups_coord)[ncol(n_armed_groups_coord)] <- "n_armed_groups"
+#   n_armed_groups_map <- ggplot(n_armed_groups_coord) +
+#     geom_polygon(aes(x = long,
+#                      y = lat,
+#                      group = group,
+#                      fill = n_armed_groups),
+#                  color = "black",
+#                  linewidth = 0.1) +
+#     expand_limits(x = map_df$long, y = map_df$lat) + 
+#     scale_fill_viridis_c(limits=c(0,6)) +
+#     labs(fill = "n_armed_groups", x="", y="", title=year) +
+#     theme_bw() +
+#     theme(panel.grid.major = element_blank(),
+#           panel.grid.minor = element_blank(),
+#           panel.border = element_blank(),
+#           axis.text = element_blank(),
+#           line = element_blank())
+#   ggsave(paste0("Colombia Data/Figs/Armed groups maps/n_armed_groups (", year, ")", ".png"), n_armed_groups_map, scale=1)
+# }
+
 # armed_groups$y2008[,-(1:4)] %>% apply(2, function(x) sum(x, na.rm=T))
-# 
-# armed_groups_names <- c()
-# for (year in years) {
-#   armed_groups_year <- armed_groups[[paste0("y", year)]]
-#   n_municipio_group <- armed_groups_year[,-(1:4)] %>% apply(2, function(x) sum(x, na.rm=T))
-#   armed_groups_names <- c(armed_groups_names, names(armed_groups_year)[-(1:4)][which(n_municipio_group > 0)])
-# }
-# armed_groups_names <- unique(armed_groups_names) %>% sort
-# 
-# n_each_armed_groups <- matrix(0, length(years), length(armed_groups_names)) %>%
-#   as_tibble %>%
-#   mutate(year=years) %>%
-#   relocate(year)
-# names(n_each_armed_groups)[-1] <- armed_groups_names
-# for (year in years) {
-#   armed_groups_year <- armed_groups[[paste0("y", year)]]
-#   n_municipio_group <- armed_groups_year[,-(1:4)] %>% apply(2, function(x) sum(x, na.rm=T))
-#   non_zero_index <- which(n_municipio_group > 0)
-# 
-#   for (i in non_zero_index) {
-#     n_each_armed_groups[which(years == year), grep(paste0("^", names(n_municipio_group)[i], "$"), names(n_each_armed_groups))] <- n_municipio_group[i]
-#   }
-# }
+
+armed_groups_names <- c()
+for (year in years) {
+  armed_groups_year <- armed_groups[[paste0("y", year)]]
+  n_municipio_group <- armed_groups_year[,-(1:4)] %>% apply(2, function(x) sum(x, na.rm=T))
+  armed_groups_names <- c(armed_groups_names, names(armed_groups_year)[-(1:4)][which(n_municipio_group > 0)])
+}
+armed_groups_names <- unique(armed_groups_names) %>% sort
+
+n_each_armed_groups <- matrix(0, length(years), length(armed_groups_names)) %>%
+  as_tibble %>%
+  mutate(year=years) %>%
+  relocate(year)
+names(n_each_armed_groups)[-1] <- armed_groups_names
+for (year in years) {
+  armed_groups_year <- armed_groups[[paste0("y", year)]]
+  n_municipio_group <- armed_groups_year[,-(1:4)] %>% apply(2, function(x) sum(x, na.rm=T))
+  non_zero_index <- which(n_municipio_group > 0)
+
+  for (i in non_zero_index) {
+    n_each_armed_groups[which(years == year), grep(paste0("^", names(n_municipio_group)[i], "$"), names(n_each_armed_groups))] <- n_municipio_group[i]
+  }
+}
 # t(n_each_armed_groups) %>% write.csv("Colombia Data/number of municipals for each armed group.csv")
 
 active_groups_1016 <- c("Las Águilas Negras",
@@ -444,3 +484,26 @@ for (year_ in years) {
           line = element_blank())
   ggsave(paste0("Colombia Data/Figs/Lab maps/Number of HCl Labs (", year_, ")", ".png"), labs_HCl_map, scale=1)
 }
+
+
+for (y in 2013:2020) {
+  data_year <- labs_PPI_reg_data %>% 
+    filter(year == y) %>% 
+    select(n_labs, coca_area:hyd_price_distance, base_price_distance, river_length, road_length, n_armed_groups:HCl_seizures) %>% 
+    mutate(n_labs=ifelse(is.na(n_labs), 0, n_labs),
+           coca_area=ifelse(is.na(coca_area), 0, coca_area),
+           erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
+           erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
+           n_armed_groups=ifelse(is.na(n_armed_groups), 0, n_armed_groups),
+           coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
+           base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
+           HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures))
+  
+  
+  correlation <- cor(data_year) %>% round(2)
+  colnames(correlation) <- NULL
+  
+  corrplot(correlation, title=y)
+}
+
+y <- 2015
