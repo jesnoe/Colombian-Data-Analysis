@@ -610,24 +610,56 @@ base_source_year %>%
   filter(y_glm2 != y_rf2) %>% 
   select(base_source, posterior_glm2, posterior_rf2)
 
-sum(base_source_year$base_source == 1) # 50
 
-data_year_base_source1_glm <- glm(base_source~., family="binomial",  data=data_year_base_source1 %>% select(n_labs:population, base_source))
-summary(data_year_base_source1_glm)
-data_year_base_source2_glm <- glm(base_source~., family="binomial",  data=data_year_base_source2 %>% select(n_labs:population, base_source))
-summary(data_year_base_source2_glm)
-data_year_base_source3_glm <- glm(base_source~., family="binomial",  data=data_year_base_source3 %>% select(n_labs:population, base_source))
-summary(data_year_base_source3_glm)
+base_source_year %>%
+  filter(y_glm2 != y_rf2) %>% 
+  select(n_labs:base_seizures, coca_group, population, base_source, -erad_aerial, -erad_manual) %>% view
 
-data_year_base_destination_glm <- glm(base_destination~., family="binomial",  data=data_year %>% select(n_labs:population, base_destination))
-summary(data_year_base_destination_glm)
-data_year_base_destination1_glm <- glm(base_destination~., family="binomial",  data=data_year_base_destination1 %>% select(n_labs:population, base_destination))
-summary(data_year_base_destination1_glm)
-data_year_base_destination2_glm <- glm(base_destination~., family="binomial",  data=data_year_base_destination2 %>% select(n_labs:population, base_destination))
-summary(data_year_base_destination2_glm)
-data_year_base_destination3_glm <- glm(base_destination~., family="binomial",  data=data_year_base_destination3 %>% select(n_labs:population, base_destination))
-summary(data_year_base_destination3_glm)
+base_source_year$base_avg %>% summary
 
+unmatched_index <- which(base_source_year$y_glm2 != base_source_year$y_rf2)
+data_year_unmatched <- data_year[unmatched_index,]
+base_source_unmatched_glm <- glm(base_source~., family="binomial",
+                                 data=data_year_unmatched %>%
+                                   mutate(coca_group=(Clan_del_Golfo + Los_Pelusos)) %>%
+                                   select(n_labs:base_seizures, -erad_aerial, coca_group, population, base_source))
+summary(base_source_glm2)
+summary(base_source_unmatched_glm)
+
+base_source_unmatched_rf <- randomForest(base_source~.,
+                                         data=data_year_unmatched %>%
+                                           mutate(coca_group=(Los_Rastrojos + Clan_del_Golfo + Los_Pelusos)) %>%
+                                           select(n_labs:base_seizures, coca_group, population, base_source),
+                                         type="classification", ntree=50, mtry=10)
+
+sum(data_year_unmatched$base_source == 1) # 15 sources in unmatched data
+
+base_source_year_unmatched <- data_year_unmatched %>%
+  select(id, n_labs:population, base_source) %>% 
+  mutate(coca_group=(Los_Rastrojos + Clan_del_Golfo + Los_Pelusos)) %>%
+  mutate(posterior_glm=base_source_unmatched_glm$fitted.values)
+base_source_year_unmatched$posterior_rf <- base_source_unmatched_rf$votes[,2]
+
+threshold <- .1
+base_source_year_unmatched <- base_source_year_unmatched %>% 
+  mutate(y_glm=ifelse(posterior_glm < threshold, 0, 1),
+         y_rf=ifelse(posterior_rf < threshold, 0, 1))
+
+base_source_year_unmatched %>% filter(posterior_glm < threshold) %>% select(base_source, posterior_glm) %>% pull(base_source) %>% table
+base_source_year_unmatched %>% filter(posterior_glm >= threshold) %>% select(base_source, posterior_glm) %>% pull(base_source) %>% table
+
+base_source_year_unmatched %>% filter(posterior_rf < threshold) %>% select(base_source, posterior_rf) %>% pull(base_source) %>% table
+base_source_year_unmatched %>% filter(posterior_rf >= threshold) %>% select(base_source, posterior_rf) %>% pull(base_source) %>% table
+
+base_source_year_unmatched %>%
+  filter(y_glm != y_rf) %>% 
+  select(base_source, y_glm, y_rf, posterior_glm, posterior_rf) %>% 
+  print(n=20)
+
+base_source_year_unmatched %>%
+  filter(y_glm == y_rf) %>% 
+  select(base_source, y_glm) %>% 
+  table # only 4 more matched result
 
 ## kmeans clustering
 set.seed(50)
@@ -649,6 +681,19 @@ table(base_source_year$cluster)
 base_source_year %>% 
   filter(base_source == 1 & cluster == 0) %>% 
   select(id, n_labs:n_HCl_labs, -erad_aerial, coca_group, population, posterior_glm)
+
+
+## PCA
+base_source_year_pca <- prcomp(base_source_year %>%
+                                 select(n_labs:coca_seizures, -base_price_distance, -erad_aerial, -erad_manual, coca_group, population) %>% scale)
+sum(base_source_year_pca$sdev[1:2])/sum(base_source_year_pca$sdev) # 0.3817472
+
+base_source_year_pca$x %>% 
+  as.data.frame %>% 
+  mutate(base_source=base_source_year$base_source) %>% 
+  ggplot() +
+  geom_point(aes(x=PC1, y=PC2, color=base_source)) +
+  lims(x=c(-2, 3), y=c(-1, 3))
 
 F1_PU <- function(glm_model, test_data, positive) {
   n_data <- nrow(test_data)
@@ -718,159 +763,4 @@ test_data_destination3 <- data_year[c(HCl_destination_positive_index[!(HCl_desti
                                   sample(HCl_destination_unlabeled_index[!(HCl_destination_unlabeled_index %in% data_year_HCl_destination3_index$unlabeled)], 50)), ]
 F1_PU(data_year_HCl_destination3_glm, test_data_destination3, test_data_destination3$HCl_destination)
 
-# general source/destination
-data_year_general_source_glm <- glm(general_source~., family="binomial",  data=data_year %>% select(n_labs:population, general_source))
-summary(data_year_general_source_glm)
 
-data_year_general_destination_glm <- glm(general_destination~., family="binomial",  data=data_year %>% select(n_labs:population, general_destination))
-summary(data_year_general_destination_glm)
-data_year_general_destination1_glm <- glm(general_destination~., family="binomial",  data=data_year_general_destination1 %>% select(n_labs:population, general_destination))
-summary(data_year_general_destination1_glm)
-data_year_general_destination2_glm <- glm(general_destination~., family="binomial",  data=data_year_general_destination2 %>% select(n_labs:population, general_destination))
-summary(data_year_general_destination2_glm)
-data_year_general_destination3_glm <- glm(general_destination~., family="binomial",  data=data_year_general_destination3 %>% select(n_labs:population, general_destination))
-summary(data_year_general_destination3_glm)
-
-test_data_destination1 <- data_year[c(general_destination_positive_index[!(general_destination_positive_index %in% data_year_general_destination1_index$positive)],
-                                  sample(general_destination_unlabeled_index[!(general_destination_unlabeled_index %in% data_year_general_destination1_index$unlabeled)], 50)), ]
-F1_PU(data_year_general_destination1_glm, test_data_destination1, test_data_destination1$general_destination)
-test_data_destination2 <- data_year[c(general_destination_positive_index[!(general_destination_positive_index %in% data_year_general_destination2_index$positive)],
-                                  sample(general_destination_unlabeled_index[!(general_destination_unlabeled_index %in% data_year_general_destination2_index$unlabeled)], 50)), ]
-F1_PU(data_year_general_destination2_glm, test_data_destination2, test_data_destination2$general_destination)
-test_data_destination3 <- data_year[c(general_destination_positive_index[!(general_destination_positive_index %in% data_year_general_destination3_index$positive)],
-                                  sample(general_destination_unlabeled_index[!(general_destination_unlabeled_index %in% data_year_general_destination3_index$unlabeled)], 50)), ]
-F1_PU(data_year_general_destination3_glm, test_data_destination3, test_data_destination3$general_destination)
-
-
-## regression with data2 (data_year + cultivation, 1999~2016)
-labs_PPI$lab_PPI_exist <- apply(labs_PPI, 1, function(x) return(sum(!is.na(x[5:30]))>0))
-labs_HCl$lab_HCl_exist <- apply(labs_HCl, 1, function(x) return(sum(!is.na(x[5:30]))>0))
-coca_seizures$coca_seizures <- apply(coca_seizures, 1, function(x) return(sum(!is.na(x[5:28]))>0))
-data2 <- left_join(data_year, labs_PPI %>% select(id, lab_PPI_exist), by="id") %>% 
-  left_join(labs_HCl %>% select(id, lab_HCl_exist), by="id") %>% 
-  left_join(coca_seizures %>% select(id, coca_seizures), by="id")
-data2$lab_PPI_exist <- ifelse(is.na(data2$lab_PPI_exist), F, T)
-data2$lab_HCl_exist <- ifelse(is.na(data2$lab_HCl_exist), F, T)
-data2$coca_seizures <- ifelse(is.na(data2$coca_seizures), F, T)
-
-{
-set.seed(5478)
-data2_base_source1_index <- shuffle(base_source_positive_index, base_source_unlabeled_index, N=40)
-data2_base_source1 <- data2[c(data2_base_source1_index$positive, data2_base_source1_index$unlabeled), ]
-data2_base_source2_index <- shuffle(base_source_positive_index, base_source_unlabeled_index, N=40)
-data2_base_source2 <- data2[c(data2_base_source1_index$positive, data2_base_source1_index$unlabeled), ]
-data2_base_source3_index <- shuffle(base_source_positive_index, base_source_unlabeled_index, N=40)
-data2_base_source3 <- data2[c(data2_base_source1_index$positive, data2_base_source1_index$unlabeled), ]
-data2_base_destination1_index <- shuffle(base_destination_positive_index, base_destination_unlabeled_index, N=40)
-data2_base_destination1 <- data2[c(data2_base_destination1_index$positive, data2_base_destination1_index$unlabeled), ]
-data2_base_destination2_index <- shuffle(base_destination_positive_index, base_destination_unlabeled_index, N=40)
-data2_base_destination2 <- data2[c(data2_base_destination1_index$positive, data2_base_destination1_index$unlabeled), ]
-data2_base_destination3_index <- shuffle(base_destination_positive_index, base_destination_unlabeled_index, N=40)
-data2_base_destination3 <- data2[c(data2_base_destination1_index$positive, data2_base_destination1_index$unlabeled), ]
-
-data2_HCl_source1_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index, N=40)
-data2_HCl_source1 <- data2[c(data2_HCl_source1_index$positive, data2_HCl_source1_index$unlabeled), ]
-data2_HCl_source2_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index, N=40)
-data2_HCl_source2 <- data2[c(data2_HCl_source1_index$positive, data2_HCl_source1_index$unlabeled), ]
-data2_HCl_source3_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index, N=40)
-data2_HCl_source3 <- data2[c(data2_HCl_source1_index$positive, data2_HCl_source1_index$unlabeled), ]
-data2_HCl_destination1_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index, N=40)
-data2_HCl_destination1 <- data2[c(data2_HCl_destination1_index$positive, data2_HCl_destination1_index$unlabeled), ]
-data2_HCl_destination2_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index, N=40)
-data2_HCl_destination2 <- data2[c(data2_HCl_destination1_index$positive, data2_HCl_destination1_index$unlabeled), ]
-data2_HCl_destination3_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index, N=40)
-data2_HCl_destination3 <- data2[c(data2_HCl_destination1_index$positive, data2_HCl_destination1_index$unlabeled), ]
-
-data2_general_destination1_index <- shuffle(general_destination_positive_index, general_destination_unlabeled_index, N=40)
-data2_general_destination1 <- data2[c(data2_general_destination1_index$positive, data2_general_destination1_index$unlabeled), ]
-data2_general_destination2_index <- shuffle(general_destination_positive_index, general_destination_unlabeled_index, N=40)
-data2_general_destination2 <- data2[c(data2_general_destination1_index$positive, data2_general_destination1_index$unlabeled), ]
-data2_general_destination3_index <- shuffle(general_destination_positive_index, general_destination_unlabeled_index, N=40)
-data2_general_destination3 <- data2[c(data2_general_destination1_index$positive, data2_general_destination1_index$unlabeled), ]
-}
-
-
-  # base source
-data2_base_source_glm <- glm(base_source~., family="binomial",  data=data2 %>%
-                               select(n_labs:population, base_source, lab_PPI_exist, lab_HCl_exist, coca_seizures))
-summary(data2_base_source_glm)
-data2_base_source1_glm <- glm(base_source~., family="binomial",  data=data2_base_source1 %>% 
-                                select(n_labs:population, base_source, lab_PPI_exist, lab_HCl_exist, coca_seizures))
-summary(data2_base_source1_glm)
-data2_base_source2_glm <- glm(base_source~., family="binomial",  data=data2_base_source2 %>%
-                                select(n_labs:population, base_source, lab_PPI_exist, lab_HCl_exist, coca_seizures))
-summary(data2_base_source2_glm)
-data2_base_source3_glm <- glm(base_source~., family="binomial",  data=data2_base_source3 %>% 
-                                select(n_labs:population, base_source, lab_PPI_exist, lab_HCl_exist, coca_seizures))
-summary(data2_base_source3_glm)
-
-data2_base_destination_glm <- glm(base_destination~., family="binomial",  data=data2 %>%
-                                    select(n_labs:population, base_destination, lab_PPI_exist, lab_HCl_exist, coca_seizures))
-summary(data2_base_destination_glm)
-data2_base_destination1_glm <- glm(base_destination~., family="binomial",  data=data2_base_destination1 %>%
-                                     select(n_labs:population, base_destination, lab_PPI_exist, lab_HCl_exist, coca_seizures))
-summary(data2_base_destination1_glm)
-data2_base_destination2_glm <- glm(base_destination~., family="binomial",  data=data2_base_destination2 %>% 
-                                     select(n_labs:population, base_destination, lab_PPI_exist, lab_HCl_exist, coca_seizures))
-summary(data2_base_destination2_glm)
-data2_base_destination3_glm <- glm(base_destination~., family="binomial",  data=data2_base_destination3 %>% 
-                                     select(n_labs:population, base_destination, lab_PPI_exist, lab_HCl_exist, coca_seizures))
-summary(data2_base_destination3_glm)
-
-test_data_source1 <- data2[c(base_source_positive_index[!(base_source_positive_index %in% data2_base_source1_index$positive)],
-                             sample(base_source_unlabeled_index[!(base_source_unlabeled_index %in% data2_base_source1_index$unlabeled)], 50)), ]
-F1_PU(data2_base_source1_glm, test_data_source1, test_data_source1$base_source)
-test_data_source2 <- data2[c(base_source_positive_index[!(base_source_positive_index %in% data2_base_source2_index$positive)],
-                             sample(base_source_unlabeled_index[!(base_source_unlabeled_index %in% data2_base_source2_index$unlabeled)], 50)), ]
-F1_PU(data2_base_source2_glm, test_data_source2, test_data_source2$base_source)
-test_data_source3 <- data2[c(base_source_positive_index[!(base_source_positive_index %in% data2_base_source3_index$positive)],
-                             sample(base_source_unlabeled_index[!(base_source_unlabeled_index %in% data2_base_source3_index$unlabeled)], 50)), ]
-F1_PU(data2_base_source3_glm, test_data_source3, test_data_source3$base_source)
-
-test_data_destination1 <- data2[c(base_destination_positive_index[!(base_destination_positive_index %in% data2_base_destination1_index$positive)],
-                                  sample(base_destination_unlabeled_index[!(base_destination_unlabeled_index %in% data2_base_destination1_index$unlabeled)], 50)), ]
-F1_PU(data2_base_destination1_glm, test_data_destination1, test_data_destination1$base_destination)
-test_data_destination2 <- data2[c(base_destination_positive_index[!(base_destination_positive_index %in% data2_base_destination2_index$positive)],
-                                  sample(base_destination_unlabeled_index[!(base_destination_unlabeled_index %in% data2_base_destination2_index$unlabeled)], 50)), ]
-F1_PU(data2_base_destination2_glm, test_data_destination2, test_data_destination2$base_destination)
-test_data_destination3 <- data2[c(base_destination_positive_index[!(base_destination_positive_index %in% data2_base_destination3_index$positive)],
-                                  sample(base_destination_unlabeled_index[!(base_destination_unlabeled_index %in% data2_base_destination3_index$unlabeled)], 50)), ]
-F1_PU(data2_base_destination3_glm, test_data_destination3, test_data_destination3$base_destination)
-
-  # HCl source
-data2_HCl_source_glm <- glm(HCl_source~., family="binomial",  data=data2 %>% select(n_labs:population, HCl_source, X1999:X2016))
-summary(data2_HCl_source_glm)
-data2_HCl_source1_glm <- glm(HCl_source~., family="binomial",  data=data2_HCl_source1 %>% select(n_labs:population, HCl_source, X1999:X2016))
-summary(data2_HCl_source1_glm)
-data2_HCl_source2_glm <- glm(HCl_source~., family="binomial",  data=data2_HCl_source2 %>% select(n_labs:population, HCl_source, X1999:X2016))
-summary(data2_HCl_source2_glm)
-data2_HCl_source3_glm <- glm(HCl_source~., family="binomial",  data=data2_HCl_source3 %>% select(n_labs:population, HCl_source, X1999:X2016))
-summary(data2_HCl_source3_glm)
-
-data2_HCl_destination_glm <- glm(HCl_destination~., family="binomial",  data=data2 %>% select(n_labs:population, HCl_destination, X1999:X2016))
-summary(data2_HCl_destination_glm)
-data2_HCl_destination1_glm <- glm(HCl_destination~., family="binomial",  data=data2_HCl_destination1 %>% select(n_labs:population, HCl_destination, X1999:X2016))
-summary(data2_HCl_destination1_glm)
-data2_HCl_destination2_glm <- glm(HCl_destination~., family="binomial",  data=data2_HCl_destination2 %>% select(n_labs:population, HCl_destination, X1999:X2016))
-summary(data2_HCl_destination2_glm)
-data2_HCl_destination3_glm <- glm(HCl_destination~., family="binomial",  data=data2_HCl_destination3 %>% select(n_labs:population, HCl_destination, X1999:X2016))
-summary(data2_HCl_destination3_glm)
-
-  # general source
-data2_general_source_glm <- glm(general_source~., family="binomial",  data=data2 %>% select(n_labs:population, general_source, X1999:X2016))
-summary(data2_general_source_glm)
-data2_general_source1_glm <- glm(general_source~., family="binomial",  data=data2_general_source1 %>% select(n_labs:population, general_source, X1999:X2016))
-summary(data2_general_source1_glm)
-data2_general_source2_glm <- glm(general_source~., family="binomial",  data=data2_general_source2 %>% select(n_labs:population, general_source, X1999:X2016))
-summary(data2_general_source2_glm)
-data2_general_source3_glm <- glm(general_source~., family="binomial",  data=data2_general_source3 %>% select(n_labs:population, general_source, X1999:X2016))
-summary(data2_general_source3_glm)
-
-data2_general_destination_glm <- glm(general_destination~., family="binomial",  data=data2 %>% select(n_labs:population, general_destination, X1999:X2016))
-summary(data2_general_destination_glm)
-data2_general_destination1_glm <- glm(general_destination~., family="binomial",  data=data2_general_destination1 %>% select(n_labs:population, general_destination, X1999:X2016))
-summary(data2_general_destination1_glm)
-data2_general_destination2_glm <- glm(general_destination~., family="binomial",  data=data2_general_destination2 %>% select(n_labs:population, general_destination, X1999:X2016))
-summary(data2_general_destination2_glm)
-data2_general_destination3_glm <- glm(general_destination~., family="binomial",  data=data2_general_destination3 %>% select(n_labs:population, general_destination, X1999:X2016))
-summary(data2_general_destination3_glm)
