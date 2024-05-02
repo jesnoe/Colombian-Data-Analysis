@@ -26,7 +26,8 @@ library(randomForest)
   municipios_capital <- municipios_capital %>% filter(!(id %in% c(88001, 88564))) %>% as_tibble
   map <- municipios
   map_df <- suppressMessages(fortify(map)) %>% 
-    mutate(id=as.numeric(id))
+    mutate(id=as.numeric(id)) %>% 
+    filter(!(id %in% c(88001, 88564)))
   map_df <- left_join(map_df, municipios_capital %>% select(id, municipio, depto) %>% unique, by="id")
   
   base_to_base <- read.csv("Colombia Data/Anecdotal base to base municipality only.csv") %>% as_tibble
@@ -203,6 +204,18 @@ price_annual <- price %>%
   filter(!is.na(id))
 price_annual
 
+price_med <- price %>% 
+  group_by(id, year) %>% 
+  summarise(paste_med=median(paste_avg, na.rm=T),
+            base_med=median(base_avg, na.rm=T),
+            hyd_med=median(hyd_avg, na.rm=T),
+  ) %>% 
+  mutate(paste_med=ifelse(is.nan(paste_med), NA, paste_med),
+         base_med=ifelse(is.nan(base_med), NA, base_med),
+         hyd_med=ifelse(is.nan(hyd_med), NA, hyd_med),
+  ) %>% 
+  filter(!is.na(id))
+price_med
 ## regression
 {
   municipio_centroid <- map_df %>% 
@@ -411,6 +424,8 @@ price_annual
     labs_HCl_reg_data$hyd_avg[i] <- neighbors_id_price$hyd_avg[which.min(neighbors_distances)]
   }
 }
+# write.csv(labs_PPI_reg_data, "Colombia Data/labs_PPI_reg_data.csv", row.names = F)
+# write.csv(labs_HCl_reg_data, "Colombia Data/labs_HCl_reg_data.csv", row.names = F)
 
 ex_year <- 2016
 anecdotal_year <- anecdotal_annual %>%
@@ -537,7 +552,7 @@ labs_PPI_2steps_year <- labs_PPI_reg_data %>%
               mutate(n_HCl_labs=n_labs) %>%
               select(id, n_HCl_labs), by="id") %>% 
   mutate(n_HCl_labs=ifelse(is.na(n_HCl_labs), 0, n_HCl_labs)) %>% 
-  left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:n_armed_groups)), by="id")
+  left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:depto)), by="id")
 labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
 
 anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %>% length # 158
@@ -558,9 +573,9 @@ HCl_destination_glm_year <- glm(HCl_destination~., family="binomial",
                              select(n_labs:population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
 summary(HCl_destination_glm_year)
 data_year$coca_group <- data_year$`Los Urabeños`
-# labs_PPI_2steps_years <- rbind(labs_PPI_2steps_years, 
-#                                data_year %>% 
-#                                  select(id:n_HCl_labs, coca_group, population, base_source_all:general_destination))
+# labs_PPI_2steps_years <- rbind(labs_PPI_2steps_years,
+#                                data_year %>%
+#                                  select(id:n_armed_groups, coca_group, population, base_source_all:general_destination))
 
 fit_test <- data_year %>%
   select(id, n_labs:n_HCl_labs, coca_group, population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
@@ -592,7 +607,7 @@ labs_PPI_2steps_year <- labs_PPI_reg_data %>%
               mutate(n_HCl_labs=n_labs) %>%
               select(id, n_HCl_labs), by="id") %>% 
   mutate(n_HCl_labs=ifelse(is.na(n_HCl_labs), 0, n_HCl_labs)) %>% 
-  left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:n_armed_groups)), by="id")
+  left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:depto)), by="id")
 labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
 
 anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %>% length # 279
@@ -615,7 +630,7 @@ summary(HCl_destination_glm_year)
 data_year$coca_group <- data_year$`Los Urabeños`
 # labs_PPI_2steps_years <- rbind(labs_PPI_2steps_years, 
 #                                data_year %>% 
-#                                  select(id:n_HCl_labs, coca_group, population, base_source_all:general_destination))
+#                                  select(id:n_armed_groups, coca_group, population, base_source_all:general_destination))
 
 fit_test <- data_year %>%
   select(id, n_labs:n_HCl_labs, coca_group, population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
@@ -646,7 +661,7 @@ labs_PPI_2steps_year <- labs_PPI_reg_data %>%
               mutate(n_HCl_labs=n_labs) %>%
               select(id, n_HCl_labs), by="id") %>% 
   mutate(n_HCl_labs=ifelse(is.na(n_HCl_labs), 0, n_HCl_labs)) %>% 
-  left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:n_armed_groups)), by="id")
+  left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:depto)), by="id")
 labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
 
 anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %>% length # 124
@@ -671,7 +686,7 @@ data_year <- data_year %>%
            `La Constru` + `Los Pelusos`)
 # labs_PPI_2steps_years <- rbind(labs_PPI_2steps_years, 
 #                                data_year %>% 
-#                                  select(id:n_HCl_labs, coca_group, population, base_source_all:general_destination))
+#                                  select(id:n_armed_groups, coca_group, population, base_source_all:general_destination))
 
 fit_test <- data_year %>%
   select(id, n_labs:n_HCl_labs, coca_group, population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
@@ -682,7 +697,7 @@ threshold <- .1
 fit_test %>% filter(posterior_glm < threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table  # 0: 140, 1: 14
 fit_test %>% filter(posterior_glm >= threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table # 0: 140, 1: 64
 }
-# write.csv(labs_PPI_2steps_years, "Colombia Data/regression data.csv", row.names = F)
+# write.csv(labs_PPI_2steps_years, "Colombia Data/regression data (5-01-2024).csv", row.names = F)
 
 labs_PPI_2steps_years <- read.csv("Colombia Data/regression data (04-24-2024).csv") %>% as_tibble
 HCl_destination_glm_years <- glm(HCl_destination~., family="binomial",
