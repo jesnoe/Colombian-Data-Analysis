@@ -31,7 +31,7 @@ library(randomForest)
   map_df <- left_join(map_df, municipios_capital %>% select(id, municipio, depto) %>% unique, by="id")
   
   base_to_base <- read.csv("Colombia Data/Anecdotal base to base municipality only.csv") %>% as_tibble
-  HCl_to_HCl <- read.csv("Colombia Data/Anecdotal HCl to HCl municipality only.csv") %>% as_tibble
+  hyd_to_hyd <- read.csv("Colombia Data/Anecdotal hyd to hyd municipality only.csv") %>% as_tibble
   general <- read.csv("Colombia Data/Anecdotal general municipality only.csv") %>% as_tibble
   anecdotal_annual <- read.csv("Colombia Data/Anecdotal annual with municipality.csv") %>% as_tibble
   
@@ -108,8 +108,8 @@ library(randomForest)
   
   cultivation <- read.csv("Colombia Data/Colombia Coca Cultivation 1999-2016 renamed (Ha).csv") %>% as_tibble
   cultivation <- cultivation %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
-  labs_HCl <- read.csv("Colombia Data/Colombia-Laboratories-1997-2022 renamed (COCAINE HYDROCHLORIDE).csv") %>% as_tibble
-  labs_HCl <- labs_HCl %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
+  labs_hyd <- read.csv("Colombia Data/Colombia-Laboratories-1997-2022 renamed (COCAINE HYDROCHLORIDE).csv") %>% as_tibble
+  labs_hyd <- labs_hyd %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
   labs_PPI <- read.csv("Colombia Data/Colombia-Laboratories-1997-2022 renamed (PRIMARY PRODUCTION INFRASTRUCTURE).csv") %>% as_tibble
   labs_PPI <- labs_PPI %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
   
@@ -130,10 +130,10 @@ library(randomForest)
   
   coca_seizures <- read_xlsx("Colombia Data/Colombia-Seizures-1999-2022 Coca leaves (kg).xlsx")
   base_seizures <- read_xlsx("Colombia Data/Colombia-Seizures-1999-2022 Coca paste and base (kg).xlsx")
-  HCl_seizures <- read_xlsx("Colombia Data/Colombia-Seizures-1999-2022 Cocaine (kg).xlsx")
+  hyd_seizures <- read_xlsx("Colombia Data/Colombia-Seizures-1999-2022 Cocaine (kg).xlsx")
   coca_seizures <- coca_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
   base_seizures <- base_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
-  HCl_seizures <- HCl_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
+  hyd_seizures <- hyd_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
   
   coca_seizures_long <- coca_seizures %>% 
     pivot_longer(`1999`:`2022`, names_to="year", values_to="coca_seizures") %>% 
@@ -143,10 +143,10 @@ library(randomForest)
     pivot_longer(`1999`:`2022`, names_to="year", values_to="base_seizures") %>% 
     mutate(year=as.integer(year)) %>% 
     filter(!is.na(base_seizures))
-  HCl_seizures_long <- HCl_seizures %>% 
-    pivot_longer(`1999`:`2022`, names_to="year", values_to="HCl_seizures") %>% 
+  hyd_seizures_long <- hyd_seizures %>% 
+    pivot_longer(`1999`:`2022`, names_to="year", values_to="hyd_seizures") %>% 
     mutate(year=as.integer(year)) %>% 
-    filter(!is.na(HCl_seizures))
+    filter(!is.na(hyd_seizures))
   
   price_2013_2015 <- read.csv("Colombia Data/Colombia Price Data 2013-2015 edited.csv") %>% as_tibble
   price_2016_2021 <- read.csv("Colombia Data/Colombia Price Data 2016-2021 edited.csv") %>% as_tibble
@@ -239,8 +239,8 @@ price_med
     pivot_longer(-(id:DEPARTAMENTO), names_to="year", values_to="n_labs") %>% 
     mutate(year=substr(year,2,5) %>% as.integer)
   
-  labs_HCl %>% apply(1, function(x) return(sum(as.numeric(x[5:30]), na.rm=T))) %>% table
-  labs_HCl_reg_data <- labs_HCl %>% 
+  labs_hyd %>% apply(1, function(x) return(sum(as.numeric(x[5:30]), na.rm=T))) %>% table
+  labs_hyd_reg_data <- labs_hyd %>% 
     select(-CODDEPTO) %>% 
     relocate(id, MUNICIPIO, DEPARTAMENTO, X1997:X2022) %>% 
     pivot_longer(-(id:DEPARTAMENTO), names_to="year", values_to="n_labs") %>% 
@@ -333,26 +333,26 @@ price_med
     left_join(eradication_manual_long %>% select(id, year, erad_manual), by=c("id", "year")) %>% 
     left_join(coca_seizures_long %>% select(id, year, coca_seizures), by=c("id", "year")) %>%
     left_join(base_seizures_long %>% select(id, year, base_seizures), by=c("id", "year")) %>% 
-    left_join(HCl_seizures_long %>% select(id, year, HCl_seizures), by=c("id", "year"))
+    left_join(hyd_seizures_long %>% select(id, year, hyd_seizures), by=c("id", "year"))
   
-  labs_HCl_reg_data <- labs_HCl_reg_data %>% 
+  labs_hyd_reg_data <- labs_hyd_reg_data %>% 
     left_join(cultivation_reg_data %>% select(id, year, coca_area), by=c("id", "year"))
-  labs_HCl_reg_data$coca_distance <- 0
-  no_coca_index <- which(is.na(labs_HCl_reg_data$coca_area))
+  labs_hyd_reg_data$coca_distance <- 0
+  no_coca_index <- which(is.na(labs_hyd_reg_data$coca_area))
   
   for (i in no_coca_index) { # the closest distance to a coca cultivated municipio for municipios and years without coca cultivation
-    id_i <- labs_HCl_reg_data$id[i]
-    year_i <- labs_HCl_reg_data$year[i]
+    id_i <- labs_hyd_reg_data$id[i]
+    year_i <- labs_hyd_reg_data$year[i]
     municipio_index <- which(municipio_centroid$id == id_i)
     long_i <- municipio_centroid$long[municipio_index]
     lat_i <- municipio_centroid$lat[municipio_index]
     year_index <- grep(year_i, names(cultivation))
     cultivation_index <- which(!is.na(cultivation[,year_index]))
     distance_i <- sqrt((long_i - cultivation$long[cultivation_index])^2 + (lat_i - cultivation$lat[cultivation_index])^2) %>% min
-    labs_HCl_reg_data$coca_distance[i] <- distance_i
+    labs_hyd_reg_data$coca_distance[i] <- distance_i
   }
   
-  labs_HCl_reg_data <- labs_HCl_reg_data %>% 
+  labs_hyd_reg_data <- labs_hyd_reg_data %>% 
     full_join(river_length_muni %>% select(-municipio, -depto), by="id") %>%
     full_join(road_length_muni %>% select(-municipio, -depto), by="id") %>%
     left_join(n_armed_groups_long, by=c("id", "year")) %>% 
@@ -360,20 +360,20 @@ price_med
     left_join(eradication_manual_long %>% select(id, year, erad_manual), by=c("id", "year")) %>% 
     left_join(coca_seizures_long %>% select(id, year, coca_seizures), by=c("id", "year")) %>%
     left_join(base_seizures_long %>% select(id, year, base_seizures), by=c("id", "year")) %>% 
-    left_join(HCl_seizures_long %>% select(id, year, HCl_seizures), by=c("id", "year"))
+    left_join(hyd_seizures_long %>% select(id, year, hyd_seizures), by=c("id", "year"))
   
-  labs_HCl_reg_data$coca_distance <- ifelse(is.infinite(labs_HCl_reg_data$coca_distance), NA, labs_HCl_reg_data$coca_distance)
-  labs_HCl_reg_data <- labs_HCl_reg_data %>% filter(!is.na(year))
+  labs_hyd_reg_data$coca_distance <- ifelse(is.infinite(labs_hyd_reg_data$coca_distance), NA, labs_hyd_reg_data$coca_distance)
+  labs_hyd_reg_data <- labs_hyd_reg_data %>% filter(!is.na(year))
   
-  labs_HCl_reg_data <- labs_HCl_reg_data %>% 
+  labs_hyd_reg_data <- labs_hyd_reg_data %>% 
     left_join(price_annual %>% select(id, year, paste_avg, base_avg, hyd_avg), by=c("id", "year"))
-  labs_HCl_reg_data$paste_price_distance <- 0
-  no_paste_index <- which(is.na(labs_HCl_reg_data$paste_avg))
-  no_paste_index <- no_paste_index[which(labs_HCl_reg_data$year[no_paste_index]>2012 & labs_HCl_reg_data$year[no_paste_index]<2022)]
+  labs_hyd_reg_data$paste_price_distance <- 0
+  no_paste_index <- which(is.na(labs_hyd_reg_data$paste_avg))
+  no_paste_index <- no_paste_index[which(labs_hyd_reg_data$year[no_paste_index]>2012 & labs_hyd_reg_data$year[no_paste_index]<2022)]
   
   for (i in no_paste_index) { # the closest distance to a municipio with paste price observation from municipios and years without price
-    id_i <- labs_HCl_reg_data$id[i]
-    year_i <- labs_HCl_reg_data$year[i]
+    id_i <- labs_hyd_reg_data$id[i]
+    year_i <- labs_hyd_reg_data$year[i]
     municipio_index <- which(municipio_centroid$id == id_i)
     long_i <- municipio_centroid$long[municipio_index]
     lat_i <- municipio_centroid$lat[municipio_index]
@@ -382,17 +382,17 @@ price_med
     neighbors_distances <- sqrt((long_i - neighbors_id_price$long)^2 + (lat_i - neighbors_id_price$lat)^2)
     distance_i <- min(neighbors_distances)
     
-    labs_HCl_reg_data$paste_price_distance[i] <- distance_i
-    labs_HCl_reg_data$paste_avg[i] <- neighbors_id_price$paste_avg[which.min(neighbors_distances)]
+    labs_hyd_reg_data$paste_price_distance[i] <- distance_i
+    labs_hyd_reg_data$paste_avg[i] <- neighbors_id_price$paste_avg[which.min(neighbors_distances)]
   }
   
-  labs_HCl_reg_data$base_price_distance <- 0
-  no_base_index <- which(is.na(labs_HCl_reg_data$base_avg))
-  no_base_index <- no_base_index[which(labs_HCl_reg_data$year[no_base_index]>2012 & labs_HCl_reg_data$year[no_base_index]<2022)]
+  labs_hyd_reg_data$base_price_distance <- 0
+  no_base_index <- which(is.na(labs_hyd_reg_data$base_avg))
+  no_base_index <- no_base_index[which(labs_hyd_reg_data$year[no_base_index]>2012 & labs_hyd_reg_data$year[no_base_index]<2022)]
   
   for (i in no_base_index) { # the closest distance to a municipio with base price observation from municipios and years without price
-    id_i <- labs_HCl_reg_data$id[i]
-    year_i <- labs_HCl_reg_data$year[i]
+    id_i <- labs_hyd_reg_data$id[i]
+    year_i <- labs_hyd_reg_data$year[i]
     municipio_index <- which(municipio_centroid$id == id_i)
     long_i <- municipio_centroid$long[municipio_index]
     lat_i <- municipio_centroid$lat[municipio_index]
@@ -401,17 +401,17 @@ price_med
     neighbors_distances <- sqrt((long_i - neighbors_id_price$long)^2 + (lat_i - neighbors_id_price$lat)^2)
     distance_i <- min(neighbors_distances)
     
-    labs_HCl_reg_data$base_price_distance[i] <- distance_i
-    labs_HCl_reg_data$base_avg[i] <- neighbors_id_price$base_avg[which.min(neighbors_distances)]
+    labs_hyd_reg_data$base_price_distance[i] <- distance_i
+    labs_hyd_reg_data$base_avg[i] <- neighbors_id_price$base_avg[which.min(neighbors_distances)]
   }
   
-  labs_HCl_reg_data$hyd_price_distance <- 0
-  no_hyd_index <- which(is.na(labs_HCl_reg_data$hyd_avg))
-  no_hyd_index <- no_hyd_index[which(labs_HCl_reg_data$year[no_hyd_index]>2012 & labs_HCl_reg_data$year[no_hyd_index]<2022)]
+  labs_hyd_reg_data$hyd_price_distance <- 0
+  no_hyd_index <- which(is.na(labs_hyd_reg_data$hyd_avg))
+  no_hyd_index <- no_hyd_index[which(labs_hyd_reg_data$year[no_hyd_index]>2012 & labs_hyd_reg_data$year[no_hyd_index]<2022)]
   
   for (i in no_hyd_index) { # the closest distance to a municipio with hyd price observation from municipios and years without price
-    id_i <- labs_HCl_reg_data$id[i]
-    year_i <- labs_HCl_reg_data$year[i]
+    id_i <- labs_hyd_reg_data$id[i]
+    year_i <- labs_hyd_reg_data$year[i]
     municipio_index <- which(municipio_centroid$id == id_i)
     long_i <- municipio_centroid$long[municipio_index]
     lat_i <- municipio_centroid$lat[municipio_index]
@@ -420,12 +420,12 @@ price_med
     neighbors_distances <- sqrt((long_i - neighbors_id_price$long)^2 + (lat_i - neighbors_id_price$lat)^2)
     distance_i <- min(neighbors_distances)
     
-    labs_HCl_reg_data$hyd_price_distance[i] <- distance_i
-    labs_HCl_reg_data$hyd_avg[i] <- neighbors_id_price$hyd_avg[which.min(neighbors_distances)]
+    labs_hyd_reg_data$hyd_price_distance[i] <- distance_i
+    labs_hyd_reg_data$hyd_avg[i] <- neighbors_id_price$hyd_avg[which.min(neighbors_distances)]
   }
 }
 # write.csv(labs_PPI_reg_data, "Colombia Data/labs_PPI_reg_data.csv", row.names = F)
-# write.csv(labs_HCl_reg_data, "Colombia Data/labs_HCl_reg_data.csv", row.names = F)
+# write.csv(labs_hyd_reg_data, "Colombia Data/labs_hyd_reg_data.csv", row.names = F)
 
 ex_year <- 2016
 anecdotal_year <- anecdotal_annual %>%
@@ -433,18 +433,18 @@ anecdotal_year <- anecdotal_annual %>%
 labs_PPI_2steps_year <- labs_PPI_reg_data %>% 
   filter(year == ex_year) %>% 
   select(-MUNICIPIO, -DEPARTAMENTO, -paste_avg, -hyd_avg, -paste_price_distance, -hyd_price_distance,
-         -n_armed_groups, -n_rivers, -n_big_rivers, -n_roads, -HCl_seizures) %>% 
+         -n_armed_groups, -n_rivers, -n_big_rivers, -n_roads, -hyd_seizures) %>% 
   mutate(n_labs=ifelse(is.na(n_labs), 0, n_labs),
          coca_area=ifelse(is.na(coca_area), 0, coca_area),
          erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
          erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
          coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
          base_seizures=ifelse(is.na(base_seizures), 0, base_seizures)) %>% 
-  left_join(labs_HCl_reg_data %>%
+  left_join(labs_hyd_reg_data %>%
               filter(year == ex_year) %>%
-              mutate(n_HCl_labs=n_labs) %>%
-              select(id, n_HCl_labs), by="id") %>% 
-  mutate(n_HCl_labs=ifelse(is.na(n_HCl_labs), 0, n_HCl_labs)) %>% 
+              mutate(n_hyd_labs=n_labs) %>%
+              select(id, n_hyd_labs), by="id") %>% 
+  mutate(n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs)) %>% 
   left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:n_armed_groups)), by="id")
 labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
 
@@ -465,8 +465,8 @@ sum(!(anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id) %>% uniqu
   data_year$base_source_all <- ifelse(data_year$id %in% (base_to_base %>% pull(source_id) %>% unique), 1, 0) %>% as.factor
   data_year$base_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id)), 1, 0) %>% as.factor
   data_year$base_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(destination_id)), 1, 0) %>% as.factor
-  data_year$HCl_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
-  data_year$HCl_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
+  data_year$hyd_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
+  data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
   data_year$general_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(source_id)), 1, 0) %>% as.factor
   data_year$general_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(destination_id)), 1, 0) %>% as.factor
   
@@ -474,10 +474,10 @@ sum(!(anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id) %>% uniqu
   base_source_unlabeled_index <- which(data_year$base_source == 0)
   base_destination_positive_index <- which(data_year$base_destination == 1)
   base_destination_unlabeled_index <- which(data_year$base_destination == 0)
-  HCl_source_positive_index <- which(data_year$HCl_source == 1)
-  HCl_source_unlabeled_index <- which(data_year$HCl_source == 0)
-  HCl_destination_positive_index <- which(data_year$HCl_destination == 1)
-  HCl_destination_unlabeled_index <- which(data_year$HCl_destination == 0)
+  hyd_source_positive_index <- which(data_year$hyd_source == 1)
+  hyd_source_unlabeled_index <- which(data_year$hyd_source == 0)
+  hyd_destination_positive_index <- which(data_year$hyd_destination == 1)
+  hyd_destination_unlabeled_index <- which(data_year$hyd_destination == 0)
   general_source_positive_index <- which(data_year$general_source == 1)
   general_source_unlabeled_index <- which(data_year$general_source == 0)
   general_destination_positive_index <- which(data_year$general_destination == 1)
@@ -511,18 +511,18 @@ shuffle <- function(positive, unlabeled, N) { # N: number of positive and unlabe
   data_year_base_destination3_index <- shuffle(base_destination_positive_index, base_destination_unlabeled_index, N=40)
   data_year_base_destination3 <- data_year[c(data_year_base_destination1_index$positive, data_year_base_destination1_index$unlabeled), ]
   
-  data_year_HCl_source1_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index, N=40)
-  data_year_HCl_source1 <- data_year[c(data_year_HCl_source1_index$positive, data_year_HCl_source1_index$unlabeled), ]
-  data_year_HCl_source2_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index, N=40)
-  data_year_HCl_source2 <- data_year[c(data_year_HCl_source1_index$positive, data_year_HCl_source1_index$unlabeled), ]
-  data_year_HCl_source3_index <- shuffle(HCl_source_positive_index, HCl_source_unlabeled_index, N=40)
-  data_year_HCl_source3 <- data_year[c(data_year_HCl_source1_index$positive, data_year_HCl_source1_index$unlabeled), ]
-  data_year_HCl_destination1_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index, N=40)
-  data_year_HCl_destination1 <- data_year[c(data_year_HCl_destination1_index$positive, data_year_HCl_destination1_index$unlabeled), ]
-  data_year_HCl_destination2_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index, N=40)
-  data_year_HCl_destination2 <- data_year[c(data_year_HCl_destination1_index$positive, data_year_HCl_destination1_index$unlabeled), ]
-  data_year_HCl_destination3_index <- shuffle(HCl_destination_positive_index, HCl_destination_unlabeled_index, N=40)
-  data_year_HCl_destination3 <- data_year[c(data_year_HCl_destination1_index$positive, data_year_HCl_destination1_index$unlabeled), ]
+  data_year_hyd_source1_index <- shuffle(hyd_source_positive_index, hyd_source_unlabeled_index, N=40)
+  data_year_hyd_source1 <- data_year[c(data_year_hyd_source1_index$positive, data_year_hyd_source1_index$unlabeled), ]
+  data_year_hyd_source2_index <- shuffle(hyd_source_positive_index, hyd_source_unlabeled_index, N=40)
+  data_year_hyd_source2 <- data_year[c(data_year_hyd_source1_index$positive, data_year_hyd_source1_index$unlabeled), ]
+  data_year_hyd_source3_index <- shuffle(hyd_source_positive_index, hyd_source_unlabeled_index, N=40)
+  data_year_hyd_source3 <- data_year[c(data_year_hyd_source1_index$positive, data_year_hyd_source1_index$unlabeled), ]
+  data_year_hyd_destination1_index <- shuffle(hyd_destination_positive_index, hyd_destination_unlabeled_index, N=40)
+  data_year_hyd_destination1 <- data_year[c(data_year_hyd_destination1_index$positive, data_year_hyd_destination1_index$unlabeled), ]
+  data_year_hyd_destination2_index <- shuffle(hyd_destination_positive_index, hyd_destination_unlabeled_index, N=40)
+  data_year_hyd_destination2 <- data_year[c(data_year_hyd_destination1_index$positive, data_year_hyd_destination1_index$unlabeled), ]
+  data_year_hyd_destination3_index <- shuffle(hyd_destination_positive_index, hyd_destination_unlabeled_index, N=40)
+  data_year_hyd_destination3 <- data_year[c(data_year_hyd_destination1_index$positive, data_year_hyd_destination1_index$unlabeled), ]
   
   data_year_general_destination1_index <- shuffle(general_destination_positive_index, general_destination_unlabeled_index, N=40)
   data_year_general_destination1 <- data_year[c(data_year_general_destination1_index$positive, data_year_general_destination1_index$unlabeled), ]
@@ -546,12 +546,12 @@ labs_PPI_2steps_year <- labs_PPI_reg_data %>%
          erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
          coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
          base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
-         HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures)) %>% 
-  left_join(labs_HCl_reg_data %>%
+         hyd_seizures=ifelse(is.na(hyd_seizures), 0, hyd_seizures)) %>% 
+  left_join(labs_hyd_reg_data %>%
               filter(year == ex_year) %>%
-              mutate(n_HCl_labs=n_labs) %>%
-              select(id, n_HCl_labs), by="id") %>% 
-  mutate(n_HCl_labs=ifelse(is.na(n_HCl_labs), 0, n_HCl_labs)) %>% 
+              mutate(n_hyd_labs=n_labs) %>%
+              select(id, n_hyd_labs), by="id") %>% 
+  mutate(n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs)) %>% 
   left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:depto)), by="id")
 labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
 
@@ -562,29 +562,29 @@ data_year <- labs_PPI_2steps_year %>% left_join(population %>% select(id, popula
 data_year$base_source_all <- ifelse(data_year$id %in% (base_to_base %>% pull(source_id) %>% unique), 1, 0) %>% as.factor
 data_year$base_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$base_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(destination_id)), 1, 0) %>% as.factor
-data_year$HCl_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
-data_year$HCl_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
+data_year$hyd_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
+data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
 data_year$general_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$general_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(destination_id)), 1, 0) %>% as.factor
 
-HCl_destination_glm_year <- glm(HCl_destination~., family="binomial",
+hyd_destination_glm_year <- glm(hyd_destination~., family="binomial",
                            data=data_year %>%
                              # mutate(n_labs=ifelse(n_labs > 0, 1, 0)) %>%
-                             select(n_labs:population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
-summary(HCl_destination_glm_year)
+                             select(n_labs:population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
+summary(hyd_destination_glm_year)
 data_year$coca_group <- data_year$`Los Urabeños`
 # labs_PPI_2steps_years <- rbind(labs_PPI_2steps_years,
 #                                data_year %>%
 #                                  select(id:n_armed_groups, coca_group, population, base_source_all:general_destination))
 
 fit_test <- data_year %>%
-  select(id, n_labs:n_HCl_labs, coca_group, population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
-  mutate(posterior_glm=HCl_destination_glm_year$fitted.values)
+  select(id, n_labs:n_hyd_labs, coca_group, population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
+  mutate(posterior_glm=hyd_destination_glm_year$fitted.values)
 
-sum(fit_test$HCl_destination == 1)
+sum(fit_test$hyd_destination == 1)
 threshold <- .1
-fit_test %>% filter(posterior_glm < threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table  # 0: 219, 1: 10
-fit_test %>% filter(posterior_glm >= threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table # 0: 247, 1: 65
+fit_test %>% filter(posterior_glm < threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table  # 0: 219, 1: 10
+fit_test %>% filter(posterior_glm >= threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table # 0: 247, 1: 65
 }
 # no base source in anecdotal_annual (2014), insignificant association between Colombia data and base_source_all
 
@@ -601,12 +601,12 @@ labs_PPI_2steps_year <- labs_PPI_reg_data %>%
          erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
          coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
          base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
-         HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures)) %>% 
-  left_join(labs_HCl_reg_data %>%
+         hyd_seizures=ifelse(is.na(hyd_seizures), 0, hyd_seizures)) %>% 
+  left_join(labs_hyd_reg_data %>%
               filter(year == ex_year) %>%
-              mutate(n_HCl_labs=n_labs) %>%
-              select(id, n_HCl_labs), by="id") %>% 
-  mutate(n_HCl_labs=ifelse(is.na(n_HCl_labs), 0, n_HCl_labs)) %>% 
+              mutate(n_hyd_labs=n_labs) %>%
+              select(id, n_hyd_labs), by="id") %>% 
+  mutate(n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs)) %>% 
   left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:depto)), by="id")
 labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
 
@@ -617,29 +617,29 @@ data_year <- labs_PPI_2steps_year %>% left_join(population %>% select(id, popula
 data_year$base_source_all <- ifelse(data_year$id %in% (base_to_base %>% pull(source_id) %>% unique), 1, 0) %>% as.factor
 data_year$base_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$base_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(destination_id)), 1, 0) %>% as.factor
-data_year$HCl_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
-data_year$HCl_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
+data_year$hyd_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
+data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
 data_year$general_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$general_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(destination_id)), 1, 0) %>% as.factor
 
-HCl_destination_glm_year <- glm(HCl_destination~., family="binomial",
+hyd_destination_glm_year <- glm(hyd_destination~., family="binomial",
                            data=data_year %>%
                              # mutate(n_labs=ifelse(n_labs > 0, 1, 0)) %>%
-                             select(n_labs:population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
-summary(HCl_destination_glm_year)
+                             select(n_labs:population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
+summary(hyd_destination_glm_year)
 data_year$coca_group <- data_year$`Los Urabeños`
 # labs_PPI_2steps_years <- rbind(labs_PPI_2steps_years, 
 #                                data_year %>% 
 #                                  select(id:n_armed_groups, coca_group, population, base_source_all:general_destination))
 
 fit_test <- data_year %>%
-  select(id, n_labs:n_HCl_labs, coca_group, population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
-  mutate(posterior_glm=HCl_destination_glm_year$fitted.values)
+  select(id, n_labs:n_hyd_labs, coca_group, population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
+  mutate(posterior_glm=hyd_destination_glm_year$fitted.values)
 
-sum(fit_test$HCl_destination == 1)
+sum(fit_test$hyd_destination == 1)
 threshold <- .1
-fit_test %>% filter(posterior_glm < threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table  # 0: 119, 1: 5
-fit_test %>% filter(posterior_glm >= threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table # 0: 246, 1: 171
+fit_test %>% filter(posterior_glm < threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table  # 0: 119, 1: 5
+fit_test %>% filter(posterior_glm >= threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table # 0: 246, 1: 171
 }
 
 {
@@ -655,12 +655,12 @@ labs_PPI_2steps_year <- labs_PPI_reg_data %>%
          erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
          coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
          base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
-         HCl_seizures=ifelse(is.na(HCl_seizures), 0, HCl_seizures)) %>% 
-  left_join(labs_HCl_reg_data %>%
+         hyd_seizures=ifelse(is.na(hyd_seizures), 0, hyd_seizures)) %>% 
+  left_join(labs_hyd_reg_data %>%
               filter(year == ex_year) %>%
-              mutate(n_HCl_labs=n_labs) %>%
-              select(id, n_HCl_labs), by="id") %>% 
-  mutate(n_HCl_labs=ifelse(is.na(n_HCl_labs), 0, n_HCl_labs)) %>% 
+              mutate(n_hyd_labs=n_labs) %>%
+              select(id, n_hyd_labs), by="id") %>% 
+  mutate(n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs)) %>% 
   left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:depto)), by="id")
 labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
 
@@ -671,16 +671,16 @@ data_year <- labs_PPI_2steps_year %>% left_join(population %>% select(id, popula
 data_year$base_source_all <- ifelse(data_year$id %in% (base_to_base %>% pull(source_id) %>% unique), 1, 0) %>% as.factor
 data_year$base_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$base_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(destination_id)), 1, 0) %>% as.factor
-data_year$HCl_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
-data_year$HCl_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
+data_year$hyd_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
+data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
 data_year$general_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$general_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(destination_id)), 1, 0) %>% as.factor
 
-HCl_destination_glm_year <- glm(HCl_destination~., family="binomial",
+hyd_destination_glm_year <- glm(hyd_destination~., family="binomial",
                            data=data_year %>%
                              # mutate(n_labs=ifelse(n_labs > 0, 1, 0)) %>%
-                             select(n_labs:population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
-summary(HCl_destination_glm_year)
+                             select(n_labs:population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
+summary(hyd_destination_glm_year)
 data_year <- data_year %>% 
   mutate(coca_group = `Clan del Golfo (Formerly Los Urabeños)` + `Los Pachenga O AUTODEFENSAS CONQUISTADORAS DE LA SIERRA NEVADA (ACSN)` +
            `La Constru` + `Los Pelusos`)
@@ -689,44 +689,44 @@ data_year <- data_year %>%
 #                                  select(id:n_armed_groups, coca_group, population, base_source_all:general_destination))
 
 fit_test <- data_year %>%
-  select(id, n_labs:n_HCl_labs, coca_group, population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
-  mutate(posterior_glm=HCl_destination_glm_year$fitted.values)
+  select(id, n_labs:n_hyd_labs, coca_group, population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
+  mutate(posterior_glm=hyd_destination_glm_year$fitted.values)
 
-sum(fit_test$HCl_destination == 1)
+sum(fit_test$hyd_destination == 1)
 threshold <- .1
-fit_test %>% filter(posterior_glm < threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table  # 0: 140, 1: 14
-fit_test %>% filter(posterior_glm >= threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table # 0: 140, 1: 64
+fit_test %>% filter(posterior_glm < threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table  # 0: 140, 1: 14
+fit_test %>% filter(posterior_glm >= threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table # 0: 140, 1: 64
 }
 # write.csv(labs_PPI_2steps_years, "Colombia Data/regression data (5-01-2024).csv", row.names = F)
 
 labs_PPI_2steps_years <- read.csv("Colombia Data/regression data (04-24-2024).csv") %>% as_tibble
-HCl_destination_glm_years <- glm(HCl_destination~., family="binomial",
+hyd_destination_glm_years <- glm(hyd_destination~., family="binomial",
                                  data=labs_PPI_2steps_years %>%
                                    mutate(year=as.factor(year)) %>%
-                                   select(year, n_labs:population, HCl_destination, -base_avg, -base_price_distance,
+                                   select(year, n_labs:population, hyd_destination, -base_avg, -base_price_distance,
                                           -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
-summary(HCl_destination_glm_years)
+summary(hyd_destination_glm_years)
 
 fit_test_years <- labs_PPI_2steps_years %>%
   mutate(year=as.factor(year)) %>%
-  select(year, n_labs:population, HCl_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
-  mutate(posterior_glm=HCl_destination_glm_years$fitted.values)
+  select(year, n_labs:population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
+  mutate(posterior_glm=hyd_destination_glm_years$fitted.values)
 
-sum(fit_test_years$HCl_destination == 1) # 329
+sum(fit_test_years$hyd_destination == 1) # 329
 threshold <- .1
-fit_test_years %>% filter(posterior_glm < threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table  # 0: 383, 1: 31
-fit_test_years %>% filter(posterior_glm >= threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table # 0: 911, 1: 298
+fit_test_years %>% filter(posterior_glm < threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table  # 0: 383, 1: 31
+fit_test_years %>% filter(posterior_glm >= threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table # 0: 911, 1: 298
 298/329 # 0.9057751
 
-sum(fit_test_years %>% filter(year == 2013) %>% pull(HCl_destination) == 1) # 75
-sum(fit_test_years %>% filter(year == 2014) %>% pull(HCl_destination) == 1) # 176
-sum(fit_test_years %>% filter(year == 2016) %>% pull(HCl_destination) == 1) # 78
+sum(fit_test_years %>% filter(year == 2013) %>% pull(hyd_destination) == 1) # 75
+sum(fit_test_years %>% filter(year == 2014) %>% pull(hyd_destination) == 1) # 176
+sum(fit_test_years %>% filter(year == 2016) %>% pull(hyd_destination) == 1) # 78
 65/75 # 0.8666667
 171/176 # 0.9715909
 64/78 # 0.8205128
 
 threshold <- .2
-fit_test_years %>% filter(year == 2013, posterior_glm >= threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table # 0: 304, 1: 53
-fit_test_years %>% filter(year == 2014, posterior_glm >= threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table # 0: 344, 1: 176
-fit_test_years %>% filter(year == 2016, posterior_glm >= threshold) %>% select(HCl_destination, posterior_glm) %>% pull(HCl_destination) %>% table # 0: 263, 1: 69
+fit_test_years %>% filter(year == 2013, posterior_glm >= threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table # 0: 304, 1: 53
+fit_test_years %>% filter(year == 2014, posterior_glm >= threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table # 0: 344, 1: 176
+fit_test_years %>% filter(year == 2016, posterior_glm >= threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table # 0: 263, 1: 69
 

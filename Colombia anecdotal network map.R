@@ -48,16 +48,16 @@ base_to_base  <- read_xlsx("Colombia Data/Anecdotal base to base.xlsx")
 base_to_base$`source municipio` <- str_to_upper(base_to_base$`source municipio`)
 base_to_base$`Destine municipio` <- str_to_upper(base_to_base$`Destine municipio`)
 
-HCl_to_HCl  <- read_xlsx("Colombia Data/Anecdotal HCl to HCl.xlsx")
-HCl_to_HCl$`source municipio` <- str_to_upper(HCl_to_HCl$`source municipio`)
-HCl_to_HCl$`Destine municipio` <- str_to_upper(HCl_to_HCl$`Destine municipio`)
+hyd_to_hyd  <- read_xlsx("Colombia Data/Anecdotal hyd to hyd.xlsx")
+hyd_to_hyd$`source municipio` <- str_to_upper(hyd_to_hyd$`source municipio`)
+hyd_to_hyd$`Destine municipio` <- str_to_upper(hyd_to_hyd$`Destine municipio`)
 
 same_town_names <- which(table(cities$city) > 1) %>% names
 cities %>% filter(!(city %in% base_to_base$`source municipio`))
 base_to_base %>% filter(!(`source municipio` %in% cities$city))# %>% pull(`source municipio`) %>% unique
 base_to_base %>% filter(!(`Destine municipio` %in% cities$city))# %>% pull(`Destine municipio`) %>% unique
-HCl_to_HCl %>% filter(!(`source municipio` %in% cities$city))# %>% pull(`source municipio`) %>% unique
-HCl_to_HCl %>% filter(!(`Destine municipio` %in% cities$city))# %>% pull(`Destine municipio`) %>% unique
+hyd_to_hyd %>% filter(!(`source municipio` %in% cities$city))# %>% pull(`source municipio`) %>% unique
+hyd_to_hyd %>% filter(!(`Destine municipio` %in% cities$city))# %>% pull(`Destine municipio`) %>% unique
 
 base_to_base %>% filter(!(`source Depto` %in% unique(municipios_capital$depto)))
 base_to_base %>% filter(!(`Destine Depto.` %in% unique(municipios_capital$depto)))
@@ -95,11 +95,11 @@ base_to_base %>% filter(destination_municipio == "BOGOTA")
 # base_to_base %>% write.csv("Colombia Data/Anecdotal base to base with id.csv", row.names=F)
 
 
-HCl_to_HCl %>% filter(!(`source Depto` %in% unique(municipios_capital$depto))) %>% pull(`source Depto`) %>% unique
-HCl_to_HCl %>% filter(!(`Destine Depto.` %in% unique(municipios_capital$depto))) %>% pull(`Destine Depto.`) %>% unique
+hyd_to_hyd %>% filter(!(`source Depto` %in% unique(municipios_capital$depto))) %>% pull(`source Depto`) %>% unique
+hyd_to_hyd %>% filter(!(`Destine Depto.` %in% unique(municipios_capital$depto))) %>% pull(`Destine Depto.`) %>% unique
 
-HCl_to_HCl %>% filter(!(`source municipio` %in% unique(municipios_capital$municipio))) %>% pull(`source municipio`) %>% unique
-HCl_to_HCl %>% filter(!(`Destine municipio` %in% unique(municipios_capital$municipio))) %>% pull(`Destine municipio`) %>% unique
+hyd_to_hyd %>% filter(!(`source municipio` %in% unique(municipios_capital$municipio))) %>% pull(`source municipio`) %>% unique
+hyd_to_hyd %>% filter(!(`Destine municipio` %in% unique(municipios_capital$municipio))) %>% pull(`Destine municipio`) %>% unique
 
 # base-to-base network map
 towns <- read.csv("Colombia Data/cities and towns.csv") %>% as_tibble
@@ -147,38 +147,37 @@ map_df <- left_join(map_df, municipios_capital %>% mutate(id=id_depto) %>% selec
 # }
 # write.csv(towns, "Colombia Data/cities and towns.csv", row.names=F)
 
+
 empty_map <- ggplot(map_df, aes(x=long, y=lat)) + 
-  geom_polygon(aes(group=group, fill = ""),
+  geom_polygon(aes(group=group),
              color = "black",
+             fill="white",
            linewidth = 0.1) + 
   expand_limits(x = map_df$long, y = map_df$lat) + 
   coord_quickmap() +
-  # scale_fill_gradientn(colors = palette(1)) +
-  scale_fill_manual(values="white",na.value = "white") +
   labs(fill="", x="", y="", title="") +
   theme_bw() +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
         axis.text = element_blank(),
-        line = element_blank(),
-        legend.position="none"
+        line = element_blank()
         )
 
-
+base_to_base <- read.csv("Colombia Data/Anecdotal base to base with coordinates.csv") %>% as_tibble
 base_to_base_map <- empty_map
 base_to_base_map <- base_to_base_map +
-  geom_point(data=base_to_base %>% filter(`source Depto` != "?" & `Destine Depto.` != "?"),
+  geom_point(data=base_to_base %>% filter(source.Depto != "?" & Destine.Depto. != "?"),
              aes(x=source_long, 
                  y=source_lat,
-                 color=`source Depto`),
+                 color=source.Depto),
              size=0.1) +
-  geom_segment(data=base_to_base %>% filter(`source Depto` != "?" & `Destine Depto.` != "?"),
+  geom_segment(data=base_to_base %>% filter(source.Depto != "?" & Destine.Depto. != "?"),
                aes(x=source_long, 
                    y=source_lat, 
                    xend=destination_long,
                    yend=destination_lat,
-                   color=`source Depto`),
+                   color=source.Depto),
                linewidth = 0.1,
                arrow=arrow(angle=10,
                            length=unit(0.1, "cm"),
@@ -225,13 +224,13 @@ for (year in 2007:2022) {
 }
 
 
-# HCl map
+# hyd map
 towns <- read.csv("Colombia Data/cities and towns.csv") %>% as_tibble
-HCl_to_HCl_match <- HCl_to_HCl[,1:2] %>%
+hyd_to_hyd_match <- hyd_to_hyd[,1:2] %>%
   rename(city=`source municipio`,
          department=`source Depto`)
-HCl_to_HCl_match <- left_join(HCl_to_HCl_match, towns, by=c("city", "department"))
-HCl_to_HCl_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
+hyd_to_hyd_match <- left_join(hyd_to_hyd_match, towns, by=c("city", "department"))
+hyd_to_hyd_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
 # Norte de Santader -> Norte de Santander
 # AQUAZUL, Casanare -> AGUAZUL
 # CANAS GORDAS, Antioquia -> CANASGORDAS
@@ -243,68 +242,69 @@ HCl_to_HCl_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
 # SOGAMOZO, Boyaca -> SOGAMOSO
 # TIMBIQUUI, Cauca -> TIMBIQUI
 # SOTARA, Cauca and Calima, Valle are entire municipios
-HCl_to_HCl$source_lat <- HCl_to_HCl_match$lat
-HCl_to_HCl$source_long <- HCl_to_HCl_match$long
+hyd_to_hyd$source_lat <- hyd_to_hyd_match$lat
+hyd_to_hyd$source_long <- hyd_to_hyd_match$long
 
-HCl_to_HCl_match <- HCl_to_HCl[,3:4] %>%
+hyd_to_hyd_match <- hyd_to_hyd[,3:4] %>%
   rename(city=`Destine municipio`,
          department=`Destine Depto.`)
-HCl_to_HCl_match <- left_join(HCl_to_HCl_match, towns, by=c("city", "department"))
-HCl_to_HCl_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
+hyd_to_hyd_match <- left_join(hyd_to_hyd_match, towns, by=c("city", "department"))
+hyd_to_hyd_match %>% filter(is.na(lat)) %>% unique %>% arrange(city, department)
 # ARIGUANI and ZONA BANANERA, Magdalena are entire municipios
 # MANU, Casanare -> MANI
 # PAZ DE ARIPOSO, Casanare -> PAZ DE ARIPORO
 # PROVINDENCIA, Narino -> PROVIDENCIA
 # Paraguachón MAICAO, La Guajira -> Paraguachón
-HCl_to_HCl$destination_lat <- HCl_to_HCl_match$lat
-HCl_to_HCl$destination_long <- HCl_to_HCl_match$long
-# write.csv(HCl_to_HCl, "Colombia Data/Anecdotal HCl to HCl with coordinates.csv", row.names=F)
+hyd_to_hyd$destination_lat <- hyd_to_hyd_match$lat
+hyd_to_hyd$destination_long <- hyd_to_hyd_match$long
+# write.csv(hyd_to_hyd, "Colombia Data/Anecdotal hyd to hyd with coordinates.csv", row.names=F)
 
-HCl_to_HCl <- HCl_to_HCl %>% filter(!grepl("\\?", `source Depto`) & !grepl("\\?", `Destine Depto.`))
-HCl_to_HCl_map <- empty_map
-HCl_to_HCl_map <- HCl_to_HCl_map +
-  geom_point(data=HCl_to_HCl,
+hyd_to_hyd <- read.csv("Colombia Data/Anecdotal hyd to hyd with coordinates.csv") %>% as_tibble
+hyd_to_hyd <- hyd_to_hyd %>% filter(!grepl("\\?", source.Depto) & !grepl("\\?", Destine.Depto.))
+hyd_to_hyd_map <- empty_map
+hyd_to_hyd_map <- hyd_to_hyd_map +
+  geom_point(data=hyd_to_hyd,
              aes(x=source_long, 
                  y=source_lat,
-                 color=`source Depto`),
+                 color=source.Depto),
              size=0.1) +
-  geom_segment(data=HCl_to_HCl,
+  geom_segment(data=hyd_to_hyd,
                aes(x=source_long, 
                    y=source_lat, 
                    xend=destination_long,
                    yend=destination_lat,
-                   color=`source Depto`),
+                   color=source.Depto),
                linewidth = 0.1,
                arrow=arrow(angle=10,
                            length=unit(0.1, "cm"),
                            type="closed")
   ) +
-  labs(title="HCl to HCl", color="Source Dep.") +
+  labs(title="Hyd to Hyd", color="Source Dep.") +
   theme(legend.position="right")
-# ggsave("Colombia Data/Figs/HCl to HCl map.png", HCl_to_HCl_map, scale=1)
+# ggsave("Colombia Data/Figs/hyd to hyd map.png", hyd_to_hyd_map, scale=1)
 
-for (depto in unique(HCl_to_HCl$`source Depto`)) {
-  HCl_to_HCl_depto <- HCl_to_HCl %>% filter(`source Depto` == depto)
-  HCl_to_HCl_sub <- empty_map +
-    geom_point(data=HCl_to_HCl_depto,
+for (depto in unique(hyd_to_hyd$source.Depto)) {
+  hyd_to_hyd_depto <- hyd_to_hyd %>% filter(source.Depto == depto)
+  hyd_to_hyd_sub <- empty_map +
+    geom_point(data=hyd_to_hyd_depto,
                aes(x=source_long, 
                    y=source_lat,
-                   color=`source Depto`),
+                   color=source.Depto),
                size=0.1) +
-    geom_segment(data=HCl_to_HCl_depto,
+    geom_segment(data=hyd_to_hyd_depto,
                  aes(x=source_long, 
                      y=source_lat, 
                      xend=destination_long,
                      yend=destination_lat,
-                     color=`source Depto`),
+                     color=source.Depto),
                  linewidth = 0.1,
                  arrow=arrow(angle=10,
                              length=unit(0.1, "cm"),
                              type="closed")
     ) +
-    labs(title=paste0("HCl to HCl ", "(", depto, ")"), color="Source Dep.") +
+    labs(title=paste0("Hyd to Hyd ", "(", depto, ")"), color="Source Dep.") +
     theme(legend.position="none")
-  ggsave(paste0("Colombia Data/Figs/Anecdotal flows map/HCl to HCl map ", "(", depto, ").png"), HCl_to_HCl_sub, scale=1)
+  ggsave(paste0("Colombia Data/Figs/Anecdotal flows map/hyd to hyd map ", "(", depto, ").png"), hyd_to_hyd_sub, scale=1)
 }
 
 # General map
@@ -505,10 +505,10 @@ for (year in unique(anecdotal_annual$YEAR) %>% sort) {
                              length=unit(0.1, "cm"),
                              type="closed")
     ) +
-    labs(title=paste0("HCL to HCL (", year, ")"), color="Source Dep.") +
+    labs(title=paste0("Hyd to Hyd (", year, ")"), color="Source Dep.") +
     theme(legend.position="right")
   fig_scale <- ifelse(year > 2015, 1.3, 1)
-  ggsave(paste0("Colombia Data/Figs/Annual HCL to HCL map (", year, ").png"), annual_annecdotal_map_year, scale=fig_scale)
+  ggsave(paste0("Colombia Data/Figs/Annual hyd to hyd map (", year, ").png"), annual_annecdotal_map_year, scale=fig_scale)
 }
 
 for (year in unique(anecdotal_annual$YEAR) %>% sort) {
