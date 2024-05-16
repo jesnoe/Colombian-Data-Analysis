@@ -25,17 +25,17 @@ library(randomForest)
   municipios_capital$municipio <- gsub("GUADALAJARA DE BUGA", "BUGA", municipios_capital$municipio)
   municipios_capital <- municipios_capital %>% filter(!(id %in% c(88001, 88564))) %>% as_tibble
   
-  municipio_centroid <- map_df %>% 
-    filter(!(id %in% c(88001, 88564))) %>% 
-    group_by(id, municipio, depto) %>% 
-    summarize(long=mean(long),
-              lat=mean(lat))
-  
   map <- municipios
   map_df <- suppressMessages(fortify(map)) %>% 
     mutate(id=as.numeric(id)) %>% 
     filter(!(id %in% c(88001, 88564)))
   map_df <- left_join(map_df, municipios_capital %>% unique, by="id")
+  
+  municipio_centroid <- map_df %>% 
+    filter(!(id %in% c(88001, 88564))) %>% 
+    group_by(id, municipio, depto) %>% 
+    summarize(long=mean(long),
+              lat=mean(lat))
   
   base_to_base <- read.csv("Colombia Data/Anecdotal base to base municipality only.csv") %>% as_tibble
   hyd_to_hyd <- read.csv("Colombia Data/Anecdotal hyd to hyd municipality only.csv") %>% as_tibble
