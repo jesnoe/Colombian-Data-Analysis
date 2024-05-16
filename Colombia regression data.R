@@ -426,11 +426,13 @@ price_med
 }
 # write.csv(labs_PPI_reg_data, "Colombia Data/labs_PPI_reg_data.csv", row.names = F)
 # write.csv(labs_hyd_reg_data, "Colombia Data/labs_hyd_reg_data.csv", row.names = F)
+labs_PPI_reg_data <- read.csv("Colombia Data/labs_PPI_reg_data.csv") %>% as_tibble
+labs_hyd_reg_data <- read.csv("Colombia Data/labs_hyd_reg_data.csv") %>% as_tibble
 
 ex_year <- 2016
 anecdotal_year <- anecdotal_annual %>%
   filter(YEAR == ex_year)
-labs_PPI_2steps_year <- labs_PPI_reg_data %>% 
+labs_2steps_year <- labs_PPI_reg_data %>% 
   filter(year == ex_year) %>% 
   select(-MUNICIPIO, -DEPARTAMENTO, -paste_avg, -hyd_avg, -paste_price_distance, -hyd_price_distance,
          -n_armed_groups, -n_rivers, -n_big_rivers, -n_roads, -hyd_seizures) %>% 
@@ -446,13 +448,13 @@ labs_PPI_2steps_year <- labs_PPI_reg_data %>%
               select(id, n_hyd_labs), by="id") %>% 
   mutate(n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs)) %>% 
   left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:n_armed_groups)), by="id")
-labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
+labs_2steps_year[is.na(labs_2steps_year)] <- 0
 
 anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id) %>% unique %>% length # 64
-sum(!(anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id) %>% unique %in% labs_PPI_2steps_year$id)) # 14 municipals in anecdotal data lack enough attributes (excluded)
+sum(!(anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id) %>% unique %in% labs_2steps_year$id)) # 14 municipals in anecdotal data lack enough attributes (excluded)
 
 {
-  data_year <- labs_PPI_2steps_year %>% left_join(population %>% select(id, population), by="id")
+  data_year <- labs_2steps_year %>% left_join(population %>% select(id, population), by="id")
   
   # names(data_year) <- gsub(" ", "_", names(data_year)) %>% stri_trans_general("Latin-ASCII") 
   # names(data_year)[15:37] <- c("Los_Rastrojos", "Clan_del_Golfo", "Las_Aguilas_Negras", "Los_Paisas",
@@ -532,12 +534,12 @@ shuffle <- function(positive, unlabeled, N) { # N: number of positive and unlabe
   data_year_general_destination3 <- data_year[c(data_year_general_destination1_index$positive, data_year_general_destination1_index$unlabeled), ]
 }
 
-labs_PPI_2steps_years <- tibble()
+labs_2steps_years <- tibble()
 {
 ex_year <- 2013
 anecdotal_year <- anecdotal_annual %>%
   filter(YEAR == ex_year)
-labs_PPI_2steps_year <- labs_PPI_reg_data %>% 
+labs_2steps_year <- labs_PPI_reg_data %>% 
   filter(year == ex_year) %>% 
   select(-MUNICIPIO, -DEPARTAMENTO, -n_armed_groups, -n_rivers, -n_big_rivers, -n_roads) %>% 
   mutate(n_labs=ifelse(is.na(n_labs), 0, n_labs),
@@ -553,12 +555,12 @@ labs_PPI_2steps_year <- labs_PPI_reg_data %>%
               select(id, n_hyd_labs), by="id") %>% 
   mutate(n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs)) %>% 
   left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:depto)), by="id")
-labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
+labs_2steps_year[is.na(labs_2steps_year)] <- 0
 
 anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %>% length # 158
-sum(!(anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %in% labs_PPI_2steps_year$id)) # 83 municipals in anecdotal data lack enough attributes (excluded)
+sum(!(anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %in% labs_2steps_year$id)) # 83 municipals in anecdotal data lack enough attributes (excluded)
 
-data_year <- labs_PPI_2steps_year %>% left_join(population %>% select(id, population), by="id")
+data_year <- labs_2steps_year %>% left_join(population %>% select(id, population), by="id")
 data_year$base_source_all <- ifelse(data_year$id %in% (base_to_base %>% pull(source_id) %>% unique), 1, 0) %>% as.factor
 data_year$base_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$base_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(destination_id)), 1, 0) %>% as.factor
@@ -567,19 +569,30 @@ data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter
 data_year$general_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$general_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(destination_id)), 1, 0) %>% as.factor
 
-hyd_destination_glm_year <- glm(hyd_destination~., family="binomial",
-                           data=data_year %>%
-                             # mutate(n_labs=ifelse(n_labs > 0, 1, 0)) %>%
-                             select(n_labs:population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
-summary(hyd_destination_glm_year)
-data_year$coca_group <- data_year$`Los Urabeños`
-# labs_PPI_2steps_years <- rbind(labs_PPI_2steps_years,
-#                                data_year %>%
-#                                  select(id:n_armed_groups, coca_group, population, base_source_all:general_destination))
+hyd_glm_year <- glm(hyd~.,
+                    family="binomial",
+                    data=data_year %>%
+                      mutate(hyd=ifelse(hyd_source == 1 | hyd_destination == 1, 1, 0)) %>%
+                      select(n_labs:population, hyd,-base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
+summary(hyd_glm_year)
+data_year <- data_year %>% 
+  mutate(hyd_group = `Los Urabeños` + `Los Pachenga O AUTODEFENSAS CONQUISTADORAS DE LA SIERRA NEVADA (ACSN)` + `La Constru` + `Los Pelusos`)
+
+base_glm_year <- glm(base~.,
+                     family="binomial",
+                     data=data_year %>%
+                       mutate(base=ifelse(base_source == 1 | base_destination == 1, 1, 0)) %>%
+                       select(n_labs:population, base, -hyd_avg, -hyd_price_distance, -hyd_seizures))
+summary(base_glm_year)
+data_year$base_group <- data_year$`Los Pelusos`
+
+labs_2steps_years <- rbind(labs_2steps_years,
+                               data_year %>%
+                                 select(id:n_armed_groups, hyd_group, base_group, population, base_source_all:general_destination))
 
 fit_test <- data_year %>%
-  select(id, n_labs:n_hyd_labs, coca_group, population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
-  mutate(posterior_glm=hyd_destination_glm_year$fitted.values)
+  select(id, n_labs:n_hyd_labs, hyd_group, population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
+  mutate(posterior_glm=hyd_glm_year$fitted.values)
 
 sum(fit_test$hyd_destination == 1)
 threshold <- .1
@@ -592,7 +605,7 @@ fit_test %>% filter(posterior_glm >= threshold) %>% select(hyd_destination, post
 ex_year <- 2014
 anecdotal_year <- anecdotal_annual %>%
   filter(YEAR == ex_year)
-labs_PPI_2steps_year <- labs_PPI_reg_data %>% 
+labs_2steps_year <- labs_PPI_reg_data %>% 
   filter(year == ex_year) %>% 
   select(-MUNICIPIO, -DEPARTAMENTO, -n_armed_groups, -n_rivers, -n_big_rivers, -n_roads) %>% 
   mutate(n_labs=ifelse(is.na(n_labs), 0, n_labs),
@@ -608,12 +621,12 @@ labs_PPI_2steps_year <- labs_PPI_reg_data %>%
               select(id, n_hyd_labs), by="id") %>% 
   mutate(n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs)) %>% 
   left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:depto)), by="id")
-labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
+labs_2steps_year[is.na(labs_2steps_year)] <- 0
 
 anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %>% length # 279
-sum(!(anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %in% labs_PPI_2steps_year$id)) # 103 municipals in anecdotal data lack enough attributes (excluded)
+sum(!(anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %in% labs_2steps_year$id)) # 103 municipals in anecdotal data lack enough attributes (excluded)
 
-data_year <- labs_PPI_2steps_year %>% left_join(population %>% select(id, population), by="id")
+data_year <- labs_2steps_year %>% left_join(population %>% select(id, population), by="id")
 data_year$base_source_all <- ifelse(data_year$id %in% (base_to_base %>% pull(source_id) %>% unique), 1, 0) %>% as.factor
 data_year$base_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$base_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(destination_id)), 1, 0) %>% as.factor
@@ -622,19 +635,30 @@ data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter
 data_year$general_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$general_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(destination_id)), 1, 0) %>% as.factor
 
-hyd_destination_glm_year <- glm(hyd_destination~., family="binomial",
-                           data=data_year %>%
-                             # mutate(n_labs=ifelse(n_labs > 0, 1, 0)) %>%
-                             select(n_labs:population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
-summary(hyd_destination_glm_year)
-data_year$coca_group <- data_year$`Los Urabeños`
-# labs_PPI_2steps_years <- rbind(labs_PPI_2steps_years, 
-#                                data_year %>% 
-#                                  select(id:n_armed_groups, coca_group, population, base_source_all:general_destination))
+hyd_glm_year <- glm(hyd~.,
+                    family="binomial",
+                    data=data_year %>%
+                      mutate(hyd=ifelse(hyd_source == 1 | hyd_destination == 1, 1, 0)) %>%
+                      select(n_labs:population, hyd,-base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
+summary(hyd_glm_year)
+data_year <- data_year %>% 
+  mutate(hyd_group = `Los Urabeños` + `Los Pachenga O AUTODEFENSAS CONQUISTADORAS DE LA SIERRA NEVADA (ACSN)` + `La Constru` + `Los Pelusos`)
+
+base_glm_year <- glm(base~.,
+                     family="binomial",
+                     data=data_year %>%
+                       mutate(base=ifelse(base_source == 1 | base_destination == 1, 1, 0)) %>%
+                       select(n_labs:population, base, -hyd_avg, -hyd_price_distance, -hyd_seizures))
+summary(base_glm_year)
+data_year$base_group <- data_year$`Los Pelusos`
+
+labs_2steps_years <- rbind(labs_2steps_years,
+                           data_year %>%
+                             select(id:n_armed_groups, hyd_group, base_group, population, base_source_all:general_destination))
 
 fit_test <- data_year %>%
-  select(id, n_labs:n_hyd_labs, coca_group, population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
-  mutate(posterior_glm=hyd_destination_glm_year$fitted.values)
+  select(id, n_labs:n_hyd_labs, hyd_group, population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
+  mutate(posterior_glm=hyd_glm_year$fitted.values)
 
 sum(fit_test$hyd_destination == 1)
 threshold <- .1
@@ -646,7 +670,7 @@ fit_test %>% filter(posterior_glm >= threshold) %>% select(hyd_destination, post
 ex_year <- 2016
 anecdotal_year <- anecdotal_annual %>%
   filter(YEAR == ex_year)
-labs_PPI_2steps_year <- labs_PPI_reg_data %>% 
+labs_2steps_year <- labs_PPI_reg_data %>% 
   filter(year == ex_year) %>% 
   select(-MUNICIPIO, -DEPARTAMENTO, -n_armed_groups, -n_rivers, -n_big_rivers, -n_roads) %>% 
   mutate(n_labs=ifelse(is.na(n_labs), 0, n_labs),
@@ -662,12 +686,12 @@ labs_PPI_2steps_year <- labs_PPI_reg_data %>%
               select(id, n_hyd_labs), by="id") %>% 
   mutate(n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs)) %>% 
   left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:depto)), by="id")
-labs_PPI_2steps_year[is.na(labs_PPI_2steps_year)] <- 0
+labs_2steps_year[is.na(labs_2steps_year)] <- 0
 
 anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %>% length # 124
-sum(!(anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %in% labs_PPI_2steps_year$id)) # 24 municipals in anecdotal data lack enough attributes (excluded)
+sum(!(anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id) %>% unique %in% labs_2steps_year$id)) # 24 municipals in anecdotal data lack enough attributes (excluded)
 
-data_year <- labs_PPI_2steps_year %>% left_join(population %>% select(id, population), by="id")
+data_year <- labs_2steps_year %>% left_join(population %>% select(id, population), by="id")
 data_year$base_source_all <- ifelse(data_year$id %in% (base_to_base %>% pull(source_id) %>% unique), 1, 0) %>% as.factor
 data_year$base_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$base_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(destination_id)), 1, 0) %>% as.factor
@@ -676,38 +700,43 @@ data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter
 data_year$general_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(source_id)), 1, 0) %>% as.factor
 data_year$general_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(destination_id)), 1, 0) %>% as.factor
 
-hyd_destination_glm_year <- glm(hyd_destination~., family="binomial",
-                           data=data_year %>%
-                             # mutate(n_labs=ifelse(n_labs > 0, 1, 0)) %>%
-                             select(n_labs:population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
-summary(hyd_destination_glm_year)
+hyd_glm_year <- glm(hyd~.,
+                    family="binomial",
+                    data=data_year %>%
+                      mutate(hyd=ifelse(hyd_source == 1 | hyd_destination == 1, 1, 0)) %>%
+                      select(n_labs:population, hyd,-base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
+summary(hyd_glm_year)
 data_year <- data_year %>% 
-  mutate(coca_group = `Clan del Golfo (Formerly Los Urabeños)` + `Los Pachenga O AUTODEFENSAS CONQUISTADORAS DE LA SIERRA NEVADA (ACSN)` +
+  mutate(hyd_group = `Clan del Golfo (Formerly Los Urabeños)` + `Los Pachenga O AUTODEFENSAS CONQUISTADORAS DE LA SIERRA NEVADA (ACSN)` +
            `La Constru` + `Los Pelusos`)
-# labs_PPI_2steps_years <- rbind(labs_PPI_2steps_years, 
-#                                data_year %>% 
-#                                  select(id:n_armed_groups, coca_group, population, base_source_all:general_destination))
+
+base_glm_year <- glm(base~.,
+                     family="binomial",
+                     data=data_year %>%
+                       mutate(base=ifelse(base_source == 1 | base_destination == 1, 1, 0)) %>%
+                       select(n_labs:population, base, -hyd_avg, -hyd_price_distance, -hyd_seizures))
+summary(base_glm_year)
+data_year$base_group <- data_year$`Los Pelusos`
+
+labs_2steps_years <- rbind(labs_2steps_years,
+                           data_year %>%
+                             select(id:n_armed_groups, hyd_group, base_group, population, base_source_all:general_destination))
 
 fit_test <- data_year %>%
-  select(id, n_labs:n_hyd_labs, coca_group, population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
-  mutate(posterior_glm=hyd_destination_glm_year$fitted.values)
+  select(id, n_labs:n_hyd_labs, hyd_group, population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
+  mutate(posterior_glm=hyd_glm_year$fitted.values)
 
 sum(fit_test$hyd_destination == 1)
 threshold <- .1
 fit_test %>% filter(posterior_glm < threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table  # 0: 140, 1: 14
 fit_test %>% filter(posterior_glm >= threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table # 0: 140, 1: 64
 }
-# write.csv(labs_PPI_2steps_years, "Colombia Data/regression data (5-01-2024).csv", row.names = F)
+names(labs_2steps_years)[3] <- "n_PPI_labs"
+# write.csv(labs_2steps_years %>% relocate(id, year, n_PPI_labs, PPI_lab_prob, n_hyd_labs, hyd_lab_prob),
+# "Colombia Data/regression data (05-15-2024).csv", row.names = F)
 
-labs_PPI_2steps_years <- read.csv("Colombia Data/regression data (04-24-2024).csv") %>% as_tibble
-hyd_destination_glm_years <- glm(hyd_destination~., family="binomial",
-                                 data=labs_PPI_2steps_years %>%
-                                   mutate(year=as.factor(year)) %>%
-                                   select(year, n_labs:population, hyd_destination, -base_avg, -base_price_distance,
-                                          -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
-summary(hyd_destination_glm_years)
-
-fit_test_years <- labs_PPI_2steps_years %>%
+regression_data_years <- read.csv("Colombia Data/regression data (05-15-2024).csv") %>% as_tibble
+fit_test_years <- regression_data_years %>%
   mutate(year=as.factor(year)) %>%
   select(year, n_labs:population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
   mutate(posterior_glm=hyd_destination_glm_years$fitted.values)
@@ -730,3 +759,24 @@ fit_test_years %>% filter(year == 2013, posterior_glm >= threshold) %>% select(h
 fit_test_years %>% filter(year == 2014, posterior_glm >= threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table # 0: 344, 1: 176
 fit_test_years %>% filter(year == 2016, posterior_glm >= threshold) %>% select(hyd_destination, posterior_glm) %>% pull(hyd_destination) %>% table # 0: 263, 1: 69
 
+
+## add probability that PPI/hyd labs exist
+PPI_lab_glm_years <- glm(PPI_lab~., family="binomial",
+                          data=regression_data_years %>%
+                            mutate(PPI_lab=ifelse(n_PPI_labs > 0, 1, 0),
+                                   year=as.factor(year)) %>%
+                            select(year, coca_area:population, PPI_lab, -hyd_avg, -hyd_price_distance, -hyd_seizures))
+summary(PPI_lab_glm_years)
+
+hyd_lab_glm_years <- glm(hyd_lab~., family="binomial",
+                         data=regression_data_years %>%
+                           mutate(hyd_lab=ifelse(n_hyd_labs > 0, 1, 0),
+                                  year=as.factor(year)) %>%
+                           select(year, coca_area:population, hyd_lab, -base_avg, -base_price_distance,
+                                  -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
+summary(hyd_lab_glm_years)
+
+regression_data_years <- regression_data_years %>% 
+  mutate(PPI_lab_prob=PPI_lab_glm_years$fitted.values,
+         hyd_lab_prob=hyd_lab_glm_years$fitted.values)
+# write.csv(regression_data_years, "Colombia Data/regression data (05-15-2024).csv", row.names=F)
