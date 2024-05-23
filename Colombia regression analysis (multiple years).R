@@ -50,12 +50,23 @@ regression_data_years <- read.csv("Colombia Data/regression data (05-15-2024).cs
          paste_avg=scale(paste_avg)[,1],
          hyd_avg=scale(hyd_avg)[,1])
 
+ever_anecdotal <- regression_data_years %>% 
+  group_by(id) %>% 
+  summarise(base_source=ifelse(sum(base_source)>0, 1, 0),
+            base_destination=ifelse(sum(base_destination)>0, 1, 0),
+            hyd_source=ifelse(sum(hyd_source)>0, 1, 0),
+            hyd_destination=ifelse(sum(hyd_destination)>0, 1, 0))
+
+ever_anecdotal_data_years <- regression_data_years %>% 
+  select(-(base_source_all:general_destination)) %>% 
+  left_join(ever_anecdotal, by="id")
+
 ## regression with n_armed_groups
 hyd_destination_glm_years <- glm(hyd_destination~., family="binomial",
-                                 data=regression_data_years %>%
+                                 data=ever_anecdotal_data_years %>%
                                    mutate(year=as.factor(year)) %>%
                                    select(year, n_PPI_labs:population, hyd_destination, -base_avg, -base_price_distance,
-                                          -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
+                                          -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures, -base_group))
 summary(hyd_destination_glm_years) # n_armed_groups was insignificant for the results with individual year data, but significant with multiple years data
 hyd_destination_glm_years$significance <- ifelse(summary(hyd_destination_glm_years)$coefficients[,4] <= 0.05, 1, 0)
 
@@ -76,11 +87,12 @@ tibble(var=names(hyd_destination_glm_years$coefficients), coefficients=hyd_desti
                      breaks = c(-1,0, 1)) +
   theme(axis.text.x = element_text(angle=90, vjust=0.1))
 
-fit_test_years <- regression_data_years %>%
+fit_test_years <- ever_anecdotal_data_years %>%
   mutate(year=as.factor(year)) %>%
   select(year, n_PPI_labs:population, hyd_destination, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
   mutate(posterior_glm=hyd_destination_glm_years$fitted.values)
 
+threshold <- .5
 confusionMatrix(ifelse(fit_test_years$posterior_glm < threshold, 0, 1) %>% as.factor,
                 fit_test_years$hyd_destination %>% as.factor,
                 positive="1")
@@ -95,12 +107,13 @@ confusionMatrix(ifelse(fit_test_years %>% filter(year==2016) %>% pull(posterior_
                 positive="1")
 
   # random forest
+set.seed(100)
 hyd_destination_rf_years <- randomForest(hyd_destination~.,
-                                         data=regression_data_years %>%
+                                         data=ever_anecdotal_data_years %>%
                                            mutate(year=as.factor(year),
                                                   hyd_destination=as.factor(hyd_destination)) %>%
                                            select(year, n_PPI_labs:population, hyd_destination, -base_avg, -base_price_distance,
-                                                  -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures),
+                                                  -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures, -base_group),
                                          type="classification", ntree=50, mtry=8)
 fit_test_years$posterior_rf <- hyd_destination_rf_years$votes[,2]
 
@@ -173,7 +186,7 @@ empty_map <- ggplot(depto_map, aes(x=long, y=lat)) +
   )
 
 hyd_destination_map_data <- 
-  regression_data_years %>% 
+  ever_anecdotal_data_years %>% 
   select(id, hyd_destination) %>% 
   left_join(municipio_centroid %>% select(id, long, lat)) %>% 
   mutate(posterior_glm=fit_test_years$posterior_glm,
@@ -192,7 +205,8 @@ hyd_regression_destination_map <- empty_map +
   geom_point(data=hyd_destination_map_data,
              aes(x=long, 
                  y=lat,
-                 alpha=ifelse(posterior_glm < threshold, 1, posterior_glm),  color=ifelse(posterior_glm < threshold, "y_hat=0", "y_hat=1")),
+                 alpha=ifelse(posterior_glm < threshold, 2*(threshold-posterior_glm), 2*(posterior_glm-threshold)),
+                 color=ifelse(posterior_glm < threshold, "y_hat=0", "y_hat=1")),
              size=0.1) +
   labs(title="Regression Predictions (hyd Destinations)", color="") +
   scale_color_manual(values=c("y_hat=0" = "blue",
@@ -204,7 +218,8 @@ hyd_rf_destination_map <- empty_map +
   geom_point(data=hyd_destination_map_data,
              aes(x=long, 
                  y=lat,
-                 alpha=ifelse(posterior_glm < threshold, 1, posterior_rf),  color=ifelse(posterior_rf < threshold, "y_hat=0", "y_hat=1")),
+                 alpha=ifelse(posterior_rf < threshold, 2*(threshold-posterior_rf), 2*(posterior_rf-threshold)),
+                 color=ifelse(posterior_rf < threshold, "y_hat=0", "y_hat=1")),
              size=0.1) +
   labs(title="RF Predictions (hyd Destinations)", color="") +
   scale_color_manual(values=c("y_hat=0" = "blue",
@@ -213,22 +228,22 @@ hyd_rf_destination_map <- empty_map +
   theme(legend.position="right")
 
 # ggsave("Colombia Data/Figs/prediction map/hyd destinations anecdotal (2013-2016).png", hyd_to_hyd_destination_map, scale=1)
-# ggsave("Colombia Data/Figs/prediction map/hyd destinations regression with lab prob (2013-2016).png", hyd_regression_destination_map, scale=1)
-# ggsave("Colombia Data/Figs/prediction map/hyd destinations rf with lab prob (2013-2016).png", hyd_rf_destination_map, scale=1)
+# ggsave("Colombia Data/Figs/prediction map/hyd destinations regression without coords (2013-2016).png", hyd_regression_destination_map, scale=1)
+# ggsave("Colombia Data/Figs/prediction map/hyd destinations rf without coords (2013-2016).png", hyd_rf_destination_map, scale=1)
 
 
 ## hyd source regression
 hyd_source_glm_years <- glm(hyd_source~., family="binomial",
-                                 data=regression_data_years %>%
+                                 data=ever_anecdotal_data_years %>%
                                    mutate(year=as.factor(year)) %>%
                                    select(year, n_PPI_labs:population, hyd_source, -base_avg, -base_price_distance,
-                                          -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures))
+                                          -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures, -base_group))
 summary(hyd_source_glm_years) # n_armed_groups was insignificant for the results with individual year data, but significant with multiple years data
 hyd_source_glm_years$significance <- ifelse(summary(hyd_source_glm_years)$coefficients[,4] <= 0.05, 1, 0)
-names(hyd_source_glm_years$coefficients) <- ifelse(summary(hyd_source_glm_years)$coefficients[,4] <= 0.05,
+names(hyd_source_glm_years$coefficients) <- ifelse(summary(hyd_destination_glm_years)$coefficients[,4] <= 0.05,
                                                    paste0(names(hyd_source_glm_years$coefficients), "*"),
                                                    paste0(names(hyd_source_glm_years$coefficients), "-"))
-names(hyd_source_glm_years$coefficients) <- ifelse(summary(hyd_destination_glm_years)$coefficients[,4] <= 0.05,
+names(hyd_source_glm_years$coefficients) <- ifelse(summary(hyd_source_glm_years)$coefficients[,4] <= 0.05,
                                                    paste0(names(hyd_source_glm_years$coefficients), "*"),
                                                    paste0(names(hyd_source_glm_years$coefficients), "-"))
 
@@ -247,7 +262,7 @@ tibble(var=names(hyd_source_glm_years$coefficients), coefficients=hyd_source_glm
                      breaks = c(-1,0, 1)) +
   theme(axis.text.x = element_text(angle=90, vjust=0.1))
 
-fit_test_years <- regression_data_years %>%
+fit_test_years <- ever_anecdotal_data_years %>%
   mutate(year=as.factor(year)) %>%
   select(year, n_PPI_labs:population, hyd_source, -base_avg, -base_price_distance, -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures) %>% 
   mutate(posterior_glm=hyd_source_glm_years$fitted.values)
@@ -266,14 +281,15 @@ confusionMatrix(ifelse(fit_test_years %>% filter(year==2016) %>% pull(posterior_
                 positive="1")
 
 # random forest
+set.seed(100)
 hyd_source_rf_years <- randomForest(hyd_source~.,
-                                         data=regression_data_years %>%
+                                         data=ever_anecdotal_data_years %>%
                                            mutate(year=as.factor(year),
                                                   hyd_source=as.factor(hyd_source)) %>%
                                            select(year, n_PPI_labs:population, hyd_source, -base_avg, -base_price_distance,
-                                                  -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures),
+                                                  -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures, -base_group),
                                          type="classification", ntree=50, mtry=8)
-hyd_source_rf_years$importances
+hyd_source_rf_years$importance
 fit_test_years$posterior_rf <- hyd_source_rf_years$votes[,2]
 
 confusionMatrix(ifelse(fit_test_years$posterior_rf < threshold, 0, 1) %>% as.factor,
@@ -290,7 +306,7 @@ confusionMatrix(ifelse(fit_test_years %>% filter(year==2016) %>% pull(posterior_
                 positive="1")
 
 hyd_source_map_data <- 
-  regression_data_years %>% 
+  ever_anecdotal_data_years %>% 
   select(id, hyd_source) %>% 
   left_join(municipio_centroid %>% select(id, long, lat)) %>% 
   mutate(posterior_glm=fit_test_years$posterior_glm,
@@ -309,7 +325,8 @@ hyd_regression_source_map <- empty_map +
   geom_point(data=hyd_source_map_data,
              aes(x=long, 
                  y=lat,
-                 alpha=ifelse(posterior_glm < threshold, 1, posterior_glm),  color=ifelse(posterior_glm < threshold, "y_hat=0", "y_hat=1")),
+                 alpha=ifelse(posterior_glm < threshold, 2*(threshold-posterior_glm), 2*(posterior_glm-threshold)),
+                 color=ifelse(posterior_glm < threshold, "y_hat=0", "y_hat=1")),
              size=0.1) +
   labs(title="Regression Predictions (hyd sources)", color="") +
   scale_color_manual(values=c("y_hat=0" = "blue",
@@ -321,7 +338,8 @@ hyd_rf_source_map <- empty_map +
   geom_point(data=hyd_source_map_data,
              aes(x=long, 
                  y=lat,
-                 alpha=ifelse(posterior_glm < threshold, 1, posterior_glm),  color=ifelse(posterior_rf < threshold, "y_hat=0", "y_hat=1")),
+                 alpha=ifelse(posterior_rf < threshold, 2*(threshold-posterior_rf), 2*(posterior_rf-threshold)),
+                 color=ifelse(posterior_rf < threshold, "y_hat=0", "y_hat=1")),
              size=0.1) +
   labs(title="RF Predictions (hyd sources)", color="") +
   scale_color_manual(values=c("y_hat=0" = "blue",
@@ -330,8 +348,8 @@ hyd_rf_source_map <- empty_map +
   theme(legend.position="right")
 
 # ggsave("Colombia Data/Figs/prediction map/hyd sources anecdotal (2013-2016).png", hyd_to_hyd_source_map, scale=1)
-# ggsave("Colombia Data/Figs/prediction map/hyd sources regression with lab prob (2013-2016).png", hyd_regression_source_map, scale=1)
-# ggsave("Colombia Data/Figs/prediction map/hyd sources rf with lab prob (2013-2016).png", hyd_rf_source_map, scale=1)
+# ggsave("Colombia Data/Figs/prediction map/hyd sources regression without coords (2013-2016).png", hyd_regression_source_map, scale=1)
+# ggsave("Colombia Data/Figs/prediction map/hyd sources rf without coords (2013-2016).png", hyd_rf_source_map, scale=1)
 
 ## Base destination regression
 base_destination_glm_years <- glm(base_destination~., family="binomial",
@@ -378,6 +396,7 @@ confusionMatrix(ifelse(fit_test_years %>% filter(year==2016) %>% pull(posterior_
                 positive="1")
 
   # random forest
+set.seed(100)
 base_destination_rf_years <- randomForest(base_destination~.,
                                           data=regression_data_years %>% 
                                             filter(year != 2014) %>%
@@ -441,8 +460,8 @@ base_rf_destination_map <- empty_map +
   theme(legend.position="right")
 
 # ggsave("Colombia Data/Figs/prediction map/base destinations anecdotal (2013-2016).png", base_to_base_destination_map, scale=1)
-# ggsave("Colombia Data/Figs/prediction map/base destinations regression with lab prob (2013-2016).png", base_regression_destination_map, scale=1)
-# ggsave("Colombia Data/Figs/prediction map/base destinations rf with lab prob (2013-2016).png", base_rf_destination_map, scale=1)
+# ggsave("Colombia Data/Figs/prediction map/base destinations regression without coords (2013-2016).png", base_regression_destination_map, scale=1)
+# ggsave("Colombia Data/Figs/prediction map/base destinations rf without coords (2013-2016).png", base_rf_destination_map, scale=1)
 
 
 ## base source regression
@@ -493,6 +512,7 @@ confusionMatrix(ifelse(fit_test_years %>% filter(year==2016) %>% pull(posterior_
                 positive="1")
 
   # random forest
+set.seed(100)
 base_source_rf_years <- randomForest(base_source~.,
                                      data=regression_data_years %>%
                                        filter(year != 2014) %>%
@@ -557,8 +577,8 @@ base_rf_source_map <- empty_map +
   theme(legend.position="right")
 
 # ggsave("Colombia Data/Figs/prediction map/base sources anecdotal (2013-2016).png", base_to_base_source_map, scale=1)
-# ggsave("Colombia Data/Figs/prediction map/base sources regression with lab prob (2013-2016).png", base_regression_source_map, scale=1)
-# ggsave("Colombia Data/Figs/prediction map/base sources rf with lab prob (2013-2016).png", base_rf_source_map, scale=1)
+# ggsave("Colombia Data/Figs/prediction map/base sources regression without coords (2013-2016).png", base_regression_source_map, scale=1)
+# ggsave("Colombia Data/Figs/prediction map/base sources rf without coords (2013-2016).png", base_rf_source_map, scale=1)
 
 ## coefficients bar chart
 base_reg_coefs <- tibble(var=rep(names(base_source_glm_years$coefficients[-1]), 2),
@@ -571,7 +591,7 @@ base_reg_coefs <- tibble(var=rep(names(base_source_glm_years$coefficients[-1]), 
 
 hyd_reg_coefs <- tibble(var=rep(names(hyd_source_glm_years$coefficients[-1]),2),
                         coefficients=c(hyd_source_glm_years$coefficients[-1], hyd_destination_glm_years$coefficients[-1]),
-                        response=c(rep("hyd_source", 19), rep("hyd_destination", 19))) %>% 
+                        response=c(rep("hyd_source", 18), rep("hyd_destination", 18))) %>% 
   mutate(var=as.factor(var),
          response=as.factor(response),
          # response=factor(response, levels=c("hyd_source", "hyd_destination")),
@@ -605,7 +625,7 @@ base_rf_importances <- tibble(var=rep(rownames(base_source_rf_years$importance),
 
 hyd_rf_importances <- tibble(var=rep(rownames(hyd_source_rf_years$importance),2),
                              importance=c(hyd_source_rf_years$importance, hyd_destination_rf_years$importance),
-                             response=c(rep("hyd_source", 18), rep("hyd_destination", 18))) %>% 
+                             response=c(rep("hyd_source", 17), rep("hyd_destination", 17))) %>% 
   mutate(var=as.factor(var),
          response=as.factor(response))
          # response=factor(response, levels=c("hyd_source", "hyd_destination")))
