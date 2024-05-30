@@ -1,5 +1,10 @@
 library(pracma)
 library(GWmodel)
+regression_data_years <- read.csv("Colombia Data/regression data (05-15-2024).csv") %>% as_tibble %>% 
+  mutate(base_avg=scale(base_avg)[,1],
+         paste_avg=scale(paste_avg)[,1],
+         hyd_avg=scale(hyd_avg)[,1])
+
 ever_anecdotal <- regression_data_years %>% 
   group_by(id) %>% 
   summarise(base_source=ifelse(sum(base_source)>0, 1, 0),
@@ -12,6 +17,18 @@ ever_anecdotal_data_years <- regression_data_years %>%
   left_join(ever_anecdotal, by="id")
 ever_anecdotal %>% select(-id) %>% apply(2, sum) # 541 municipalities
 ever_anecdotal_data_years %>% select(base_source:hyd_destination) %>% apply(2, sum) # 1,623 rows
+
+# filter out departments without anecdotal evidence
+anecdotal_id_depto <- ever_anecdotal_data_years %>% 
+  left_join(municipios_capital %>% select(id, id_depto), by="id") %>% 
+  group_by(id_depto) %>% 
+  summarise(hyd_source=sum(hyd_source),
+            hyd_destination=sum(hyd_destination)) %>% 
+  mutate(anecdotal=hyd_source+hyd_destination>0) %>% 
+  filter(anecdotal) %>% pull(id_depto)
+ever_anecdotal_data_years <- ever_anecdotal_data_years %>% 
+  left_join(municipios_capital %>% select(id, id_depto), by="id") %>% 
+  filter(id_depto %in% anecdotal_id_depto)
 
 hyd_destination_gwr_years <- glm(hyd_destination~.+long*lat, family="binomial",
                                  data=ever_anecdotal_data_years %>%
@@ -244,20 +261,22 @@ hyd_rf_importances %>%
 
 
 ## ggwr.basic experiment
-gwr_hyd_destination_sp <- left_join(ever_anecdotal_data_years %>% 
-                                      # filter(year==2016) %>%
-                                      select(id, year, n_PPI_labs:population, hyd_destination, -base_avg, -base_price_distance,
-                                             -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures, -base_group),
-                                    municipio_centroid %>% select(id, long, lat), by="id") %>% select(-id, -year, -municipio)
-gwr_hyd_destination_sp <- SpatialPointsDataFrame(gwr_hyd_destination_sp %>% select(long, lat),
-                                                 gwr_hyd_destination_sp %>% select(-long, -lat))
+gwr_hyd_destination_coord <- left_join(ever_anecdotal_data_years %>% 
+                                         filter(year==2016) %>%
+                                         select(id, year, n_PPI_labs:population, hyd_destination, -base_avg, -base_price_distance,
+                                                -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures, -base_group, -erad_aerial),
+                                       municipio_centroid %>% select(id, long, lat), by="id") %>% select(-id, -year, -municipio)
+
+gwr_hyd_destination_sp <- SpatialPointsDataFrame(gwr_hyd_destination_coord %>% select(long, lat),
+                                                 gwr_hyd_destination_coord %>% select(-long, -lat))
 
 bw_var <- bw.ggwr(hyd_destination~.,
                   family ="binomial",
                   dMat=gw.dist(dp.locat=coordinates(gwr_hyd_destination_sp)),
                   adaptive = F,
                   approach = "AIC",
-                  data=gwr_hyd_destination_sp[, c(ncol(gwr_hyd_destination_sp), 1:2)])
+                  data=gwr_hyd_destination_sp)
+                  # data=gwr_hyd_destination_sp[, c(ncol(gwr_hyd_destination_sp), 1:2)])
 
 hyd_destination_gwr <- ggwr.basic(hyd_destination~.,
                                   family ="binomial",
