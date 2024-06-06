@@ -43,12 +43,16 @@ library(randomForest)
   anecdotal_annual <- read.csv("Colombia Data/Anecdotal annual with municipality.csv") %>% as_tibble
   labs_PPI_reg_data <- read.csv("Colombia Data/labs_PPI_reg_data.csv") %>% as_tibble
   labs_hyd_reg_data <- read.csv("Colombia Data/labs_hyd_reg_data.csv") %>% as_tibble
+  
+  airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
 }
 
 regression_data_years <- read.csv("Colombia Data/regression data (05-15-2024).csv") %>% as_tibble %>% 
+  left_join(airports, by="id") %>% 
   mutate(base_avg=scale(base_avg)[,1],
          paste_avg=scale(paste_avg)[,1],
-         hyd_avg=scale(hyd_avg)[,1])
+         hyd_avg=scale(hyd_avg)[,1],
+         airport=ifelse(n_airports > 0, 1, 0))
 
 ever_anecdotal <- regression_data_years %>% 
   group_by(id) %>% 
@@ -65,7 +69,7 @@ ever_anecdotal_data_years <- regression_data_years %>%
 hyd_destination_glm_years <- glm(hyd_destination~., family="binomial",
                                  data=ever_anecdotal_data_years %>%
                                    mutate(year=as.factor(year)) %>%
-                                   select(year, n_PPI_labs:population, hyd_destination, -base_avg, -base_price_distance,
+                                   select(year, n_PPI_labs:population, n_airports, hyd_destination, -base_avg, -base_price_distance,
                                           -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures, -base_group))
 summary(hyd_destination_glm_years) # n_armed_groups was insignificant for the results with individual year data, but significant with multiple years data
 hyd_destination_glm_years$significance <- ifelse(summary(hyd_destination_glm_years)$coefficients[,4] <= 0.05, 1, 0)
@@ -236,7 +240,7 @@ hyd_rf_destination_map <- empty_map +
 hyd_source_glm_years <- glm(hyd_source~., family="binomial",
                                  data=ever_anecdotal_data_years %>%
                                    mutate(year=as.factor(year)) %>%
-                                   select(year, n_PPI_labs:population, hyd_source, -base_avg, -base_price_distance,
+                                   select(year, n_PPI_labs:population, airports, hyd_source, -base_avg, -base_price_distance,
                                           -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures, -base_group))
 summary(hyd_source_glm_years) # n_armed_groups was insignificant for the results with individual year data, but significant with multiple years data
 hyd_source_glm_years$significance <- ifelse(summary(hyd_source_glm_years)$coefficients[,4] <= 0.05, 1, 0)
@@ -356,7 +360,7 @@ base_destination_glm_years <- glm(base_destination~., family="binomial",
                                   data=regression_data_years %>% 
                                     filter(year != 2014) %>%
                                     mutate(year=as.factor(year)) %>%
-                                    select(year, n_PPI_labs:population, base_destination, -hyd_avg, -hyd_price_distance,
+                                    select(year, n_PPI_labs:population, base_destination, airport, -hyd_avg, -hyd_price_distance,
                                            -paste_avg, -paste_price_distance, -hyd_seizures))
 summary(base_destination_glm_years) # n_armed_groups was insignificant for the results with individual year data, but significant with multiple years data
 base_destination_glm_years$significance <- ifelse(summary(base_destination_glm_years)$coefficients[,4] <= 0.05, 1, 0)
@@ -469,7 +473,7 @@ base_source_glm_years <- glm(base_source~., family="binomial",
                              data=regression_data_years %>%
                                filter(year != 2014) %>%
                                mutate(year=as.factor(year)) %>%
-                               select(year, n_PPI_labs:population, base_source, -hyd_avg, -hyd_price_distance,
+                               select(year, n_PPI_labs:population, base_source, airport, -hyd_avg, -hyd_price_distance,
                                       -paste_avg, -paste_price_distance, -hyd_seizures))
 summary(base_source_glm_years) # n_armed_groups was insignificant for the results with individual year data, but significant with multiple years data
 base_source_glm_years$significance <- ifelse(summary(base_source_glm_years)$coefficients[,4] <= 0.05, 1, 0)

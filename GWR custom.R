@@ -197,3 +197,75 @@ empty_map +
   geom_point(data=data.frame(long=c(-75.6, -73.6), lat=c(6.26, 6.26)),
              aes(x=long, y=lat),
              color=c("black", "red"))
+
+##
+gwr_coefs_bw2 <- (gwr_logistic_reg(gwr_data %>% select(-erad_manual), as.matrix(gwr_hyd_destination_dist), 2) %>% as_tibble)[,-1]
+# write.csv(gwr_coefs_bw2 %>% mutate(id=ever_anecdotal_data_years$id), "Colombia Data/GWR coefs (bw=2).csv", row.names=F)
+gwr_coefs_bw2 %>% apply(2, sd) %>% t %>% write.csv("Colombia Data/GWR coefs sd (bw=2).csv", row.names=F)
+
+
+for (i in 2:ncol(gwr_coefs_bw2)) {
+  var_name <- names(gwr_coefs_bw2)[i]
+  gwr_coefs_i <- data.frame(id=ever_anecdotal_data_years$id,
+                        coef=gwr_coefs_bw2[[var_name]])
+  
+  coef_map_coords <- map_df %>% 
+    left_join(gwr_coefs_i, by="id")
+  
+  gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=coef),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = depto_map$long, y = depto_map$lat) + 
+    coord_quickmap() +
+    scale_fill_viridis_c(na.value = "white") +
+    labs(fill=var_name, x="", y="", title="") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    )
+  
+  ggsave(paste0("Colombia Data/Figs/GWR coef maps/hyd destination GWR coef ", var_name, ".png"),
+         gwr_coef_map, scale=1)
+}
+
+gwr_coefs_bw2 %>% mutate(id=ever_anecdotal_data_years$id) %>%
+  left_join(municipios_capital %>% select(id, municipio, depto)) %>% 
+  relocate(id, municipio, depto) %>%  filter(n_PPI_labs < -1E14)
+
+ever_anecdotal_data_years %>% filter(id == 81591) %>% view
+municipios_capital %>% filter(id==81591) # PUERTO RONDON, Arauca
+
+  # GWR coef maps without id=81591
+no_81591_index <- which(ever_anecdotal_data_years$id != 81591)
+gwr_coefs_bw2_without_81591 <- gwr_coefs_bw2[no_81591_index,]
+for (i in 2:ncol(gwr_coefs_bw2)) {
+  var_name <- names(gwr_coefs_bw2_without_81591)[i]
+  gwr_coefs_i <- data.frame(id=ever_anecdotal_data_years$id[no_81591_index],
+                            coef=gwr_coefs_bw2_without_81591[[var_name]])
+  
+  coef_map_coords <- map_df %>% 
+    left_join(gwr_coefs_i, by="id")
+  
+  gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=coef),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = depto_map$long, y = depto_map$lat) + 
+    coord_quickmap() +
+    scale_fill_viridis_c(na.value = "white") +
+    labs(fill=var_name, x="", y="", title="") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    )
+  
+  ggsave(paste0("Colombia Data/Figs/GWR coef maps/hyd destination GWR coef without id=81591", var_name, ".png"),
+         gwr_coef_map, scale=1)
+}

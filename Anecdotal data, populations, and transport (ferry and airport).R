@@ -23,8 +23,10 @@ library(sp)
   municipios_capital$municipio <- gsub("GUADALAJARA DE BUGA", "BUGA", municipios_capital$municipio)
   map <- municipios
   map_df <- suppressMessages(fortify(map)) %>% 
-    mutate(id=as.numeric(id))
-  map_df <- left_join(map_df, municipios_capital %>% select(id, municipio, depto) %>% unique, by="id")
+    mutate(id=as.numeric(id)) %>% 
+    filter(!(id %in% c(88001, 88564)))
+  map_df <- left_join(map_df, municipios_capital %>% unique, by="id")
+  
 }
 
 waterways <- st_read("Colombia Data/Shape Data/gis_osm_waterways_free_1.shp")
@@ -33,6 +35,7 @@ rivers <- waterways %>% filter(fclass == "river")
 
 transport <- st_read("Colombia Data/Shape Data/gis_osm_transport_free_1.shp")
 ferry <- transport %>% filter(fclass == "ferry_terminal")
+airport <- transport %>% filter(fclass == "airport")
 
 roads <- st_read("Colombia Data/Shape Data/gis_osm_roads_free_1.shp")
 trunk_roads <- roads %>% filter(fclass == "trunk")
@@ -48,6 +51,37 @@ anecdotal_annual <- read.csv("Colombia Data/Anecdotal annual municipality only.c
 
 population <- read.csv("Colombia Data/Census population by municipios (2018).csv") %>% as_tibble
 population$log_population <- log(population$population)
+
+
+## n_airports
+airport_points <- st_coordinates(airport$geometry) %>% as.data.frame
+municipio_min_max <- map_df %>%
+  group_by(id, municipio, depto) %>% 
+  summarise(min_long=min(long),
+            max_long=max(long),
+            min_lat=min(lat),
+            max_lat=max(lat))
+
+municipio_min_max$n_airports <- 0
+for (i in 1:nrow(municipio_min_max)) {
+  muni_coord <- map_df %>% filter(id == municipio_min_max$id[i])
+  min_long_i <- municipio_min_max$min_long[i]
+  max_long_i <- municipio_min_max$max_long[i]
+  min_lat_i <- municipio_min_max$min_lat[i]
+  max_lat_i <- municipio_min_max$max_lat[i]
+  
+  candidates <- airport_df %>%
+    filter(X >= min_long_i & X <= max_long_i & Y >= min_lat_i & Y <= max_lat_i)
+  
+  if (nrow(candidates) < 1) next
+  
+  in_muni_airports <- point.in.polygon(candidates$X, candidates$Y, muni_coord$long, muni_coord$lat)
+  municipio_min_max$n_airports[i] <- length(in_muni_airports)
+  
+}
+municipio_min_max
+# write.csv((municipio_min_max %>% select(id, n_airports))[,-1], "Colombia Data/airports.csv", row.names=F)
+
 
 ## Labeling big/small rivers
 ferry_points <- st_coordinates(ferry$geometry) %>% as.data.frame
