@@ -38,12 +38,15 @@ library(GWmodel)
     group_by(id, municipio, depto) %>% 
     summarize(long=mean(long),
               lat=mean(lat))
+  airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
 }
 
 regression_data_years <- read.csv("Colombia Data/regression data (05-15-2024).csv") %>% as_tibble %>% 
+  left_join(airports, by="id") %>% 
   mutate(base_avg=scale(base_avg)[,1],
          paste_avg=scale(paste_avg)[,1],
-         hyd_avg=scale(hyd_avg)[,1])
+         hyd_avg=scale(hyd_avg)[,1],
+         airport=ifelse(n_airports > 0, 1, 0))
 
 ever_anecdotal <- regression_data_years %>% 
   group_by(id) %>% 
@@ -55,6 +58,7 @@ ever_anecdotal <- regression_data_years %>%
 ever_anecdotal_data_years <- regression_data_years %>% 
   select(-(base_source_all:general_destination)) %>% 
   left_join(ever_anecdotal, by="id")
+
 ever_anecdotal %>% select(-id) %>% apply(2, sum) # 541 municipalities
 ever_anecdotal_data_years %>% select(base_source:hyd_destination) %>% apply(2, sum) # 1,623 rows
 
@@ -71,10 +75,10 @@ ever_anecdotal_data_years <- ever_anecdotal_data_years %>%
   filter(id_depto %in% anecdotal_id_depto)
 
 gwr_hyd_destination_coord <- left_join(ever_anecdotal_data_years %>% 
-                                         select(id, year, n_PPI_labs:population, hyd_destination, -base_avg, -base_price_distance,
+                                         select(id, year, n_PPI_labs:population, airport, hyd_destination, -base_avg, -base_price_distance,
                                                 -paste_avg, -paste_price_distance, -coca_seizures, -base_seizures, -base_group, -erad_aerial),
                                        municipio_centroid %>% select(id, long, lat), by="id") %>% select(-id, -year, -municipio)
-gwr_hyd_destination_dist <- dist(gwr_hyd_destination_coord %>% select(long, lat))
+gwr_hyd_destination_dist <- dist(gwr_hyd_destination_coord %>% select(long, lat), diag=T, upper=T)
 as.vector(gwr_hyd_destination_dist) %>% unique %>% summary
 as.vector(gwr_hyd_destination_dist) %>% unique %>% sort %>% head(100)
 
@@ -83,8 +87,10 @@ gwr_data <- gwr_hyd_destination_coord %>% select(-long, -lat)
 
 gwr_logistic_reg <- function(reg_data, reg_data_dist, bandwidth) {
   beta_mat <- matrix(0, nrow(reg_data), ncol(reg_data))
+  n_bw_neighbors_vec <- c() # a vector to store the number of neighbors for each municipio in GWR
   for (i in 1:nrow(reg_data)) {
-    neighbor_index <- which(reg_data_dist[i,] <= bandwidth)
+    if (i == 1) neighbor_index <- c(i, which(reg_data_dist[,i] <= bandwidth)+1)
+    else neighbor_index <- c(i, which(reg_data_dist[i,] <= bandwidth))
     reg_data_i <- reg_data[neighbor_index, ]
     reg_result_i <- glm(hyd_destination~.,
                         data=reg_data_i,
@@ -93,10 +99,12 @@ gwr_logistic_reg <- function(reg_data, reg_data_dist, bandwidth) {
     beta_mat[i,] <- reg_result_i$coefficients
   }
   colnames(beta_mat) <- names(reg_result_i$coefficients)
-  return(beta_mat)
+  
+  return(list(betas_bw=beta_mat, n_bw_neighbors=n_bw_neighbors_vec))
 }
 
 na_columns <- tibble()
+n_bw_neighbors <- tibble()
 gwr_result <- tibble(bandwidth=0, log_lik=0, error=0)
 for (bw in seq(2, 10, by=0.2)) {
   
@@ -116,7 +124,7 @@ for (bw in seq(2, 10, by=0.2)) {
   
 }
 names(na_columns) <- c("bandwidth", colnames(betas_bw))
-# write.csv(na_columns, "Colombia Data/GWR coefs NA2.csv", row.names=F)
+# write.csv(na_columns, "Colombia Data/GWR coefs NA with airport.csv", row.names=F)
 
 gwr_data <- gwr_hyd_destination_coord %>% select(-long, -lat, -erad_manual)
 y_bw <- gwr_data$hyd_destination
