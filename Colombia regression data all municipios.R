@@ -541,15 +541,20 @@ regression_data_years <- regression_data_years %>%
 # write.csv(regression_data_years %>% relocate(id, year, n_PPI_labs, PPI_lab_prob, n_hyd_labs, hyd_lab_prob),
 #           "Colombia Data/regression data all municipios (07-05-2024).csv", row.names = F)
 
+regression_data_years <- read.csv("Colombia Data/regression data all municipios (07-05-2024).csv") %>% as_tibble
 regression_data_years_old <- read.csv("Colombia Data/regression data (05-15-2024).csv") %>% as_tibble
 
 lab_probs <- regression_data_years %>% 
   select(id, year, PPI_lab_prob, hyd_lab_prob) %>% arrange(id)
-lab_probs_old2 <- regression_data_years_old %>% 
+lab_probs_old <- regression_data_years_old %>% 
   select(id, year, PPI_lab_prob, hyd_lab_prob) %>% arrange(id)
 
-lab_probs_comparison <- left_join(lab_probs_old2, lab_probs, by=c("id", "year")) %>%
-  relocate(id, year, PPI_lab_prob.x, PPI_lab_prob.y, hyd_lab_prob.x, hyd_lab_prob.y)
+lab_probs_comparison <- left_join(lab_probs_old, lab_probs, by=c("id", "year")) %>%
+  relocate(id, year, PPI_lab_prob.x, PPI_lab_prob.y, hyd_lab_prob.x, hyd_lab_prob.y) %>% 
+  rename(PPI_lab_prob_516=PPI_lab_prob.x, 
+         PPI_lab_prob_1120=PPI_lab_prob.y, 
+         hyd_lab_prob_516=hyd_lab_prob.x,
+         hyd_lab_prob_1120=hyd_lab_prob.y)
 # write.csv(lab_probs_comparison, "Colombia Data/lab probabilities comparison (07-05-2024).csv", row.names=F)
 
 summary(lab_probs_comparison$PPI_lab_prob.x - lab_probs_comparison$PPI_lab_prob.y)
