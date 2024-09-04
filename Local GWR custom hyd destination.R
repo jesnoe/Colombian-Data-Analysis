@@ -12,6 +12,7 @@ library(caret)
 library(randomForest)
 library(pracma)
 library(GWmodel)
+library(pROC)
 
 {
   municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
@@ -184,7 +185,7 @@ names(local_GWR_coefs_mat) <- model_coef_list$coefs_5002$var_name
 local_GWR_coefs_mat$n_NA <- local_GWR_coefs_mat %>% apply(1, function(x) sum(is.na(x)))
 local_GWR_coefs_mat <- local_GWR_coefs_mat %>% relocate(n_NA)
 local_GWR_coefs_bw <- cbind(local_GWR_coefs_bw, local_GWR_coefs_mat) %>% as_tibble
-local_GWR_coefs_bw %>% write.csv("Colombia Data/local GWR best coefs (08-13-2024).csv", row.names=F)
+# local_GWR_coefs_bw %>% write.csv("Colombia Data/local GWR best coefs (08-13-2024).csv", row.names=F)
 
 local_gwr_data_with_id %>% filter(id %in% c(5642, 94888))
 gwr_result_list$id_5642$bw_0.7 %>% summary
@@ -205,10 +206,31 @@ for (i in 1:nrow(local_gwr_data_with_id)) {
 
 local_gwr_data_with_id$pi_hat <- pi_hat
 threshold <- 0.5
-confusionMatrix(ifelse(local_gwr_data_with_id$pi_hat < threshold, 0, 1) %>% as.factor,
+local_gwr_data_with_id$pred <- ifelse(local_gwr_data_with_id$pi_hat < threshold, 0, 1) %>% as.factor
+confusionMatrix(local_gwr_data_with_id$pred,
                 local_gwr_data_with_id$hyd_destination %>% as.factor,
                 positive="1")
 
+local_gwr_data_roc <- roc(local_gwr_data_with_id$hyd_destination, local_gwr_data_with_id$pred %>% as.character %>% as.numeric)
+auc(local_gwr_data_roc) # 0.912
+
+# outliers
+gwr_result_list$id_41078$bw_1.1$data %>% view
+gwr_result_list$id_85225$bw_0.8$data %>% view
+
+local_gwr_model_41078 <- glm(hyd_destination~.,
+                             data=gwr_result_list$id_41078$bw_1.1$data,
+                             family=binomial)
+local_gwr_model_85225 <- glm(hyd_destination~.,
+                             data=gwr_result_list$id_85225$bw_0.8$data,
+                             family=binomial)
+
+local_gwr_model_41078_vs <- MASS::stepAIC(local_gwr_model_41078, trace=F, direction="both")
+local_gwr_model_85225_vs <- MASS::stepAIC(local_gwr_model_85225, trace=F, direction="both")
+summary(local_gwr_model_41078_vs)
+summary(local_gwr_model_85225_vs)
+
+# coef maps
 depto_map <- suppressMessages(fortify(departamentos)) %>% 
   mutate(id=as.numeric(id)) %>% 
   filter(id != 88) %>% 
@@ -240,10 +262,41 @@ for (i in 1:ncol(local_GWR_coefs_bw)) {
           line = element_blank()
     )
   
-  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR results/hyd destination GWR coef ", var_name, ".png"),
-         gwr_coef_map, scale=1)
+  # ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR results/hyd destination GWR coef ", var_name, ".png"),
+  #        gwr_coef_map, scale=1)
 }
 
+
+local_GWR_coefs_bw_without_41078 <- local_GWR_coefs_bw %>% filter(id != 41078)
+for (i in 1:ncol(local_GWR_coefs_bw_without_41078)) {
+  if (i %in% c(1, 3, 4, 5)) next
+  var_name <- names(local_GWR_coefs_bw_without_41078)[i]
+  gwr_coefs_i <- data.frame(id=local_GWR_coefs_bw_without_41078$id,
+                            coef=local_GWR_coefs_bw_without_41078[[var_name]])
+  
+  coef_map_coords <- map_df %>% 
+    left_join(gwr_coefs_i, by="id")
+  
+  
+  gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=coef),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = depto_map$long, y = depto_map$lat) + 
+    coord_quickmap() +
+    scale_fill_viridis_c(na.value = "white") +
+    labs(fill=var_name, x="", y="", title="") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    )
+  
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR results without id=41078/hyd destination GWR coef ", var_name, ".png"),
+         gwr_coef_map, scale=1)
+}
 
 empty_map <- ggplot(depto_map, aes(x=long, y=lat)) + 
   geom_polygon(aes(group=group, fill = ""),
@@ -294,101 +347,93 @@ empty_map +
              aes(x=long, y=lat),
              color=c("black", "red"))
 
-##
-gwr_coefs_bw2.1 <- gwr_models_hyd_destination$bw_2.1$beta_mat %>% as_tibble
-# write.csv(gwr_coefs_bw2 %>% mutate(id=gwr_data_hyd_destination$id), "Colombia Data/GWR coefs (bw=2).csv", row.names=F)
-# gwr_coefs_bw2.1 %>% apply(2, sd) %>% t %>% write.csv("Colombia Data/GWR coefs sd (bw=2.1).csv", row.names=F)
-
-
-for (i in 2:ncol(gwr_coefs_bw2.1)) {
-  var_name <- names(gwr_coefs_bw2.1)[i]
-  gwr_coefs_i <- data.frame(id=gwr_data_hyd_destination$id,
-                        coef=gwr_coefs_bw2.1[[var_name]])
+### (Global) GWR
+response_var <- "hyd_destination"
+min_n_reg_data <- 34
+global_aic_score_mat <- matrix(nrow=nrow(coord_unique), ncol=length(bwd_range), data = 0) %>% as_tibble() %>% 
+  mutate(id=coord_unique$id) %>% 
+  relocate(id)
+names(global_aic_score_mat)[-1] <- paste0("bw_", bwd_range)
+global_gwr_result_list <- list()
+global_model_coef_list <- list()
+for (i in 1:nrow(coord_unique)) {
+  id_i <- coord_unique$id[i]
+  global_model_coef_mat_i <- matrix(nrow=1+length(local_gwr_data), ncol=length(bwd_range), data = 0) %>% as_tibble() %>%
+    mutate(var_name=c("Intercept", names(local_gwr_data))) %>%
+    filter(var_name != response_var) %>%
+    relocate(var_name)
+  names(global_model_coef_mat_i)[-1] <- paste0("bw_", bwd_range)
+  global_gwr_result_list[[paste0("id_", id_i)]] <- list()
   
-  coef_map_coords <- map_df %>% 
-    left_join(gwr_coefs_i, by="id")
+  for(j in 1:length(bwd_range)) {
+    bw_j <- bwd_range[j]
+    
+    neighbor_dist_index <- which(local_gwr_dist[i,] <= bw_j)
+    neighbor_id_i <- coord_unique$id[neighbor_dist_index]
+    neighbor_dist <- tibble(id=neighbor_id_i, dist=local_gwr_dist[i,neighbor_dist_index])
+    neighbor_index <- which(local_gwr_data_id$id %in% coord_unique$id[neighbor_dist_index])
+    dist_weights_df <- left_join(local_gwr_data_id, neighbor_dist, by="id")
+    
+    local_gwr_data_bw_i <- local_gwr_data[neighbor_index,]
+    
+    global_gwr_result_bw_i <- glm(hyd_destination~.,
+                                  data=local_gwr_data_bw_i,
+                                  # weight=1/(1+local_gwr_data_bw_i[i,neighbor_index]),
+                                  family="binomial")
+    global_model_coef_mat_i[,j+1] <- global_gwr_result_bw_i$coefficients
+    global_aic_score_mat[i, j+1] <- global_gwr_result_bw_i$aic
+    global_gwr_result_list[[i]][[paste0("bw_", bw_j)]] <- global_gwr_result_bw_i
+  }
   
-  gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) + 
-    geom_polygon(aes(group=group, fill=coef),
-                 color = "black",
-                 linewidth = 0.1) + 
-    expand_limits(x = depto_map$long, y = depto_map$lat) + 
-    coord_quickmap() +
-    scale_fill_viridis_c(na.value = "white") +
-    labs(fill=var_name, x="", y="", title="") +
-    theme_bw() +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.border = element_blank(),
-          axis.text = element_blank(),
-          line = element_blank()
-    )
-  
-  # ggsave(paste0("Colombia Data/Figs/GWR coef maps/hyd destintion GWR results with id=18756/hyd destination GWR coef ", var_name, ".png"),
-  #        gwr_coef_map, scale=1)
-  ggsave(paste0("Colombia Data/Figs/GWR coef maps/hyd destintion GWR results without id=18756/hyd destination GWR coef ", var_name, " without id=18756.png"),
-         gwr_coef_map, scale=1)
+  global_model_coef_list[[paste0("coefs_", id_i)]] <- global_model_coef_mat_i
 }
 
-bw_2.1_p_values <- tibble()
-for (i in 1:length(gwr_models_hyd_destination$bw_2.1$gwr_model)) {
-  gwr_model_summary_i <- gwr_models_hyd_destination$bw_2.1$gwr_model[[i]] %>% summary
-  bw_2.1_p_values <- rbind(bw_2.1_p_values,
-                           c(gwr_data_hyd_destination$id[i], gwr_data_hyd_destination$municipio[i],
-                             gwr_data_hyd_destination$year[i], gwr_model_summary_i$coefficients[,4]))
+# write.csv(global_aic_score_mat, "Colombia Data/global GWR AIC (09-04-2024).csv", row.names=F)
+# save(list = c("global_gwr_result_list", "global_model_coef_list"), file = "Colombia Data/global GWR result (09-04-2024).RData")
+global_aic_score_mat <- read.csv("Colombia Data/global GWR AIC (09-04-2024).csv") %>% as_tibble
+global_GWR_coefs_bw <- read.csv("Colombia Data/global GWR best coefs (09-04-2024).csv") %>% as_tibble
+load("Colombia Data/global GWR result (09-04-2024).RData")
+
+# n_reg_data_mat
+global_GWR_coefs_bw <- tibble(id=global_aic_score_mat$id,
+                              bw=2)
+global_GWR_coefs_bw$n_neighbors <- global_GWR_coefs_bw %>% apply(1, function(x) n_reg_data_mat[[paste0("bw_", x[2])]][which(x[1] == global_GWR_coefs_bw$id)])
+global_GWR_coefs_mat <- matrix(0, nrow(global_GWR_coefs_bw), ncol(local_gwr_data))
+for(i in 1:nrow(global_GWR_coefs_bw)) {
+  id_i <- global_GWR_coefs_bw$id[i]
+  bw_i <- global_GWR_coefs_bw$bw[i]
+  global_GWR_coefs_mat[i,] <- global_model_coef_list[[paste0("coefs_", id_i)]][[paste0("bw_", bw_i)]]
 }
-bw_2.1_p_values <- as_tibble(bw_2.1_p_values)
-names(bw_2.1_p_values) <- c("id", "municipio", "year", "Intercept", row.names(gwr_model_summary_i$coefficients)[-1])
-bw_2.1_p_values <- bw_2.1_p_values %>% select(-year) %>% unique
-bw_2.1_p_values$n_significant_vars <- bw_2.1_p_values %>% 
-  apply(1, function(x) sum(x[-1] <= 0.05))
-bw_2.1_p_values %>% relocate(id, municipio, n_significant_vars) %>% arrange(desc(n_significant_vars))# %>% 
-  # write.csv("Colombia Data/GWR results/gwr coefs and pvalues bw=2.1.csv", row.names=F)
-# bw_2.1_p_values %>% relocate(id, municipio, n_significant_vars) %>% arrange(desc(n_significant_vars)) %>%
-#   write.csv("Colombia Data/GWR results/gwr coefs and pvalues bw=2.1 without id=18756.csv", row.names=F)
+global_GWR_coefs_mat <- as_tibble(global_GWR_coefs_mat)
+names(global_GWR_coefs_mat) <- global_model_coef_list$coefs_5002$var_name
+global_GWR_coefs_mat$n_NA <- global_GWR_coefs_mat %>% apply(1, function(x) sum(is.na(x)))
+global_GWR_coefs_mat <- global_GWR_coefs_mat %>% relocate(n_NA)
+global_GWR_coefs_bw <- cbind(global_GWR_coefs_bw, global_GWR_coefs_mat) %>% as_tibble
+# global_GWR_coefs_bw %>% write.csv("Colombia Data/global GWR best coefs (09-04-2024).csv", row.names=F)
 
-gwr_models_hyd_destination$bw_2.1$gwr_model$gwr_model_166 %>% summary
-
-gwr_models_hyd_destination$bw_2.1$gwr_model$gwr_model_1
-
-
-gwr_data_hyd_destination %>% select(-id, -municipio, -year) %>% summary
-gwr_data_hyd_destination %>% filter(id == 18756) %>% view
-municipio_centroid %>% filter(id == 18756) # SOLANO, Caqueta
-
-# GWR coef maps without id=18756
-no_18756_index <- which(gwr_data_hyd_destination$id != 18756)
-gwr_coefs_bw2.1_without_18756 <- gwr_coefs_bw2.1[no_18756_index,]
-for (i in 2:ncol(gwr_coefs_bw2)) {
-  var_name <- names(gwr_coefs_bw2.1_without_18756)[i]
-  gwr_coefs_i <- data.frame(id=ever_anecdotal_data_years$id[no_18756_index],
-                            coef=gwr_coefs_bw2.1_without_18756[[var_name]])
-  
-  coef_map_coords <- map_df %>% 
-    left_join(gwr_coefs_i, by="id")
-  
-  gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) + 
-    geom_polygon(aes(group=group, fill=coef),
-                 color = "black",
-                 linewidth = 0.1) + 
-    expand_limits(x = depto_map$long, y = depto_map$lat) + 
-    coord_quickmap() +
-    scale_fill_viridis_c(na.value = "white") +
-    labs(fill=var_name, x="", y="", title="") +
-    theme_bw() +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.border = element_blank(),
-          axis.text = element_blank(),
-          line = element_blank()
-    )
-  
-  ggsave(paste0("Colombia Data/Figs/GWR coef maps/hyd destintion GWR results with id=18756/hyd destination GWR coef without id=18756", var_name, ".png"),
-         gwr_coef_map, scale=1)
+global_gwr_data_with_id <- cbind(local_gwr_data_id, local_gwr_data) %>% as_tibble
+pi_hat <- c()
+for (i in 1:nrow(global_gwr_data_with_id)) {
+  id_i <- global_gwr_data_with_id$id[i]
+  beta_i <- global_GWR_coefs_bw %>% filter(id == id_i) %>% select(-(id:n_NA))
+  intercept_i <- beta_i$Intercept
+  beta_i <- beta_i[,-1] %>% as.matrix %>% t
+  beta_i[is.na(beta_i)] <- 0
+  X_beta_i <- intercept_i + as.matrix(local_gwr_data %>% select(-hyd_destination))[i,] %*% beta_i
+  pi_hat_i <- exp(X_beta_i)/(1+exp(X_beta_i))
+  pi_hat_i <- ifelse(is.nan(pi_hat_i), 1, pi_hat_i)
+  pi_hat <- c(pi_hat, pi_hat_i)
 }
 
-ever_anecdotal_data_years %>% filter(id == 81591) %>% view
-municipios_capital %>% filter(id==81591) # PUERTO RONDON, Arauca
+global_gwr_data_with_id$pi_hat <- pi_hat
+threshold <- 0.5
+global_gwr_data_with_id$pred <- ifelse(global_gwr_data_with_id$pi_hat < threshold, 0, 1) %>% as.factor
+confusionMatrix(global_gwr_data_with_id$pred,
+                global_gwr_data_with_id$hyd_destination %>% as.factor,
+                positive="1")
+
+local_gwr_data_roc <- roc(global_gwr_data_with_id$hyd_destination, global_gwr_data_with_id$pred %>% as.character %>% as.numeric)
+auc(local_gwr_data_roc) # 0.7691
 
 
 

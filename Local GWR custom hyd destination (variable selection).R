@@ -70,7 +70,10 @@ gwr_data_hyd_destination <- gwr_hyd_destination_coord %>% select(-long, -lat, -e
 
 bwd_range <- seq(0.5, 4, by=0.1)
 n_reg_data_mat <- read.csv("Colombia Data/local GWR number of neighbors (08-13-2024).csv") %>% as_tibble
-aic_score_vs_mat <- n_reg_data_mat
+aic_score_vs_mat <- matrix(nrow=nrow(coord_unique), ncol=length(bwd_range), data = 0) %>% as_tibble() %>% 
+  mutate(id=coord_unique$id) %>% 
+  relocate(id)
+names(aic_score_vs_mat)[-1] <- paste0("bw_", bwd_range)
 local_gwr_data_id <- gwr_hyd_destination_coord %>% select(id)
 local_gwr_data <- gwr_hyd_destination_coord %>% select(-id, -municipio, -year, -long, -lat)
 local_gwr_dist <- as.matrix(gwr_hyd_destination_dist)
