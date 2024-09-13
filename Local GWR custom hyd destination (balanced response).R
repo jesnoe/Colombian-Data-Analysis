@@ -42,6 +42,13 @@ library(pROC)
   airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
 }
 
+n_reg_data_mat <- read.csv("Colombia Data/local GWR number of neighbors (08-13-2024).csv") %>% as_tibble
+aic_score_mat <- read.csv("Colombia Data/local GWR AIC (08-13-2024).csv") %>% as_tibble
+local_GWR_coefs_bw <- read.csv("Colombia Data/local GWR best coefs (08-13-2024).csv") %>% as_tibble
+load("Colombia Data/local GWR result (08-13-2024).RData")
+aic_score_mat <- read.csv("Colombia Data/local GWR AIC with variable selection (09-04-2024).csv") %>% as_tibble
+load("Colombia Data/local GWR result with variable selection (09-04-2024).RData")
+
 regression_data_years <- read.csv("Colombia Data/regression data all municipios (07-05-2024).csv") %>% as_tibble %>% 
   mutate(base_avg=scale(base_avg)[,1],
          paste_avg=scale(paste_avg)[,1],
@@ -102,99 +109,122 @@ gwr_hyd_destination_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T)
 dim(gwr_hyd_destination_dist)
 gwr_data_hyd_destination <- gwr_hyd_destination_coord %>% select(-long, -lat, -erad_manual)
 
-bwd_range <- seq(0.5, 4, by=0.1)
+bwd_range <- seq(0.5, 8, by=0.1)
+y_ratio_mat <- matrix(nrow=nrow(coord_unique), ncol=length(bwd_range), data = NA) %>% as_tibble() %>% 
+  mutate(id=coord_unique$id) %>% 
+  relocate(id)
+names(y_ratio_mat)[-1] <- paste0("bw_", bwd_range) 
 n_reg_data_mat <- matrix(nrow=nrow(coord_unique), ncol=length(bwd_range), data = 0) %>% as_tibble() %>% 
   mutate(id=coord_unique$id) %>% 
   relocate(id)
 names(n_reg_data_mat)[-1] <- paste0("bw_", bwd_range) 
-aic_score_mat <- n_reg_data_mat
 local_gwr_data_id <- gwr_hyd_destination_coord %>% select(id)
 local_gwr_data <- gwr_hyd_destination_coord %>% select(-id, -municipio, -year, -long, -lat)
 local_gwr_dist <- as.matrix(gwr_hyd_destination_dist)
-# number of neigbors
+# number of neigbors and response ratio
 for(i in 1:length(bwd_range)) {
   bw <- bwd_range[i]
   n_neighbors_i <- local_gwr_dist %>%
     apply(1, function(x) which(x<=bw)) %>%
     lapply(function(x) local_gwr_data_id %>% filter(id %in% coord_unique$id[x]) %>% nrow) %>% unlist
   n_reg_data_mat[, i+1] <- n_neighbors_i - 1
+  
+  y_ratio__i <- local_gwr_dist %>%
+    apply(1, function(x) which(x<=bw)) %>%
+    lapply(function(x) sum((gwr_hyd_destination_coord %>% filter(id %in% coord_unique$id[x]) %>% pull(hyd_destination) == 1))) %>% unlist
+  y_ratio__i <- y_ratio__i / n_neighbors_i
+  y_ratio_mat[, i+1] <- y_ratio__i
 }
-# write.csv(n_reg_data_mat, "Colombia Data/local GWR number of neighbors (08-13-2024).csv", row.names=F)
+ratio_LB <- 0.2
+ratio_UB <- 0.8
+y_ratio_mat$n_bw_within <- apply(y_ratio_mat, 1, function(x) sum(x[-1] >= ratio_LB & x[-1] <= ratio_UB))
+y_ratio_mat <- y_ratio_mat %>% relocate(id, n_bw_within)
+# write.csv(n_reg_data_mat, "Colombia Data/local GWR number of neighbors bw 8 (09-12-2024).csv", row.names=F)
+# write.csv(y_ratio_mat, "Colombia Data/local GWR response ratio (09-12-2024).csv", row.names=F)
+# write.csv(y_ratio_mat, "Colombia Data/local GWR response ratio bw 8 (09-12-2024).csv", row.names=F)
 n_reg_data_mat <- read.csv("Colombia Data/local GWR number of neighbors (08-13-2024).csv") %>% as_tibble
+y_ratio_mat <- read.csv("Colombia Data/local GWR response ratio (09-12-2024).csv") %>% as_tibble
+# y_ratio_mat <- read.csv("Colombia Data/local GWR response ratio bw 8 (09-12-2024).csv") %>% as_tibble
+  
+y_ratio_mat %>% arrange(n_bw_within)
+y_ratio_mat %>% filter(n_bw_within == 0)
+zero_hyd_destination_id <- y_ratio_mat %>% filter(n_bw_within == 0) %>% pull(id)
+municipios_capital %>% filter(id %in% zero_hyd_destination_id)
+y_ratio_mat %>% filter(id %in% c(41078, 85225))
 
-# GWR coefficients and AIC
-response_var <- "hyd_destination"
-min_n_reg_data <- 34
-gwr_result_list <- list()
-model_coef_list <- list()
-for (i in 1:nrow(coord_unique)) {
-  id_i <- coord_unique$id[i]
-  model_coef_mat_i <- matrix(nrow=1+length(local_gwr_data), ncol=length(bwd_range), data = 0) %>% as_tibble() %>%
-    mutate(var_name=c("Intercept", names(local_gwr_data))) %>%
-    filter(var_name != response_var) %>%
-    relocate(var_name)
-  names(model_coef_mat_i)[-1] <- paste0("bw_", bwd_range)
-  gwr_result_list[[paste0("id_", id_i)]] <- list()
+ggplot(map_df, aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group),
+               fill = ifelse(map_df$id %in% zero_hyd_destination_id, "red", "white"),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  coord_quickmap() +
+  # scale_fill_manual(na.value = "white") +
+  labs(fill="no hyd destination", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  )
 
-  for(j in 1:length(bwd_range)) {
-    bw_j <- bwd_range[j]
-    n_reg_data_i_bw <- (n_reg_data_mat %>% filter(id == id_i))[[paste0("bw_", bw_j)]]
-    if (n_reg_data_i_bw < min_n_reg_data) {
-      aic_score_mat[i, j+1] <- NA
-      next
-    }
-
-    neighbor_dist_index <- which(local_gwr_dist[i,] <= bw_j)
-    neighbor_id_i <- coord_unique$id[neighbor_dist_index]
-    neighbor_dist <- tibble(id=neighbor_id_i, dist=local_gwr_dist[i,neighbor_dist_index])
-    neighbor_index <- which(local_gwr_data_id$id %in% coord_unique$id[neighbor_dist_index])
-    dist_weights_df <- left_join(local_gwr_data_id, neighbor_dist, by="id")
-    
-    local_gwr_data_bw_i <- local_gwr_data[neighbor_index,]
-
-    gwr_result_bw_i <- glm(hyd_destination~.,
-                           data=local_gwr_data_bw_i,
-                           # weight=1/(1+local_gwr_data_bw_i[i,neighbor_index]),
-                           family="binomial")
-    model_coef_mat_i[,j+1] <- gwr_result_bw_i$coefficients
-    aic_score_mat[i, j+1] <- gwr_result_bw_i$aic
-    gwr_result_list[[i]][[paste0("bw_", bw_j)]] <- gwr_result_bw_i
-  }
-
-  model_coef_list[[paste0("coefs_", id_i)]] <- model_coef_mat_i
-}
-
-# write.csv(aic_score_mat, "Colombia Data/local GWR AIC (08-13-2024).csv", row.names=F)
-# save(list = c("gwr_result_list", "model_coef_list"), file = "Colombia Data/local GWR result (08-13-2024).RData")
-aic_score_mat <- read.csv("Colombia Data/local GWR AIC (08-13-2024).csv") %>% as_tibble
-local_GWR_coefs_bw <- read.csv("Colombia Data/local GWR best coefs (08-13-2024).csv") %>% as_tibble
-load("Colombia Data/local GWR result (08-13-2024).RData")
-
-# n_reg_data_mat
-local_GWR_coefs_bw <- tibble(id=aic_score_mat$id,
-                             bw=bwd_range[aic_score_mat[,-1] %>% apply(1, function(x) which.min(ifelse(x<35, Inf, x)))])
-local_GWR_coefs_bw$n_neighbors <- local_GWR_coefs_bw %>% apply(1, function(x) n_reg_data_mat[[paste0("bw_", x[2])]][which(x[1] == local_GWR_coefs_bw$id)])
-local_GWR_coefs_mat <- matrix(0, nrow(local_GWR_coefs_bw), ncol(local_gwr_data))
-for(i in 1:nrow(local_GWR_coefs_bw)) {
+for (i in 1:nrow(local_GWR_coefs_bw)) {
   id_i <- local_GWR_coefs_bw$id[i]
   bw_i <- local_GWR_coefs_bw$bw[i]
-  local_GWR_coefs_mat[i,] <- model_coef_list[[paste0("coefs_", id_i)]][[paste0("bw_", bw_i)]]
 }
-local_GWR_coefs_mat <- as_tibble(local_GWR_coefs_mat)
-names(local_GWR_coefs_mat) <- model_coef_list$coefs_5002$var_name
-local_GWR_coefs_mat$n_NA <- local_GWR_coefs_mat %>% apply(1, function(x) sum(is.na(x)))
-local_GWR_coefs_mat <- local_GWR_coefs_mat %>% relocate(n_NA)
-local_GWR_coefs_bw <- cbind(local_GWR_coefs_bw, local_GWR_coefs_mat) %>% as_tibble
-# local_GWR_coefs_bw %>% write.csv("Colombia Data/local GWR best coefs (08-13-2024).csv", row.names=F)
+paste0("bw_", local_GWR_coefs_bw$bw)
+local_GWR_coefs_bw$y_ratio <- apply(local_GWR_coefs_bw, 1,
+                                    function(x) y_ratio_mat[[paste0("bw_", x[2])]][coord_unique == x[1]])
+local_GWR_coefs_bw <- local_GWR_coefs_bw %>% relocate(id, bw, y_ratio)
+# write.csv(local_GWR_coefs_bw, "Colombia Data/local GWR best coefs with y_ratio (09-12-2024).csv", row.names=F)
+
+local_GWR_coefs_bw %>% filter(y_ratio > 0.8 | y_ratio < 0.2) # 558 municipios out of 1120 (49.8%)
+
+
+# balanced optimal GWR regression
+# bw=bwd_range[aic_score_mat[,-1] %>% apply(1, function(x) which.min(ifelse(x<35, Inf, x)))]
+bwd_range <- seq(0.5, 4, by=0.1)
+local_GWR_balanced_coefs_bw <- tibble(id=aic_score_mat$id)
+balanced_optimal_bw <- c()
+for (i in 1:nrow(local_GWR_balanced_coefs_bw)) {
+  AIC_i <- aic_score_mat[i, -1]
+  y_ratio_i <- y_ratio_mat[i,]
+  if (y_ratio_i$n_bw_within == 0) {
+    balanced_optimal_bw <- c(balanced_optimal_bw, 4)
+    next
+  }
+  AIC_i <- t(AIC_i) %>% as.vector
+  y_ratio_i <- t(y_ratio_i[, -(1:2)]) %>% as.vector
+  # AIC_i <- ifelse(AIC_i < 35 | y_ratio_i > ratio_UB | y_ratio_i < ratio_LB, Inf, AIC_i) # for imbalanced
+  AIC_i <- ifelse(y_ratio_i > ratio_UB | y_ratio_i < ratio_LB, Inf, AIC_i) # for balanced
+  balanced_optimal_bw <- c(balanced_optimal_bw, bwd_range[which.min(AIC_i)])
+}
+local_GWR_balanced_coefs_bw$bw <- balanced_optimal_bw
+local_GWR_balanced_coefs_bw$n_neighbors <- local_GWR_balanced_coefs_bw %>% apply(1, function(x) n_reg_data_mat[[paste0("bw_", x[2])]][which(x[1] == local_GWR_balanced_coefs_bw$id)])
+local_GWR_balanced_coefs_mat <- matrix(0, nrow(local_GWR_balanced_coefs_bw), ncol(local_gwr_data))
+for(i in 1:nrow(local_GWR_balanced_coefs_bw)) {
+  id_i <- local_GWR_balanced_coefs_bw$id[i]
+  bw_i <- local_GWR_balanced_coefs_bw$bw[i]
+  # local_GWR_balanced_coefs_mat[i,] <- model_coef_list[[paste0("coefs_", id_i)]][[paste0("bw_", bw_i)]]
+  local_GWR_balanced_coefs_mat[i,] <- model_vs_coef_list[[paste0("coefs_", id_i)]][[paste0("bw_", bw_i)]]
+}
+
+local_GWR_balanced_coefs_mat <- as_tibble(local_GWR_balanced_coefs_mat)
+# names(local_GWR_balanced_coefs_mat) <- model_coef_list$coefs_5002$var_name
+names(local_GWR_balanced_coefs_mat) <- model_vs_coef_list$coefs_5002$var_name
+local_GWR_balanced_coefs_mat$n_NA <- local_GWR_balanced_coefs_mat %>% apply(1, function(x) sum(is.na(x)))
+local_GWR_balanced_coefs_mat <- local_GWR_balanced_coefs_mat %>% relocate(n_NA)
+local_GWR_balanced_coefs_bw <- cbind(local_GWR_balanced_coefs_bw, local_GWR_balanced_coefs_mat) %>% as_tibble
+# local_GWR_balanced_coefs_bw %>% write.csv("Colombia Data/local GWR balanced best coefs (09-12-2024).csv", row.names=F)
+
 
 local_gwr_data_with_id %>% filter(id %in% c(5642, 94888))
-gwr_result_list$id_5642$bw_0.7 %>% summary
-
 local_gwr_data_with_id <- cbind(local_gwr_data_id, local_gwr_data) %>% as_tibble
 pi_hat <- c()
 for (i in 1:nrow(local_gwr_data_with_id)) {
   id_i <- local_gwr_data_with_id$id[i]
-  beta_i <- local_GWR_coefs_bw %>% filter(id == id_i) %>% select(-(id:n_NA))
+  beta_i <- local_GWR_balanced_coefs_bw %>% filter(id == id_i) %>% select(-(id:n_NA))
   intercept_i <- beta_i$Intercept
   beta_i <- beta_i[,-1] %>% as.matrix %>% t
   beta_i[is.na(beta_i)] <- 0
@@ -212,7 +242,7 @@ confusionMatrix(local_gwr_data_with_id$pred,
                 positive="1")
 
 local_gwr_data_roc <- roc(local_gwr_data_with_id$hyd_destination, local_gwr_data_with_id$pred %>% as.character %>% as.numeric)
-auc(local_gwr_data_roc) # 0.912
+auc(local_gwr_data_roc) # 0.8994
 
 # outliers
 gwr_result_list$id_41078$bw_1.1$data %>% view
@@ -239,11 +269,11 @@ depto_map <- suppressMessages(fortify(departamentos)) %>%
   filter(id != 88) %>% 
   left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
 
-for (i in 1:ncol(local_GWR_coefs_bw)) {
+for (i in 1:ncol(local_GWR_balanced_coefs_bw)) {
   if (i %in% c(1, 3, 4, 5)) next
-  var_name <- names(local_GWR_coefs_bw)[i]
-  gwr_coefs_i <- data.frame(id=local_GWR_coefs_bw$id,
-                            coef=local_GWR_coefs_bw[[var_name]])
+  var_name <- names(local_GWR_balanced_coefs_bw)[i]
+  gwr_coefs_i <- data.frame(id=local_GWR_balanced_coefs_bw$id,
+                            coef=local_GWR_balanced_coefs_bw[[var_name]])
   
   coef_map_coords <- map_df %>% 
     left_join(gwr_coefs_i, by="id")
@@ -265,8 +295,11 @@ for (i in 1:ncol(local_GWR_coefs_bw)) {
           line = element_blank()
     )
   
-  # ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR results/hyd destination GWR coef ", var_name, ".png"),
+  # ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR balanced results/hyd destination GWR balanced coef ", var_name, ".png"),
   #        gwr_coef_map, scale=1)
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR balanced results (variable selection)/hyd destination GWR balanced coef ",
+                var_name, "(variable selection).png"),
+         gwr_coef_map, scale=1)
 }
 
 
@@ -320,7 +353,7 @@ empty_map <- ggplot(depto_map, aes(x=long, y=lat)) +
 
 empty_map +
   geom_point(data=gwr_hyd_destination_coord %>% filter(airport == 1),
-              aes(x=long, y=lat),
+             aes(x=long, y=lat),
              size=0.5) +
   ggtitle("airports")
 
@@ -349,141 +382,3 @@ empty_map +
   geom_point(data=data.frame(long=c(-75.6, -73.6), lat=c(6.26, 6.26)),
              aes(x=long, y=lat),
              color=c("black", "red"))
-
-### (Global) GWR
-response_var <- "hyd_destination"
-min_n_reg_data <- 34
-global_aic_score_mat <- matrix(nrow=nrow(coord_unique), ncol=length(bwd_range), data = 0) %>% as_tibble() %>% 
-  mutate(id=coord_unique$id) %>% 
-  relocate(id)
-names(global_aic_score_mat)[-1] <- paste0("bw_", bwd_range)
-global_gwr_result_list <- list()
-global_model_coef_list <- list()
-for (i in 1:nrow(coord_unique)) {
-  id_i <- coord_unique$id[i]
-  global_model_coef_mat_i <- matrix(nrow=1+length(local_gwr_data), ncol=length(bwd_range), data = 0) %>% as_tibble() %>%
-    mutate(var_name=c("Intercept", names(local_gwr_data))) %>%
-    filter(var_name != response_var) %>%
-    relocate(var_name)
-  names(global_model_coef_mat_i)[-1] <- paste0("bw_", bwd_range)
-  global_gwr_result_list[[paste0("id_", id_i)]] <- list()
-  
-  for(j in 1:length(bwd_range)) {
-    bw_j <- bwd_range[j]
-    
-    neighbor_dist_index <- which(local_gwr_dist[i,] <= bw_j)
-    neighbor_id_i <- coord_unique$id[neighbor_dist_index]
-    neighbor_dist <- tibble(id=neighbor_id_i, dist=local_gwr_dist[i,neighbor_dist_index])
-    neighbor_index <- which(local_gwr_data_id$id %in% coord_unique$id[neighbor_dist_index])
-    dist_weights_df <- left_join(local_gwr_data_id, neighbor_dist, by="id")
-    
-    local_gwr_data_bw_i <- local_gwr_data[neighbor_index,]
-    
-    global_gwr_result_bw_i <- glm(hyd_destination~.,
-                                  data=local_gwr_data_bw_i,
-                                  # weight=1/(1+local_gwr_data_bw_i[i,neighbor_index]),
-                                  family="binomial")
-    global_model_coef_mat_i[,j+1] <- global_gwr_result_bw_i$coefficients
-    global_aic_score_mat[i, j+1] <- global_gwr_result_bw_i$aic
-    global_gwr_result_list[[i]][[paste0("bw_", bw_j)]] <- global_gwr_result_bw_i
-  }
-  
-  global_model_coef_list[[paste0("coefs_", id_i)]] <- global_model_coef_mat_i
-}
-
-# write.csv(global_aic_score_mat, "Colombia Data/global GWR AIC (09-04-2024).csv", row.names=F)
-# save(list = c("global_gwr_result_list", "global_model_coef_list"), file = "Colombia Data/global GWR result (09-04-2024).RData")
-global_aic_score_mat <- read.csv("Colombia Data/global GWR AIC (09-04-2024).csv") %>% as_tibble
-global_GWR_coefs_bw <- read.csv("Colombia Data/global GWR best coefs (09-04-2024).csv") %>% as_tibble
-load("Colombia Data/global GWR result (09-04-2024).RData")
-
-# n_reg_data_mat
-global_GWR_coefs_bw <- tibble(id=global_aic_score_mat$id,
-                              bw=2)
-global_GWR_coefs_bw$n_neighbors <- global_GWR_coefs_bw %>% apply(1, function(x) n_reg_data_mat[[paste0("bw_", x[2])]][which(x[1] == global_GWR_coefs_bw$id)])
-global_GWR_coefs_mat <- matrix(0, nrow(global_GWR_coefs_bw), ncol(local_gwr_data))
-for(i in 1:nrow(global_GWR_coefs_bw)) {
-  id_i <- global_GWR_coefs_bw$id[i]
-  bw_i <- global_GWR_coefs_bw$bw[i]
-  global_GWR_coefs_mat[i,] <- global_model_coef_list[[paste0("coefs_", id_i)]][[paste0("bw_", bw_i)]]
-}
-global_GWR_coefs_mat <- as_tibble(global_GWR_coefs_mat)
-names(global_GWR_coefs_mat) <- global_model_coef_list$coefs_5002$var_name
-global_GWR_coefs_mat$n_NA <- global_GWR_coefs_mat %>% apply(1, function(x) sum(is.na(x)))
-global_GWR_coefs_mat <- global_GWR_coefs_mat %>% relocate(n_NA)
-global_GWR_coefs_bw <- cbind(global_GWR_coefs_bw, global_GWR_coefs_mat) %>% as_tibble
-# global_GWR_coefs_bw %>% write.csv("Colombia Data/global GWR best coefs (09-04-2024).csv", row.names=F)
-
-global_gwr_data_with_id <- cbind(local_gwr_data_id, local_gwr_data) %>% as_tibble
-pi_hat <- c()
-for (i in 1:nrow(global_gwr_data_with_id)) {
-  id_i <- global_gwr_data_with_id$id[i]
-  beta_i <- global_GWR_coefs_bw %>% filter(id == id_i) %>% select(-(id:n_NA))
-  intercept_i <- beta_i$Intercept
-  beta_i <- beta_i[,-1] %>% as.matrix %>% t
-  beta_i[is.na(beta_i)] <- 0
-  X_beta_i <- intercept_i + as.matrix(local_gwr_data %>% select(-hyd_destination))[i,] %*% beta_i
-  pi_hat_i <- exp(X_beta_i)/(1+exp(X_beta_i))
-  pi_hat_i <- ifelse(is.nan(pi_hat_i), 1, pi_hat_i)
-  pi_hat <- c(pi_hat, pi_hat_i)
-}
-
-global_gwr_data_with_id$pi_hat <- pi_hat
-threshold <- 0.5
-global_gwr_data_with_id$pred <- ifelse(global_gwr_data_with_id$pi_hat < threshold, 0, 1) %>% as.factor
-confusionMatrix(global_gwr_data_with_id$pred,
-                global_gwr_data_with_id$hyd_destination %>% as.factor,
-                positive="1")
-
-local_gwr_data_roc <- roc(global_gwr_data_with_id$hyd_destination, global_gwr_data_with_id$pred %>% as.character %>% as.numeric)
-auc(local_gwr_data_roc) # 0.7691
-
-
-
-# variable selection test for outlier municipios
-municipios_capital %>% filter(id %in% c(5400, 5642, 94888))
-
-gwr_result_list$id_5400$bw_0.6$data$hyd_destination
-gwr_result_list$id_5642$bw_0.7$data$hyd_destination
-gwr_result_list$id_94888$bw_4$data$hyd_destination
-
-gwr_result_list$id_5400$bw_0.6 %>% summary
-gwr_result_list$id_5642$bw_0.7 %>% summary
-gwr_result_list$id_94888$bw_4 %>% summary
-
-# gwr_result_list$id_5400$bw_0.6$data %>% write.csv("Colombia Data/local gwr data id=5400 bw=0.6.csv", row.names=F)
-# gwr_result_list$id_5642$bw_0.7$data %>% write.csv("Colombia Data/local gwr data id=5642 bw=0.7.csv", row.names=F)
-# gwr_result_list$id_94888$bw_4$data %>% write.csv("Colombia Data/local gwr data id=94888 bw=4.csv", row.names=F)
-
-glm(hyd_destination~.,
-    data=gwr_result_list$id_5400$bw_0.6$data %>% select(-coca_area, -n_hyd_labs, -hyd_group),
-    family="binomial") %>% summary
-glm(hyd_destination~.,
-    data=gwr_result_list$id_5642$bw_0.7$data %>% select(-coca_area, -hyd_avg, -n_hyd_labs, -erad_manual, -n_armed_groups),
-    family="binomial") %>% summary
-glm(hyd_destination~.,
-    data=gwr_result_list$id_94888$bw_4$data %>% select(-coca_area, -hyd_avg, -n_hyd_labs, -erad_manual, -n_armed_groups),
-    family="binomial") %>% summary
-
-cor(gwr_result_list$id_5642$bw_0.7$data %>% select(-hyd_destination))
-cor(gwr_result_list$id_5642$bw_0.7$data %>% select(-coca_area, -hyd_avg, -erad_manual, -population, -hyd_group, -hyd_destination))
-
-# library(MASS)
-gwr_model_5400 <- glm(hyd_destination~.,
-                      data=gwr_result_list$id_5400$bw_0.6$data,
-                      family=binomial)
-gwr_model_5642 <- glm(hyd_destination~.,
-                      data=gwr_result_list$id_5642$bw_0.7$data,
-                      family=binomial)
-gwr_model_94888 <- glm(hyd_destination~.,
-                       data=gwr_result_list$id_94888$bw_4$data,
-                       family=binomial)
-# [gwr_result_list$id_5400$bw_0.6$coefficients]
-id_5400_step_result <- MASS::stepAIC(gwr_model_5400, trace=F, direction="both")
-id_5400_step_result %>% summary
-
-id_5642_step_result <- MASS::stepAIC(gwr_model_5642, trace=F, direction="both")
-id_5642_step_result %>% summary
-
-id_94888_step_result <- MASS::stepAIC(gwr_model_94888, trace=F, direction="both")
-id_94888_step_result %>% summary
