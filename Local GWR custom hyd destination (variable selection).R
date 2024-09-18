@@ -128,9 +128,9 @@ for (i in 1:nrow(coord_unique)) {
 
 # write.csv(aic_score_vs_mat, "Colombia Data/local GWR AIC with variable selection (09-02-2024).csv", row.names=F)
 # save(list = c("gwr_vs_result_list", "model_vs_coef_list"), file = "Colombia Data/local GWR result with variable selection (09-02-2024).RData")
-aic_score_vs_mat <- read.csv("Colombia Data/local GWR AIC with variable selection (09-02-2024).csv") %>% as_tibble
+aic_score_vs_mat <- read.csv("Colombia Data/local GWR AIC with variable selection (09-04-2024).csv") %>% as_tibble
 local_GWR_vs_coefs_bw <- read.csv("Colombia Data/local GWR best coefs with variable selection (09-02-2024).csv") %>% as_tibble
-load("Colombia Data/local GWR result with variable selection (09-02-2024).RData")
+load("Colombia Data/local GWR result with variable selection (09-04-2024).RData")
 
 # n_reg_data_mat
 local_GWR_vs_coefs_bw <- tibble(id=aic_score_vs_mat$id,
