@@ -13,8 +13,9 @@ library(caret)
 library(randomForest)
 library(pracma)
 library(GWmodel)
-library(pROC)
+library(ROCR)
 library(pls)
+library(glmnet)
 
 {
   municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
@@ -78,7 +79,131 @@ n_reg_data_mat <- read.csv("Colombia Data/local GWR number of neighbors (08-13-2
 aic_score_mat <- read.csv("Colombia Data/local GWR AIC (08-13-2024).csv") %>% as_tibble
 y_ratio_mat <- read.csv("Colombia Data/local GWR response ratio (09-12-2024).csv") %>% as_tibble
 local_GWR_coefs_bw <- read.csv("Colombia Data/local GWR best coefs (08-13-2024).csv") %>% as_tibble
+local_GWR_no_overfitting_coefs_bw <- read.csv("Colombia Data/local GWR no overfitting best coefs (10-01-2024).csv") %>% as_tibble
+local_GWR_no_overfitting_pvalues_bw <- read.csv("Colombia Data/local GWR no overfitting best p-values (10-01-2024).csv") %>% as_tibble
 load("Colombia Data/local GWR result (08-13-2024).RData")
+
+y_ratio_mat %>% filter(id == 41078)
+
+## why longer bandwidth caused overfitting
+bw_comparison <- left_join(local_GWR_coefs_bw %>% select(id, bw, n_neighbors),
+                           local_GWR_no_overfitting_coefs_bw %>% select(id, bw, n_neighbors) %>% rename(bw_no_overfit=bw, n_neighbors_no_overfit=n_neighbors),
+                           by="id") %>% 
+  filter(bw != bw_no_overfit) # In all cases, bw < bw_no_overfit
+longer_bw_id <- bw_comparison %>% filter(bw < bw_no_overfit) %>% pull(id)
+bw_ratio <- c()
+bw_no_overfit_ratio <- c()
+for (i in 1:nrow(bw_comparison)) {
+  bw_ratio <- c(bw_ratio, y_ratio_mat[[paste0("bw_", bw_comparison$bw[i])]][i])
+  bw_no_overfit_ratio <- c(bw_no_overfit_ratio, y_ratio_mat[[paste0("bw_", bw_comparison$bw_no_overfit[i])]][i])
+}
+bw_comparison$bw_ratio <- bw_ratio
+bw_comparison$bw_no_overfit_ratio <- bw_no_overfit_ratio
+rm(bw_ratio)
+rm(bw_no_overfit_ratio)
+bw_comparison$bw_ratio_diff <- bw_comparison$bw_no_overfit_ratio - bw_comparison$bw_ratio
+bw_comparison$bw_ratio_change_to_0.5 <- ifelse(bw_comparison$bw_ratio > 0.5, bw_comparison$bw_ratio_diff, -bw_comparison$bw_ratio_diff)
+bw_comparison$n_neighbors_diff <- bw_comparison$n_neighbors_no_overfit - bw_comparison$n_neighbors
+bw_comparison %>% relocate(id, bw, bw_no_overfit, n_neighbors, n_neighbors_no_overfit) %>% view
+
+local_GWR_no_overfitting_y_ratio <- c()
+for (i in 1:nrow(local_GWR_no_overfitting_pvalues_bw)) {
+  id_i <- local_GWR_no_overfitting_pvalues_bw$id[i]
+  bw_i <- local_GWR_no_overfitting_pvalues_bw$bw[i]
+  y_ratio_bw <- y_ratio_mat %>% filter(id == id_i)
+  local_GWR_no_overfitting_y_ratio <- c(local_GWR_no_overfitting_y_ratio, y_ratio_bw[[paste0("bw_", bw_i)]])
+}
+local_GWR_no_overfitting_pvalues_bw$y_ratio <- local_GWR_no_overfitting_y_ratio
+local_GWR_no_overfitting_pvalues_bw <- local_GWR_no_overfitting_pvalues_bw %>% relocate(id, bw, n_neighbors, n_NA, y_ratio)
+local_GWR_no_overfitting_pvalues_bw
+
+#### extreme ceof check with forward regression
+gwr_result_id_41078_bw_1.1 <- glm(hyd_destination~.,
+                                  data=gwr_result_list$id_41078$bw_1.1$data,
+                                  family=binomial)
+gwr_result_id_41078_bw_1.1_forward <- MASS::stepAIC(gwr_result_id_41078_bw_1.1, trace=F, steps=10000, direction="forward")
+gwr_result_id_41078_bw_1.1_step <- MASS::stepAIC(gwr_result_id_41078_bw_1.1, trace=F, steps=10000, direction="both")
+summary(gwr_result_id_41078_bw_1.1_forward)
+summary(gwr_result_id_41078_bw_1.1_step)
+
+var_names <- names(gwr_result_list$id_41078$bw_1.1$data)[-17]
+gwr_result_forward_p_values <- tibble()
+base_data <- gwr_result_list$id_41078$bw_1.1$data %>% select(hyd_destination)
+for(i in 1:length(var_names)) {
+  var_name <- var_names[i]
+  gwr_result_1_var <- glm(hyd_destination~.,
+                          data=cbind(base_data, gwr_result_list$id_41078$bw_1.1$data[,i]),
+                          family=binomial)
+  gwr_result_1_var_summary <- summary(gwr_result_1_var)
+  if (is.na(coef(gwr_result_1_var)[2])) {
+    gwr_result_forward_p_values <- rbind(gwr_result_forward_p_values, c(var_name, NA, NA))
+    next
+  }
+  gwr_result_forward_p_values <- rbind(gwr_result_forward_p_values, c(var_name, gwr_result_1_var_summary$coefficients[2,c(1,4)])) %>% as_tibble
+}
+names(gwr_result_forward_p_values) <- c("var_name", "coefficient", "p_value")
+gwr_result_forward_p_values <- gwr_result_forward_p_values %>% mutate(coefficient=as.numeric(coefficient), p_value=as.numeric(p_value))
+
+id_41078_data_sig_vars <- gwr_result_list$id_41078$bw_1.1$data[,c(which(gwr_result_forward_p_values$p_value <= 0.05), 17)]
+gwr_result_sig_vars <- glm(hyd_destination~.,
+                           data=id_41078_data_sig_vars,
+                           family=binomial)
+summary(gwr_result_sig_vars)
+gwr_result_sig_vars_forward <- MASS::stepAIC(gwr_result_sig_vars, trace=F, steps=10000, direction="forward")
+gwr_result_sig_vars_step <- MASS::stepAIC(gwr_result_sig_vars, trace=F, steps=10000, direction="both")
+summary(gwr_result_sig_vars_step)
+
+glm(hyd_destination~., data=id_41078_data_sig_vars %>% 
+      select(hyd_destination, n_PPI_labs, hyd_lab_prob, hyd_price_distance, river_length, road_length, airport),
+    family=binomial) %>% summary
+names(id_41078_data_sig_vars)
+
+#### LASSO regression
+lambda_fit_auc <- cv.glmnet(x = gwr_result_list$id_41078$bw_1.1$data[,-17] %>% as.matrix,
+                            y = gwr_result_list$id_41078$bw_1.1$data$hyd_destination,
+                            family = "binomial",
+                            type.measure = "auc")
+lambda_fit_auc$lambda.min
+plot(lambda_fit_auc)
+
+lambda_fit_mse <- cv.glmnet(x = gwr_result_list$id_41078$bw_1.1$data[,-17] %>% as.matrix,
+                            y = gwr_result_list$id_41078$bw_1.1$data$hyd_destination,
+                            family = "binomial",
+                            type.measure = "mse")
+lambda_fit_mse$lambda.min
+plot(lambda_fit_mse)
+
+id_41078_data_lasso <- glmnet(x = gwr_result_list$id_41078$bw_1.1$data %>% select(-hyd_destination) %>% as.matrix,
+                              y = gwr_result_list$id_41078$bw_1.1$data$hyd_destination,
+                              family = "binomial",
+                              alpha = 1,
+                              type.measure = "auc")
+plot(id_41078_data_lasso)
+id_41078_data_lasso$beta[,100] %>% sort %>% as.matrix(ncol=1)
+id_41078_data_lasso_coefs <- id_41078_data_lasso$beta %>% t %>% as.matrix %>% as_tibble
+id_41078_data_lasso_coefs <- id_41078_data_lasso_coefs %>% 
+  mutate(lambda=id_41078_data_lasso$lambda[100:1]) %>% 
+  gather(key = "variable", value = "value", -lambda)
+id_41078_data_lasso_coefs %>% 
+  ggplot(aes(x=lambda, y=value)) +
+  geom_line(aes(color=variable)) -> lasso_coef_plot
+id_41078_data_lasso_coefs %>% 
+  ggplot(aes(x=log(lambda), y=value)) +
+  geom_line(aes(color=variable)) -> lasso_coef_plot_log_lambda
+# ggsave("Colombia Data/Figs/hyd destintion local GWR LASSO coefs plot.png", lasso_coef_plot, scale=1)
+# ggsave("Colombia Data/Figs/hyd destintion local GWR LASSO coefs plot (log lambda).png", lasso_coef_plot_log_lambda, scale=1)
+
+id_41078_data_lasso_coefs <- coef(id_41078_data_lasso, s=lambda_fit$lambda.min)
+X_beta <- id_41078_data_lasso_coefs[1] + (gwr_result_list$id_41078$bw_1.1$data[,-17] %>% as.matrix) %*% id_41078_data_lasso_coefs[-1]
+pi_hat <- exp(X_beta)/(1+exp(X_beta))
+pi_hat <- ifelse(is.nan(pi_hat), 1, pi_hat)
+
+lasso_result <- tibble(pi_hat=pi_hat, y=gwr_result_list$id_41078$bw_1.1$data$hyd_destination)
+lasso_pred <- prediction(lasso_result$pi_hat, lasso_result$y)
+roc <- performance(lasso_pred, "tpr", "fpr")
+plot(roc, lwd=2, colorize=F)
+auc <- performance(lasso_pred, "auc")
+auc@y.values
 
 #### extreme ceof check
 local_GWR_coefs_bw$coefs_sum <- apply(local_GWR_coefs_bw, 1, function(x) sum(abs(x[-(1:5)]), na.rm=T))

@@ -144,7 +144,7 @@ for (i in 1:nrow(local_gwr_data_with_id)) {
   intercept_i <- beta_i$Intercept
   beta_i <- beta_i[,-1] %>% as.matrix %>% t
   beta_i[is.na(beta_i)] <- 0
-  X_beta_i <- intercept_i + as.matrix(local_gwr_data %>% select(-hyd_destination))[i,] %*% beta_i
+  X_beta_i <- intercept_i + as.matrix(local_gwr_data %>% select(-hyd_destination))[i,] %*% beta_i[-1,]
   pi_hat_i <- exp(X_beta_i)/(1+exp(X_beta_i))
   pi_hat_i <- ifelse(is.nan(pi_hat_i), 1, pi_hat_i)
   pi_hat <- c(pi_hat, pi_hat_i)
@@ -153,10 +153,14 @@ for (i in 1:nrow(local_gwr_data_with_id)) {
 local_gwr_data_with_id$pi_hat <- pi_hat
 threshold <- 0.5
 local_gwr_data_with_id$pred <- ifelse(local_gwr_data_with_id$pi_hat < threshold, 0, 1) %>% as.factor
-confusionMatrix(local_gwr_data_with_id$pred,
-                local_gwr_data_with_id$hyd_destination %>% as.factor,
-                positive="1")
-
+confucion_matrix <- confusionMatrix(local_gwr_data_with_id$pred,
+                                    local_gwr_data_with_id$hyd_destination %>% as.factor,
+                                    positive="1")
+TP <- confucion_matrix$table[2,2]
+FP <- confucion_matrix$table[2,1]
+FN <- confucion_matrix$table[1,2]
+F1 <- 2*TP / (2*TP + FP + FN)
+  
 local_gwr_data_roc <- roc(local_gwr_data_with_id$hyd_destination, local_gwr_data_with_id$pred %>% as.character %>% as.numeric)
 auc(local_gwr_data_roc) # 0.8994
 

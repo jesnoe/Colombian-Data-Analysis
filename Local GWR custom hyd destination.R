@@ -265,8 +265,8 @@ for (i in 1:ncol(local_GWR_coefs_bw)) {
           line = element_blank()
     )
   
-  # ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR results/hyd destination GWR coef ", var_name, ".png"),
-  #        gwr_coef_map, scale=1)
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR results/hyd destination GWR coef ", var_name, ".png"),
+         gwr_coef_map, scale=1)
 }
 
 
