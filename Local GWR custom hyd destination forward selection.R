@@ -239,3 +239,126 @@ for (i in 4 :length(local_gwr_forward_coefs)) {
                 var_name, ".png"),
          gwr_coef_map, scale=1)
 }
+
+## overfitting case study
+local_gwr_forward_coefs %>% filter(abs(hyd_lab_prob) > 1000) %>% arrange(id)
+local_gwr_forward_coefs %>% filter(abs(PPI_lab_prob) > 500) %>% arrange(id)
+local_gwr_forward_coefs %>% filter(abs(hyd_seizures) > 500) %>% arrange(id)
+
+i <- which(local_gwr_forward_coefs$id == 5353)
+
+local_gwr_forward_VIF <- local_gwr_forward_coefs
+local_gwr_forward_VIF[,-(1:2)] <- matrix(NA, nrow(local_gwr_forward_VIF), 13)
+local_gwr_forward_VDP <- local_gwr_forward_VIF
+local_gwr_forward_corr <- list()
+local_gwr_forward_CN <- c()
+for (i in 1:nrow(local_gwr_forward_VIF)) {
+  id_i <- local_gwr_forward_VIF$id[i]
+  bw_i <- local_gwr_forward_VIF$bw[i]
+  neighbor_index <- which(local_gwr_dist[i,] <= bw_i)
+  neighbor_id <- coord_unique$id[neighbor_index]
+  id_i_data_coord <- gwr_hyd_destination_coord %>% 
+    filter(id %in% neighbor_id) %>% 
+    select(-municipio, -year, -n_PPI_labs, -n_hyd_labs, -erad_manual)
+  id_i_index <- which(id_i_data_coord$id == id_i)[1]
+  
+  if (table(id_i_data_coord$hyd_destination) %>% length == 1 | bw_i > 2.9) {
+    corr_i <- cor(id_i_data_coord %>% select(-id, -hyd_destination, -long, -lat))
+    local_gwr_forward_corr[[paste0("id_", id_i)]] <- corr_i
+    local_gwr_forward_CN <- c(local_gwr_forward_CN, NA)
+    next
+  }
+  sigular_col <- -which((id_i_data_coord %>% apply(2, function(x) table(x) %>% length)) == 1)
+  if (!is.na(sigular_col[1])) id_i_data_coord <- id_i_data_coord[, sigular_col]
+  id_i_data <- id_i_data_coord %>% select(-id, -long, -lat)
+  collinearity_data_sp <- SpatialPointsDataFrame(id_i_data_coord %>% select(long, lat), id_i_data)
+  
+  
+  col_diag <- gwr.collin.diagno_i(hyd_destination ~ ., collinearity_data_sp, bw_i, kernel="boxcar",local_i=id_i_index)
+  col_diag_i <- as_tibble(col_diag$SDF)[id_i_index,]
+  col_diag_i <- tibble(collinearity_measure=names(col_diag_i), value=t(col_diag_i) %>% as.vector) %>% 
+    filter(!grepl("long", collinearity_measure)) %>% 
+    filter(!grepl("lat", collinearity_measure))
+  var_name_df <- data.frame(var_name=names(local_gwr_forward_VIF)[-(1:2)])
+  VIF_i <- col_diag_i %>% filter(grepl("VIF", collinearity_measure)) %>% rename(var_name=collinearity_measure) %>% 
+    mutate(var_name=gsub("_VIF", "", var_name))
+  VDP_i <- col_diag_i %>% filter(grepl("VDP", collinearity_measure)) %>% rename(var_name=collinearity_measure) %>% 
+    mutate(var_name=gsub("_VDP", "", var_name))
+  corr_i <- col_diag_i %>% filter(grepl("Corr", collinearity_measure)) %>% rename(correlation=collinearity_measure)
+  local_CN_i <- col_diag_i %>% filter(grepl("local_CN", collinearity_measure)) %>% pull(value)
+  
+  VIF_i <- left_join(var_name_df, VIF_i, by="var_name")
+  VDP_i <- left_join(var_name_df, VDP_i, by="var_name")
+  local_gwr_forward_VIF[i,] <- matrix(c(id_i, bw_i, VIF_i$value), 1)
+  local_gwr_forward_VDP[i,] <- matrix(c(id_i, bw_i, VDP_i$value), 1)
+  local_gwr_forward_corr[[paste0("id_", id_i)]] <- corr_i
+  local_gwr_forward_CN <- c(local_gwr_forward_CN, local_CN_i)
+}
+local_gwr_forward_VIF$condition_number <- local_gwr_forward_CN
+local_gwr_forward_VIF
+local_gwr_forward_VDP
+local_gwr_forward_CN
+
+
+for (i in 4 :length(local_gwr_forward_VIF)) {
+  var_name <- names(local_gwr_forward_VIF)[i]
+  gwr_VIF_i <- data.frame(id=local_gwr_forward_VIF$id,
+                            value=local_gwr_forward_VIF[[var_name]],
+                            rounded_value=local_gwr_forward_VIF[[var_name]] %>% round(2))
+  # max_value <- max(gwr_VIF_i$value, na.rm=T)
+  # min_value <- min(gwr_VIF_i$value, na.rm=T)
+  coef_map_coords <- map_df %>% 
+    left_join(gwr_VIF_i, by="id")
+  
+  gwr_VIF_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=value),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = depto_map$long, y = depto_map$lat) + 
+    coord_quickmap() +
+    scale_fill_viridis_c(na.value = "white")+
+    # scale_fill_gradientn(colors = c("blue","skyblue","grey40", "yellow","red"),
+    #                      values = scales::rescale(c(-1, -.Machine$double.eps, 0 , .Machine$double.eps, max_value/abs(min_value))),
+    #                      na.value = "white") +
+    labs(fill=var_name, x="", y="", title="") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    )
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR forward selection/multicollinearity/hyd destination GWR FS VIF ",
+                var_name, ".png"),
+         gwr_VIF_map, scale=1)
+  if (i == 16) break
+  
+  gwr_VDP_i <- data.frame(id=local_gwr_forward_VDP$id,
+                          value=local_gwr_forward_VDP[[var_name]],
+                          rounded_value=local_gwr_forward_VDP[[var_name]] %>% round(2))
+  coef_map_coords <- map_df %>% 
+    left_join(gwr_VDP_i, by="id")
+  
+  
+  gwr_VDP_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=value),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = depto_map$long, y = depto_map$lat) + 
+    coord_quickmap() +
+    scale_fill_viridis_c(na.value = "white")+
+    # scale_fill_gradientn(colors = c("blue","skyblue","grey40", "yellow","red"),
+    #                      values = scales::rescale(c(-1, -.Machine$double.eps, 0 , .Machine$double.eps, max_value/abs(min_value))),
+    #                      na.value = "white") +
+    labs(fill=var_name, x="", y="", title="") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    )
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR forward selection/multicollinearity/hyd destination GWR FS VDP ",
+                var_name, ".png"),
+         gwr_VDP_map, scale=1) 
+}
