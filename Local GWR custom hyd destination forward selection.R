@@ -298,7 +298,10 @@ local_gwr_forward_VIF$condition_number <- local_gwr_forward_CN
 local_gwr_forward_VIF
 local_gwr_forward_VDP
 local_gwr_forward_CN
-
+local_gwr_forward_corr$id_5353
+# write.csv(local_gwr_forward_VIF, "Colombia Data/local GWR VIF forward selection (11-06-2024).csv", row.names = F)
+# write.csv(local_gwr_forward_VDP, "Colombia Data/local GWR VDF forward selection (11-06-2024).csv", row.names = F)
+# save("local_gwr_forward_corr", file = "Colombia Data/local GWR VDF forward selection (11-06-2024).RData", row.names = F)
 
 for (i in 4 :length(local_gwr_forward_VIF)) {
   var_name <- names(local_gwr_forward_VIF)[i]
@@ -362,3 +365,155 @@ for (i in 4 :length(local_gwr_forward_VIF)) {
                 var_name, ".png"),
          gwr_VDP_map, scale=1) 
 }
+
+## id=5353 case study
+sig_level <- 0.1
+id_i <- 5353
+id_i_index <- which(coord_unique$id == id_i)
+i <- id_i_index 
+bw_i <- local_gwr_forward_coefs$bw[i]
+neighbors_i <- gwr_data_hyd_destination %>% 
+  filter(id %in% coord_unique$id[which(local_gwr_dist[id_i_index,] <= bw_i)]) %>% 
+  select(-(id:year))
+
+prev_data <- neighbors_i %>% select(hyd_destination)
+remaining_data <- neighbors_i %>% select(-hyd_destination)
+non_sigular_col_index <- which((remaining_data %>% apply(2, function(x) x %>% table %>% length)) > 1)
+remaining_data <- remaining_data[,non_sigular_col_index]
+
+id_5353_forward_list <- list()
+k <- 1
+significance <- 1
+while (significance) {
+  p_values_i <- tibble()
+  for (j in 1:ncol(remaining_data)) {
+    new_var_j <- remaining_data[,j]
+    reg_data_j <- bind_cols(prev_data, new_var_j)
+    reg_model_j <- glm(hyd_destination~.,
+                       data = reg_data_j,
+                       family = binomial)
+    var_name_j <- names(new_var_j)
+    reg_model_coefs_j <- summary(reg_model_j)$coefficients
+    p_value_j <- reg_model_coefs_j[which(rownames(reg_model_coefs_j) == var_name_j), 4]
+    p_value_j <- ifelse(p_value_j == 0, 1, p_value_j)
+    p_values_i <- bind_rows(p_values_i, tibble(var_name=var_name_j, p_value=p_value_j))
+  }
+  if (sum(p_values_i$p_value <= sig_level) > 0) {
+    best_col_index <- which.min(p_values_i$p_value)
+    prev_data <- bind_cols(prev_data, remaining_data[, best_col_index])
+    next_best_reg <- glm(hyd_destination~., data = prev_data, family = binomial)
+    id_5353_forward_list[[paste0("model",k)]] <- next_best_reg
+    k <- k + 1
+    remaining_data <- remaining_data[, -best_col_index]
+    next
+  }else{
+    significance <- 0
+  }
+}
+
+lapply(id_5353_forward_list, summary)
+
+for (i in 1:length(id_5353_forward_list)) {
+  model_i <- id_5353_forward_list[[i]]
+  data_i <- model_i$data
+  data_i$fitted <- model_i$fitted.values
+  fitted_plot <- data_i %>% ggplot() +
+    geom_point(aes(x=fitted, y=hyd_destination)) +
+    xlim(0, 1)
+  ggsave(paste0("Colombia Data/Figs/id=5353 fitted plot model", i, ".png"), fitted_plot)
+}
+
+glm_bw_plot <- function(model, model_num, bw) {
+  data_ <- model$data
+  data_$fitted <- model$fitted.values
+  fitted_plot <- data_ %>% ggplot() +
+    geom_point(aes(x=fitted, y=hyd_destination)) +
+    xlim(0, 1)
+  ggsave(paste0("Colombia Data/Figs/id=5353 fitted plots/bw=", bw, " fitted plot model", model_num, ".png"), fitted_plot)
+}
+
+id_5353_model2 <- list()
+id_5353_model3 <- list()
+id_5353_model4 <- list()
+id_5353_model5 <- list()
+id_5353_model6 <- list()
+for (bw in seq(0.5, 2.0, 0.1)) {
+  neighbors_bw <- gwr_data_hyd_destination %>% 
+    filter(id %in% coord_unique$id[which(local_gwr_dist[id_i_index,] <= bw)]) %>% 
+    select(-(id:year))
+  model2 <- glm(hyd_destination~.,
+                data = neighbors_bw %>%
+                  select(hyd_destination, hyd_lab_prob, hyd_price_distance),
+                family = binomial)
+  model3 <- glm(hyd_destination~.,
+                data = neighbors_bw %>%
+                  select(hyd_destination, hyd_lab_prob, hyd_price_distance, coca_distance),
+                family = binomial)
+  model4 <- glm(hyd_destination~.,
+                data = neighbors_bw %>%
+                  select(hyd_destination, hyd_lab_prob, hyd_price_distance, coca_distance, armed_group),
+                family = binomial)
+  model5 <- glm(hyd_destination~.,
+                data = neighbors_bw %>%
+                  select(hyd_destination, hyd_lab_prob, hyd_price_distance, coca_distance, armed_group, road_length),
+                family = binomial)
+  model6 <- glm(hyd_destination~.,
+                data = neighbors_bw %>%
+                  select(hyd_destination, hyd_lab_prob, hyd_price_distance, coca_distance, armed_group, road_length, population),
+                family = binomial)
+  id_5353_model2[[paste0("bw_", bw)]] <- model2
+  id_5353_model3[[paste0("bw_", bw)]] <- model3
+  id_5353_model4[[paste0("bw_", bw)]] <- model4
+  id_5353_model5[[paste0("bw_", bw)]] <- model5
+  id_5353_model6[[paste0("bw_", bw)]] <- model6
+  glm_bw_plot(model2, 2, bw)
+  glm_bw_plot(model3, 3, bw)
+  glm_bw_plot(model4, 4, bw)
+  glm_bw_plot(model5, 5, bw)
+  glm_bw_plot(model6, 6, bw)
+}
+
+next_best_reg <- glm(hyd_destination~., data = prev_data %>% select(-population), family = binomial)
+summary(next_best_reg)
+data_1 <- next_best_reg$data
+data_1$fitted <- next_best_reg$fitted.values
+data_1 %>% ggplot() +
+  geom_point(aes(x=fitted, y=hyd_destination)) +
+  xlim(0, 1)
+
+alpha <- 0.8
+weighted_glm <- function (alpha) {
+  weighted_reg <- glm(hyd_destination~., data = prev_data %>% select(-population), family = binomial,
+                      weights = ifelse(prev_data$hyd_destination == 1, alpha, 1-alpha))
+  print(summary(weighted_reg))
+  data_2 <- weighted_reg$data
+  data_2$fitted <- weighted_reg$fitted.values
+  data_2 %>% ggplot() +
+    geom_point(aes(x=fitted, y=hyd_destination)) +
+    xlim(0, 1)
+}
+weighted_glm(0.5)
+weighted_glm(0.6)
+weighted_glm(0.7)
+weighted_glm(0.8)
+weighted_glm(0.9)
+weighted_glm(0.92)
+weighted_glm(0.95)
+weighted_glm(0.99)
+
+map_df %>% mutate(id=ifelse(id == 5353, 1, 0) %>% as.factor) %>% 
+  ggplot(aes(x=long, y=lat, fill=id)) + 
+  geom_polygon(aes(group=group),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  scale_fill_manual(values=c("1"="red", "0"="white")) +
+  coord_quickmap() +
+  labs(fill="", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  )

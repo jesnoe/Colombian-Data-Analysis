@@ -26,8 +26,10 @@ municipios_capital$municipio <- gsub("GUADALAJARA DE BUGA", "BUGA", municipios_c
 anecdote <- read_xlsx("Colombia Data/Anecdotal data (06-29-2024).xlsx")
 anecdote <- anecdote %>% 
   mutate(across(source:destination_departamento, function(x) stri_trans_general(x, "Latin-ASCII") %>% str_to_upper))
-anecdote_sources <- read.csv("Colombia Data/anecdotal source location names (11-02-2024).csv", row.names=F) %>% as_tibble
-anecdote_destinations <- read.csv("Colombia Data/anecdotal destination location names (11-02-2024).csv", row.names=F) %>% as_tibble
+anecdote_sources <- read.csv("Colombia Data/anecdotal source location names (11-02-2024).csv") %>% as_tibble
+anecdote_destinations <- read.csv("Colombia Data/anecdotal destination location names (11-02-2024).csv") %>% as_tibble
+anecdote_sources_unique <- read.csv("Colombia Data/anecdotal source location names unique (11-02-2024).csv") %>% as_tibble
+anecdote_destinations_unique <- read.csv("Colombia Data/anecdotal destination location names unique (11-02-2024).csv") %>% as_tibble
 }
 depto <- unique(municipios_capital$depto) %>% sort
 municipio <- unique(municipios_capital$municipio) %>% sort
@@ -76,13 +78,14 @@ for (i in 1:length(destination_not_match_index)) {
 }
 end.t <- Sys.time()
 end.t - start.t # 
-anecdote_sources %>% select(address, District, City, Subregion, Region) %>% unique %>% 
-  write.csv("Colombia Data/anecdotal source location names unique (11-02-2024).csv", row.names=F)
-anecdote_destinations %>% select(address, District, City, Subregion, Region) %>% unique %>% 
-  write.csv("Colombia Data/anecdotal destination location names unique (11-02-2024).csv", row.names=F)
+# anecdote_sources %>% select(address, District, City, Subregion, Region) %>% unique %>% 
+#   write.csv("Colombia Data/anecdotal source location names unique (11-02-2024).csv", row.names=F)
+# anecdote_destinations %>% select(address, District, City, Subregion, Region) %>% unique %>% 
+#   write.csv("Colombia Data/anecdotal destination location names unique (11-02-2024).csv", row.names=F)
 # write.csv(anecdote_sources, "Colombia Data/anecdotal source location names (11-02-2024).csv", row.names=F)
 # write.csv(anecdote_destinations, "Colombia Data/anecdotal destination location names (11-02-2024).csv", row.names=F)
-
+anecdote_sources_unique
+anecdote_destinations_unique
 
 anecdote_sources_upper <- anecdote_sources %>% 
   select(address, District, City, Subregion, Region) %>% 
