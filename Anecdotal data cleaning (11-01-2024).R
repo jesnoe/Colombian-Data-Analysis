@@ -31,6 +31,10 @@ anecdote_destinations <- read.csv("Colombia Data/anecdotal destination location 
 anecdote_sources_unique <- read.csv("Colombia Data/anecdotal source location names unique (11-02-2024).csv") %>% as_tibble
 anecdote_destinations_unique <- read.csv("Colombia Data/anecdotal destination location names unique (11-02-2024).csv") %>% as_tibble
 }
+
+anecdote_sources %>% select(address, Subregion, Region) %>% unique %>% view # 115 rows
+
+##
 depto <- unique(municipios_capital$depto) %>% sort
 municipio <- unique(municipios_capital$municipio) %>% sort
 typo_depto <- anecdote %>% filter(!(source_departamento %in% depto)) %>% pull(source_departamento) %>% unique
@@ -41,9 +45,11 @@ anecdote %>% filter(destination_departamento == "VENEZUELA")
 anecdote %>% filter(source_departamento == "CIERRA DEL GRAMAL")
 anecdote %>% filter(destination_departamento == "CIERRA DEL GRAMAL")
 
-
 anecdote %>% filter(!(source %in% municipio)) %>% pull(source) %>% unique %>% sort
 anecdote %>% filter(!(destination %in% municipio)) %>% pull(destination) %>% unique %>% sort
+anecdote_towns <- read_xlsx("Colombia Data/Anecdotal data name change (11-01-2024).xlsx")
+anecdote %>% filter((source %in% anecdote_towns$`Corregimiento, vereda`)) %>% pull(source) %>% unique %>% sort
+anecdote %>% filter((destination %in% anecdote_towns$`Corregimiento, vereda`)) %>% pull(destination) %>% unique %>% sort
 
 source_not_match_index <- which(!(anecdote$source %in% municipio))
 destination_not_match_index <- which(!(anecdote$destination %in% municipio))
