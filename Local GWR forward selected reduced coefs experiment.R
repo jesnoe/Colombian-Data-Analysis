@@ -66,8 +66,6 @@ gwr_hyd_destination_coord <- left_join(regression_data_years %>%
                                                 -general_source, -general_destination),
                                        municipio_centroid %>% select(id, long, lat), by="id") %>% relocate(id, municipio)
 gwr_hyd_destination_coord$hyd_destination %>% table # 0: 2802, 1: 558 -> different by years
-municipios_sf <- st_as_sf(municipios) %>% mutate(id = id %>% as.numeric) %>% filter(!(id %in% c(88001, 88564)))
-municipios_sf$area_m2 <- st_area(municipios_sf) %>% as.numeric
 
 coord_unique <- gwr_hyd_destination_coord %>% select(id, long, lat) %>% unique
 gwr_hyd_destination_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T)
@@ -75,6 +73,7 @@ dim(gwr_hyd_destination_dist)
 gwr_data_hyd_destination <- gwr_hyd_destination_coord %>%
   select(-n_PPI_labs, -n_hyd_labs, -erad_manual, -long, -lat) %>% 
   mutate(hyd_destination = as.factor(hyd_destination))
+
 
 bwd_range <- seq(0.5, 4, by=0.1)
 local_gwr_data_id <- gwr_data_hyd_destination %>% select(id)
@@ -386,3 +385,58 @@ id_5353_forward_list_model4[diff_model4_3_index,] %>% ggplot() +
 id_5353_forward_list_model4[-diff_model4_3_index,] %>% ggplot() +
   geom_point(aes(x=fitted.values, y=hyd_destination)) +
   labs(x="pi hat of 1.0 coefs", y="hyd_destination", title="response by pi hat of 1.0 coefs (remaining cases)")
+
+## river/road divided by area
+municipios_sf <- st_as_sf(municipios) %>% mutate(id = id %>% as.numeric) %>% filter(!(id %in% c(88001, 88564)))
+municipios_sf$area_m2 <- st_area(municipios_sf) %>% as.numeric
+gwr_data_hyd_destination_by_area <- gwr_data_hyd_destination 
+
+id_5353_forward_data_area <- gwr_data_hyd_destination %>% 
+  filter(id %in% coord_unique$id[which(local_gwr_dist[id_i_index,] <= bw_i)]) %>% 
+  select(-(municipio:year)) %>% 
+  left_join(municipios_sf %>% as_tibble %>% select(id, area_m2), by="id") %>% 
+  mutate(coca_area = coca_area / area_m2,
+         river_length = river_length / area_m2,
+         road_length = road_length / area_m2) %>% 
+  select(-area_m2)
+
+glm_id_5353_forward_data_area <- glm(hyd_destination~.,
+                                     data = id_5353_forward_data_area %>% select(-id), 
+                                     family = binomial)
+summary(glm_id_5353_forward_data_area)
+
+prev_data <- id_5353_forward_data_area %>% select(hyd_destination)
+remaining_data <- id_5353_forward_data_area %>% select(-id, -hyd_destination)
+non_sigular_col_index <- which((remaining_data %>% apply(2, function(x) x %>% table %>% length)) > 1)
+remaining_data <- remaining_data[,non_sigular_col_index]
+
+id_5353_forward_area_list <- list()
+k <- 1
+significance <- 1
+while (significance) {
+  p_values_i <- tibble()
+  for (j in 1:ncol(remaining_data)) {
+    new_var_j <- remaining_data[,j]
+    reg_data_j <- bind_cols(prev_data, new_var_j)
+    reg_model_j <- glm(hyd_destination~.,
+                       data = reg_data_j,
+                       family = binomial)
+    var_name_j <- names(new_var_j)
+    reg_model_coefs_j <- summary(reg_model_j)$coefficients
+    p_value_j <- reg_model_coefs_j[which(rownames(reg_model_coefs_j) == var_name_j), 4]
+    p_value_j <- ifelse(p_value_j == 0, 1, p_value_j)
+    p_values_i <- bind_rows(p_values_i, tibble(var_name=var_name_j, p_value=p_value_j))
+  }
+  if (sum(p_values_i$p_value <= sig_level) > 0) {
+    best_col_index <- which.min(p_values_i$p_value)
+    prev_data <- bind_cols(prev_data, remaining_data[, best_col_index])
+    next_best_reg <- glm(hyd_destination~., data = prev_data, family = binomial)
+    id_5353_forward_area_list[[paste0("model",k)]] <- next_best_reg
+    k <- k + 1
+    remaining_data <- remaining_data[, -best_col_index]
+    next
+  }else{
+    significance <- 0
+  }
+}
+lapply(id_5353_forward_area_list, summary)
