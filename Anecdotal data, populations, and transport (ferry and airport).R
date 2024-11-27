@@ -33,7 +33,7 @@ waterways <- st_read("Colombia Data/Shape Data/gis_osm_waterways_free_1.shp")
 waterways$fclass %>% unique
 rivers <- waterways %>% filter(fclass == "river")
 
-transport <- st_read("Colombia Data/Shape Data/gis_osm_transport_free_1.shp")
+transpor <- st_read("Colombia Data/Shape Data/gis_osm_transport_free_1.shp")
 ferry <- transport %>% filter(fclass == "ferry_terminal")
 airport <- transport %>% filter(fclass == "airport")
 
@@ -53,7 +53,9 @@ population <- read.csv("Colombia Data/Census population by municipios (2018).csv
 population$log_population <- log(population$population)
 
 
+
 ## n_airports
+airport_df <- st_coordinates(airport) %>% as.data.frame %>% mutate(fclass="airport")
 airport_points <- st_coordinates(airport$geometry) %>% as.data.frame
 municipio_min_max <- map_df %>%
   group_by(id, municipio, depto) %>% 

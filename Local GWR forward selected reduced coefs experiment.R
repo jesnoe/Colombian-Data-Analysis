@@ -15,6 +15,7 @@ library(GWmodel)
 library(pROC)
 # library(ROCR)
 library(glmnet)
+library(reshape2)
 
 {
   municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
@@ -42,6 +43,9 @@ library(glmnet)
     summarize(long=mean(long),
               lat=mean(lat))
   airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
+  ferry <- read.csv("Colombia Data/ferry terminals.csv") %>% as_tibble
+  police <- read.csv("Colombia Data/polices.csv") %>% as_tibble
+  military <- read.csv("Colombia Data/military.csv") %>% as_tibble
   
   local_gwr_forward_coefs <- read.csv("Colombia Data/local GWR best coefs forward selection (10-29-2024).csv") %>% as_tibble
   local_gwr_forward_pvals <- read.csv("Colombia Data/local GWR best p-values forward selection (10-29-2024).csv") %>% as_tibble
@@ -62,7 +66,8 @@ gwr_hyd_destination_coord <- left_join(regression_data_years %>%
                                                 -general_source, -general_destination),
                                        municipio_centroid %>% select(id, long, lat), by="id") %>% relocate(id, municipio)
 gwr_hyd_destination_coord$hyd_destination %>% table # 0: 2802, 1: 558 -> different by years
-
+municipios_sf <- st_as_sf(municipios) %>% mutate(id = id %>% as.numeric) %>% filter(!(id %in% c(88001, 88564)))
+municipios_sf$area_m2 <- st_area(municipios_sf) %>% as.numeric
 
 coord_unique <- gwr_hyd_destination_coord %>% select(id, long, lat) %>% unique
 gwr_hyd_destination_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T)
@@ -131,7 +136,7 @@ for (k in seq(0.9, 0.5, -0.1)) {
   id_5353_forward_list_model5[[paste0("fitted.values_", k)]] <- as.vector(exp(X_beta)/(1+exp(X_beta)))
 }
 
-
+id_5353_forward_list_model5$hyd_destination <- id_5353_forward_model5_data$hyd_destination %>% as.character %>% as.numeric
 id_5353_forward_list %>% lapply(summary)
 
 id_5353_forward_list_model5 %>% ggplot() +
@@ -159,6 +164,74 @@ id_5353_forward_list_model5 %>% ggplot() +
   geom_abline(slope=1) +
   ylim(c(0,1)) +
   labs(x="pi hat 1.0 coefs", y=paste0("pi hat 0.5 coefs"), title="pi hat with 0.5 vs. 1.0 coefs")
+
+# reduced coefs' fitted values vs. response
+id_5353_forward_list_model5 %>% ggplot() +
+  geom_point(aes(x=1:nrow(id_5353_forward_model5_data), y=abs(fitted.values-hyd_destination))) +
+  ylim(c(0,1)) +
+  labs(x="index", y=paste0("abs diffs"), title="Differences between response and pi hat with 1.0 coefs")
+id_5353_forward_list_model5 %>% ggplot() +
+  geom_point(aes(x=1:nrow(id_5353_forward_model5_data), y=abs(fitted.values_0.9-hyd_destination))) +
+  ylim(c(0,1)) +
+  labs(x="index", y=paste0("abs diffs"), title="Differences between response and pi hat with 0.9 coefs")
+id_5353_forward_list_model5 %>% ggplot() +
+  geom_point(aes(x=1:nrow(id_5353_forward_model5_data), y=abs(fitted.values_0.8-hyd_destination))) +
+  ylim(c(0,1)) +
+  labs(x="index", y=paste0("abs diffs"), title="Differences between response and pi hat with 0.8 coefs")
+id_5353_forward_list_model5 %>% ggplot() +
+  geom_point(aes(x=1:nrow(id_5353_forward_model5_data), y=abs(fitted.values_0.7-hyd_destination))) +
+  ylim(c(0,1)) +
+  labs(x="index", y=paste0("abs diffs"), title="Differences between response and pi hat with 0.7 coefs")
+id_5353_forward_list_model5 %>% ggplot() +
+  geom_point(aes(x=1:nrow(id_5353_forward_model5_data), y=abs(fitted.values_0.6-hyd_destination))) +
+  ylim(c(0,1)) +
+  labs(x="index", y=paste0("abs diffs"), title="Differences between response and pi hat with 0.6 coefs")
+id_5353_forward_list_model5 %>% ggplot() +
+  geom_point(aes(x=1:nrow(id_5353_forward_model5_data), y=abs(fitted.values_0.5-hyd_destination))) +
+  ylim(c(0,1)) +
+  labs(x="index", y=paste0("abs diffs"), title="Differences between response and pi hat with 0.5 coefs")
+
+id_5353_forward_list_model5_diff <- tibble(hyd_destination=id_5353_forward_list_model5$hyd_destination,
+                                           diff_1.0 = abs(id_5353_forward_list_model5$hyd_destination - id_5353_forward_list_model5$fitted.values),
+                                           diff_0.9 = abs(id_5353_forward_list_model5$hyd_destination - id_5353_forward_list_model5$fitted.values_0.9))
+
+id_5353_forward_list_model5_diff[-(1:36),] %>% filter(diff_0.9 > diff_1.0) %>% print(n=78)
+hurt_index <- which(id_5353_forward_list_model5_diff$diff_0.9 > id_5353_forward_list_model5_diff$diff_1.0)
+hurt_index <- hurt_index[!(hurt_index %in% 1:36)]
+id_5353_forward_list_model5_cooks <- data.frame(index=1:nrow(id_5353_forward_list_model5),
+                                                cooks=cooks.distance(id_5353_forward_list$model5),
+                                                rstudent=rstudent(id_5353_forward_list$model5))
+id_5353_forward_list_model5_cooks %>% ggplot() +
+  geom_point(aes(x=index, y=cooks))
+which(id_5353_forward_list_model5_cooks$cooks > 0.09) # no hurt cases
+id_5353_forward_list_model5_cooks %>% ggplot() +
+  geom_point(aes(x=index, y=rstudent))
+which(abs(id_5353_forward_list_model5_cooks$rstudent) > 1) # includes some hurt cases
+
+corr_model5_hurt_data <- cor(id_5353_forward_model5_data[hurt_index,] %>%
+                               mutate(hyd_destination=hyd_destination %>% as.character %>% as.numeric)) %>% abs %>% melt
+corr_model5_rest_data <- cor(id_5353_forward_model5_data[-hurt_index,] %>%
+                               mutate(hyd_destination=hyd_destination %>% as.character %>% as.numeric)) %>% abs %>% melt
+corr_model5_hurt_data$diff <- corr_model5_hurt_data$value - corr_model5_rest_data$value
+corr_model5_hurt_data[c(2:6, 9:12, 16:18, 23:24, 30),]
+
+corr_model5_hurt_data %>%
+  ggplot(aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() +
+  scale_fill_viridis_c(limits=c(0,1)) +
+  labs(title="abs(correlations) for hurt data", x="", y="")
+
+corr_model5_rest_data %>%
+  ggplot(aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() +
+  scale_fill_viridis_c(limits=c(0,1)) +
+  labs(title="abs(correlations) for other data", x="", y="")
+
+
+
+id_5353_forward_list_model5$hyd_destination %>% table # 1: 30 
+id_5353_forward_list_model5 %>% filter(fitted.values_0.9 >= 0.5 & hyd_destination == 1) # 26 rows
+
 
 abs(id_5353_forward_list_model5$fitted.values - id_5353_forward_list_model5$fitted.values_0.9) %>% summary
 abs(id_5353_forward_list_model5$fitted.values - id_5353_forward_list_model5$fitted.values_0.8) %>% summary
@@ -195,7 +268,7 @@ id_5353_forward_list_model5[-diff_1_0.9_index,] %>% ggplot() +
   geom_point(aes(x=fitted.values_0.9, y=hyd_destination)) +
   labs(x="pi hat of 0.9 coefs", y="hyd_destination", title="response by pi hat of 0.9 coefs (remaining cases)")
 
-library(reshape2)
+
 corr_model5_data <- cor(id_5353_forward_model5_data %>% select(-hyd_destination)) %>% melt
 corr_model5_hurt_data <- cor(id_5353_forward_model5_data[diff_1_0.9_index,] %>% select(-hyd_destination)) %>% abs %>% melt
 corr_model5_rest_data <- cor(id_5353_forward_model5_data[-diff_1_0.9_index,] %>% select(-hyd_destination)) %>% abs %>% melt
