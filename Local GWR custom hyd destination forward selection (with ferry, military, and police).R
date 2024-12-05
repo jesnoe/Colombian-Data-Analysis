@@ -50,14 +50,12 @@ library(glmnet)
 
 n_reg_data_mat <- read.csv("Colombia Data/local GWR number of neighbors (08-13-2024).csv") %>% as_tibble
 aic_score_mat <- read.csv("Colombia Data/local GWR AIC (08-13-2024).csv") %>% as_tibble
-local_GWR_coefs_bw <- read.csv("Colombia Data/local GWR best coefs (08-13-2024).csv") %>% as_tibble
 local_GWR_coefs_bw_lasso <- read.csv("Colombia Data/local GWR lasso coefs (10-16-2024).csv") %>% as_tibble
 
 regression_data_years <- read.csv("Colombia Data/regression data all municipios (07-05-2024).csv") %>% as_tibble %>% 
   mutate(base_avg=scale(base_avg)[,1],
          paste_avg=scale(paste_avg)[,1],
-         hyd_avg=scale(hyd_avg)[,1]) %>% 
-  left_join()
+         hyd_avg=scale(hyd_avg)[,1])
   
 
 ### armed_group = 1 if there is at lease 1 armed group, and 0 otherwise 
@@ -69,7 +67,6 @@ gwr_hyd_destination_coord <- left_join(regression_data_years %>%
                                        municipio_centroid %>% select(id, long, lat), by="id") %>% relocate(id, municipio)
 gwr_hyd_destination_coord$hyd_destination %>% table # 0: 2802, 1: 558 -> different by years
 
-
 coord_unique <- gwr_hyd_destination_coord %>% select(id, long, lat) %>% unique
 gwr_hyd_destination_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T)
 dim(gwr_hyd_destination_dist)
@@ -77,12 +74,22 @@ gwr_data_hyd_destination <- gwr_hyd_destination_coord %>%
   select(-n_PPI_labs, -n_hyd_labs, -erad_manual, -long, -lat) %>% 
   mutate(hyd_destination = as.factor(hyd_destination))
 
+municipios_sf <- st_as_sf(municipios) %>% mutate(id = id %>% as.numeric) %>% filter(!(id %in% c(88001, 88564)))
+municipios_sf$area_km2 <- st_area(municipios_sf) %>% units::set_units("km^2") %>% as.numeric
+gwr_data_hyd_destination_by_area <- gwr_data_hyd_destination %>% 
+  left_join(municipios_sf %>% as_tibble %>% select(id, area_km2), by="id") %>% 
+  mutate(coca_area = coca_area / area_km2,
+         river_length = river_length / area_km2,
+         road_length = road_length / area_km2) %>% 
+  select(-area_km2)
+
+
 bwd_range <- seq(0.5, 4, by=0.1)
 local_gwr_data_id <- gwr_data_hyd_destination %>% select(id)
 local_gwr_data <- gwr_data_hyd_destination %>% select(-id, -municipio, -year)
 local_gwr_dist <- as.matrix(gwr_hyd_destination_dist)
 
-local_gwr_forward_coefs <- local_GWR_coefs_bw %>% 
+local_gwr_forward_coefs <- local_GWR_coefs_bw_lasso %>% 
   select(-n_neighbors, -n_NA, -n_PPI_labs, -n_hyd_labs, -erad_manual, -hyd_group) %>%
   rename(armed_group=n_armed_groups)
 local_gwr_forward_models <- list()

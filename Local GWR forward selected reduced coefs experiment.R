@@ -125,6 +125,14 @@ while (significance) {
   }
 }
 
+id_5353_forward_model5_data[hurt_index,] %>% ggplot() +
+  geom_point(aes(x=hyd_lab_prob, y=hyd_destination))
+
+a <- glm(hyd_destination~., data = id_5353_forward_model5_data[hurt_index,], family = binomial) %>% summary
+a <- glm(hyd_destination~., data = id_5353_forward_model5_data[-hurt_index,], family = binomial) %>% summary
+
+pi_hat <-a$fitted.values
+confusion.matrix(id_5353_forward_model5_data[hurt_index,]$hyd_destination, ifelse(pi_hat < 0.5, 0, 1) %>% as.factor)
 
 id_5353_forward_model5_data <- id_5353_forward_list$model5$data
 id_5353_forward_list_model5 <- tibble(fitted.values=id_5353_forward_list$model5$fitted.values)
@@ -199,13 +207,16 @@ hurt_index <- which(id_5353_forward_list_model5_diff$diff_0.9 > id_5353_forward_
 hurt_index <- hurt_index[!(hurt_index %in% 1:36)]
 id_5353_forward_list_model5_cooks <- data.frame(index=1:nrow(id_5353_forward_list_model5),
                                                 cooks=cooks.distance(id_5353_forward_list$model5),
-                                                rstudent=rstudent(id_5353_forward_list$model5))
+                                                rstudent=rstudent(id_5353_forward_list$model5),
+                                                hatval=hatvalues(id_5353_forward_list$model5))
 id_5353_forward_list_model5_cooks %>% ggplot() +
-  geom_point(aes(x=index, y=cooks))
+  geom_point(aes(x=index, y=cooks, color=index %in% hurt_index))
 which(id_5353_forward_list_model5_cooks$cooks > 0.09) # no hurt cases
 id_5353_forward_list_model5_cooks %>% ggplot() +
-  geom_point(aes(x=index, y=rstudent))
+  geom_point(aes(x=index, y=rstudent, color=index %in% hurt_index))
 which(abs(id_5353_forward_list_model5_cooks$rstudent) > 1) # includes some hurt cases
+id_5353_forward_list_model5_cooks %>% ggplot() +
+  geom_point(aes(x=index, y=hatval, color=index %in% hurt_index))
 
 corr_model5_hurt_data <- cor(id_5353_forward_model5_data[hurt_index,] %>%
                                mutate(hyd_destination=hyd_destination %>% as.character %>% as.numeric)) %>% abs %>% melt
