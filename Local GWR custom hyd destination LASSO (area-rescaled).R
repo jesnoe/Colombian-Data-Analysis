@@ -14,7 +14,9 @@ library(pracma)
 library(GWmodel)
 library(pROC)
 library(glmnet)
-
+library(reshape2)
+library(regclass)
+########## used bandwidth range 0.5~3.0 due to the time limit
 {
   municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
   municipios_capital$id <- as.numeric(municipios_capital$id)
@@ -43,7 +45,7 @@ library(glmnet)
   airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
 }
 
-cv.mse_mat <- read.csv("Colombia Data/local GWR lasso rescaled cv mse (12-03-2024).csv") %>% as_tibble
+cv.auc_mat <- read.csv("Colombia Data/local GWR lasso rescaled cv AUC (12-03-2024).csv") %>% as_tibble
 local_GWR_coefs_bw_lasso <- read.csv("Colombia Data/local GWR lasso coefs rescaled (12-03-2024).csv") %>% as_tibble
 local_gwr_forward_coefs <- read.csv("Colombia Data/local GWR best coefs forward selection (10-29-2024).csv") %>% as_tibble
 load("Colombia Data/local GWR lasso rescaled result (12-03-2024).RData")
@@ -82,16 +84,29 @@ gwr_data_hyd_destination_by_area <- gwr_data_hyd_destination %>%
 gwr_data_hyd_destination_by_area <- gwr_data_hyd_destination_by_area %>% 
   mutate(across(PPI_lab_prob:population, ~ scale(.x)[,1]))
 
+gwr_data_corr <- cor(gwr_data_hyd_destination_by_area %>%
+                       select(-(id:year)) %>%
+                       relocate(hyd_destination)) %>% melt
+min_corr <- min(gwr_data_corr$value)
+gwr_data_corr %>%
+  ggplot(aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() +
+  scale_fill_gradientn(colors = c("blue","skyblue","grey40", "yellow","red"),
+                       values = scales::rescale(c(min_corr, -.Machine$double.eps, 0 , .Machine$double.eps, 1)),
+                       na.value = "white") +
+  labs(title="Correlation Matrix", x="", y="") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
 bwd_range <- seq(0.5, 3, by=0.1)
 local_gwr_data_id <- gwr_data_hyd_destination_by_area %>% select(id)
 local_gwr_data <- gwr_data_hyd_destination_by_area %>% select(-id, -municipio, -year)
 local_gwr_dist <- as.matrix(gwr_hyd_destination_dist)
 
 
-## reg coefs with LASSO (bandwidths are optimized)
+## reg coefs with LASSO (bandwidths are optimized by "AUC")
 
 
-cv.mse <- aic_score_mat
+cv.auc <- aic_score_mat %>% select(-(bw_3.1:bw_4))
 local_GWR_coefs_lasso_result <- list()
 set.seed(100)
 for (i in 1:nrow(coord_unique)) {
@@ -113,13 +128,13 @@ for (i in 1:nrow(coord_unique)) {
     y_ratio <- n1/n_obs
     
     if (n_obs < 30) {
-      cv.mse[[paste0("bw_", bw_ij)]][i] <- NA
+      cv.auc[[paste0("bw_", bw_ij)]][i] <- NA
       local_GWR_coefs_lasso_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
       next
     }
     
     if ((n0 < 3 | n1 < 3) | (y_ratio < 0.1 | y_ratio > 0.9)) {
-      cv.mse[[paste0("bw_", bw_ij)]][i] <- NA
+      cv.auc[[paste0("bw_", bw_ij)]][i] <- NA
       local_GWR_coefs_lasso_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
       next
     }
@@ -129,7 +144,7 @@ for (i in 1:nrow(coord_unique)) {
                                    family = "binomial",
                                    type.measure = "auc")
     lambda_lasso <- lambda_fit_auc_ij$lambda.min
-    cv.mse_ij <- lambda_fit_auc_ij$cvm[lambda_fit_auc_ij$index[1]]
+    cv.auc_ij <- lambda_fit_auc_ij$cvm[lambda_fit_auc_ij$index[1]]
     
     
     lasso_result_ij <- glmnet(x = x_mat,
@@ -140,22 +155,22 @@ for (i in 1:nrow(coord_unique)) {
     
     n_nonzero <- sum(lasso_result_ij$beta != 0)
     if (n_nonzero == 0) {
-      cv.mse[[paste0("bw_", bw_ij)]][i] <- NA
+      cv.auc[[paste0("bw_", bw_ij)]][i] <- NA
       local_GWR_coefs_lasso_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
       next
     }
-    cv.mse[[paste0("bw_", bw_ij)]][i] <- cv.mse_ij
+    cv.auc[[paste0("bw_", bw_ij)]][i] <- cv.auc_ij
     local_GWR_coefs_lasso_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- lasso_result_ij
   }
   if (i %% 100 == 0) print(paste0(i, "th municipio complete"))
 }
 
-# write.csv(cv.mse, "Colombia Data/local GWR lasso rescaled cv mse (12-03-2024).csv", row.names = F)
+# write.csv(cv.auc, "Colombia Data/local GWR lasso rescaled cv AUC (12-03-2024).csv", row.names = F)
 # save("local_GWR_coefs_lasso_result", file = "Colombia Data/local GWR lasso rescaled result (12-03-2024).RData")
 length(local_GWR_coefs_lasso_result)
 
 optimal_bw <- gsub("bw_", "",
-                   cv.mse[,-1] %>% apply(1, function(x) ifelse(sum(!is.na(x)) == 0, NA, bwd_range[which.min(x)]))
+                   cv.auc_mat[,-1] %>% apply(1, function(x) ifelse(sum(!is.na(x)) == 0, NA, bwd_range[which.max(x)]))
                    ) %>% as.numeric
 
 
@@ -165,7 +180,7 @@ depto_map <- suppressMessages(fortify(departamentos)) %>%
   filter(id != 88) %>% 
   left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
 
-ceof_template <- local_gwr_forward_coefs[1,]
+coef_template <- local_gwr_forward_coefs[1,]
 local_GWR_coefs_bw_lasso <- local_gwr_forward_coefs
 local_GWR_coefs_bw_lasso$bw <- optimal_bw
 local_GWR_coefs_bw_lasso_mat <- local_GWR_coefs_bw_lasso[,-(1:2)] %>% as.matrix
@@ -173,15 +188,14 @@ var_table <- tibble(var_name=names(local_GWR_coefs_bw_lasso)[-(1:2)])
 for (i in 1:nrow(local_GWR_coefs_bw_lasso)) {
   id_i <- local_GWR_coefs_bw_lasso$id[i]
   bw_i <- local_GWR_coefs_bw_lasso$bw[i]
-  
-  if (is.na(bw_i)) {
+  id_name_i <- paste0("id_", id_i)
+  bw_name_i <- paste0("bw_", bw_i)
+  local_GWR_lasso_i <- local_GWR_coefs_lasso_result[[id_name_i]][[bw_name_i]]
+  if (is.na(bw_i) | is.na(local_GWR_lasso_i)[1]) {
     local_GWR_coefs_bw_lasso_mat[i,] <- rep(NA, 13)
     next
   }
   
-  id_name_i <- paste0("id_", id_i)
-  bw_name_i <- paste0("bw_", bw_i)
-  local_GWR_lasso_i <- local_GWR_coefs_lasso_result[[id_name_i]][[bw_name_i]]
   coefs_i <- tibble(var_name = c("Intercept", row.names(local_GWR_lasso_i$beta)),
                     coef = c(local_GWR_lasso_i$a0, local_GWR_lasso_i$beta[,1]))
   coefs_i <- left_join(var_table, coefs_i, by="var_name")
@@ -190,7 +204,7 @@ for (i in 1:nrow(local_GWR_coefs_bw_lasso)) {
 }
 
 local_GWR_coefs_bw_lasso[, -(1:2)] <- local_GWR_coefs_bw_lasso_mat
-# write.csv(local_GWR_coefs_bw_lasso, "Colombia Data/local GWR lasso coefs rescaled (12-03-2024).csv")
+# write.csv(local_GWR_coefs_bw_lasso, "Colombia Data/local GWR lasso coefs rescaled (12-03-2024).csv", row.names=F)
 
 for (i in 4:length(local_GWR_coefs_bw_lasso)) {
   var_name <- names(local_GWR_coefs_bw_lasso)[i]
@@ -248,3 +262,6 @@ gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) +
 
 ggsave("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso rescaled/hyd destination GWR lasso bandwidth.png",
        gwr_coef_map, scale=1)
+
+
+##

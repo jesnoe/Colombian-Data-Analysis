@@ -16,6 +16,7 @@ library(pROC)
 # library(ROCR)
 library(glmnet)
 library(reshape2)
+library(regclass)
 
 {
   municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
@@ -125,14 +126,6 @@ while (significance) {
   }
 }
 
-id_5353_forward_model5_data[hurt_index,] %>% ggplot() +
-  geom_point(aes(x=hyd_lab_prob, y=hyd_destination))
-
-a <- glm(hyd_destination~., data = id_5353_forward_model5_data[hurt_index,], family = binomial) %>% summary
-a <- glm(hyd_destination~., data = id_5353_forward_model5_data[-hurt_index,], family = binomial) %>% summary
-
-pi_hat <-a$fitted.values
-confusion.matrix(id_5353_forward_model5_data[hurt_index,]$hyd_destination, ifelse(pi_hat < 0.5, 0, 1) %>% as.factor)
 
 id_5353_forward_model5_data <- id_5353_forward_list$model5$data
 id_5353_forward_list_model5 <- tibble(fitted.values=id_5353_forward_list$model5$fitted.values)
@@ -203,8 +196,17 @@ id_5353_forward_list_model5_diff <- tibble(hyd_destination=id_5353_forward_list_
                                            diff_0.9 = abs(id_5353_forward_list_model5$hyd_destination - id_5353_forward_list_model5$fitted.values_0.9))
 
 id_5353_forward_list_model5_diff[-(1:36),] %>% filter(diff_0.9 > diff_1.0) %>% print(n=78)
+
 hurt_index <- which(id_5353_forward_list_model5_diff$diff_0.9 > id_5353_forward_list_model5_diff$diff_1.0)
 hurt_index <- hurt_index[!(hurt_index %in% 1:36)]
+
+id_5353_forward_list_model5$y_pred <- ifelse(id_5353_forward_list_model5$fitted.values < 0.5, 0, 1)
+
+confusionMatrix(id_5353_forward_list_model5$hyd_destination[hurt_index] %>% as.factor,
+                id_5353_forward_list_model5$y_pred[hurt_index] %>% as.factor)
+confusionMatrix(id_5353_forward_list_model5$hyd_destination[-hurt_index] %>% as.factor,
+                id_5353_forward_list_model5$y_pred[-hurt_index] %>% as.factor)
+
 id_5353_forward_list_model5_cooks <- data.frame(index=1:nrow(id_5353_forward_list_model5),
                                                 cooks=cooks.distance(id_5353_forward_list$model5),
                                                 rstudent=rstudent(id_5353_forward_list$model5),
@@ -217,6 +219,17 @@ id_5353_forward_list_model5_cooks %>% ggplot() +
 which(abs(id_5353_forward_list_model5_cooks$rstudent) > 1) # includes some hurt cases
 id_5353_forward_list_model5_cooks %>% ggplot() +
   geom_point(aes(x=index, y=hatval, color=index %in% hurt_index))
+
+VIF(glm(hyd_destination~., data=id_5353_forward_model5_data[hurt_index,], family=binomial))
+VIF(glm(hyd_destination~., data=id_5353_forward_model5_data[-hurt_index,], family=binomial))
+
+id_5353_forward_model5_data[hurt_index,] %>% ggplot() +
+  geom_point(aes(x=hyd_lab_prob, y=hyd_destination))
+
+a <- glm(hyd_destination~., data = id_5353_forward_model5_data[hurt_index,], family = binomial) %>% summary
+a <- glm(hyd_destination~., data = id_5353_forward_model5_data[-hurt_index,], family = binomial) %>% summary
+pi_hat <-a$fitted.values
+confusion.matrix(id_5353_forward_model5_data[hurt_index,]$hyd_destination, ifelse(pi_hat < 0.5, 0, 1) %>% as.factor)
 
 corr_model5_hurt_data <- cor(id_5353_forward_model5_data[hurt_index,] %>%
                                mutate(hyd_destination=hyd_destination %>% as.character %>% as.numeric)) %>% abs %>% melt
