@@ -127,7 +127,7 @@ neighbor_id <- function(id_i, bw_i) {
     select(-(id:year))
   return(result)
 }
-neighbor_id_11 <- function(id_i, bw_i) {
+neighbor_id_11 <- function(id_i, bw_i) { # LASSO for [-1, 1] scaled data
   id_i_index <- which(coord_unique$id == id_i)
   i <- id_i_index 
   result <- gwr_data_hyd_destination_by_area_11_scale %>% 
@@ -136,8 +136,17 @@ neighbor_id_11 <- function(id_i, bw_i) {
   return(result)
 }
 
-lasso_beta_check <- function(neighbor_id, measure, nfolds.=10, w=NULL, lambda=F) {
-  x_mat <- neighbor_id %>% select(-hyd_destination) %>% as.matrix
+lasso_beta_check <- function(neighbor_id, measure, nfolds.=10, w=NULL, lambda=F, interact=F) {
+  if (interact) {
+    if ("coca_area" %in% names(neighbor_id)) {
+      x_mat <- model.matrix(as.formula(hyd_destination~.+coca_area*coca_distance+hyd_avg*hyd_price_distance), neighbor_id)[, -1]
+    }else{
+      x_mat <- model.matrix(as.formula(hyd_destination~.+hyd_avg*hyd_price_distance), neighbor_id)[, -1]
+    }
+    
+  }else{
+    x_mat <- neighbor_id %>% select(-hyd_destination) %>% as.matrix
+  }
   y_vec <- neighbor_id$hyd_destination
   id_cv.glmnet <- cv.glmnet(x = x_mat,
                             y = y_vec,
@@ -152,7 +161,12 @@ lasso_beta_check <- function(neighbor_id, measure, nfolds.=10, w=NULL, lambda=F)
                             alpha = 1,
                             weights = w,
                             lambda = lambda_lasso)
-  return(list(cv=id_cv.glmnet, lasso=lasso_result_id))
+  return(list(cv=id_cv.glmnet, lasso=lasso_result_id, x_mat=x_mat))
+}
+
+prediction_result <- function(lasso_result_) {
+  lasso_result_fitted <- predict(lasso_result_$lasso, lasso_result_$x_mat, lasso_result_$cv$lambda.min, type="response")[,1]
+  return(confusionMatrix(ifelse(lasso_result_fitted < 0.5, 0, 1) %>% as.factor, y_vec %>% as.factor, positive="1"))
 }
 
   # id=50270
@@ -165,6 +179,7 @@ local_GWR_coefs_lasso_result$id_50270$bw_1.6$beta
 
 x_mat <- neighbor_id_50270 %>% select(-hyd_destination) %>% as.matrix
 y_vec <- neighbor_id_50270$hyd_destination
+
 lasso_result_id_50270 <- glmnet(x = x_mat,
                                 y = y_vec,
                                 family = "binomial",
@@ -173,25 +188,41 @@ lasso_result_id_50270 <- glmnet(x = x_mat,
 lasso_result_id_50270$beta # same lambda, same result
 
 lasso_result <- lasso_beta_check(neighbor_id_50270, "default")
+lasso_result <- lasso_beta_check(neighbor_id_50270, "default", interact=T)
+
 lasso_result$cv; lasso_result$lasso$beta
+prediction_result(lasso_result)
+
+  ##
 lasso_result <- lasso_beta_check(neighbor_id_50270 %>% select(-PPI_lab_prob, -coca_area, -coca_distance), "default")
-lasso_result$cv; lasso_result$lasso$beta
+lasso_result <- lasso_beta_check(neighbor_id_50270 %>% select(-PPI_lab_prob, -coca_area, -coca_distance), "default", interact = T)
 
+lasso_result$cv; lasso_result$lasso$beta
+prediction_result(lasso_result)
+
+  ## Increased sensitivity and decreased specificity with [-1,1] scale
 lasso_result <- lasso_beta_check(neighbor_id_11_50270, "default")
+lasso_result <- lasso_beta_check(neighbor_id_11_50270, "default", interact=T)
 lasso_result$cv; lasso_result$lasso$beta
+prediction_result(lasso_result)
 
+  
 lasso_result <- lasso_beta_check(neighbor_id_50270, "mse")
 lasso_result$cv; lasso_result$lasso$beta
 lasso_result <- lasso_beta_check(neighbor_id_11_50270, "mse")
 lasso_result$cv; lasso_result$lasso$beta
 
+  ## Too much false positive with AUC criteria
 lasso_result <- lasso_beta_check(neighbor_id_50270, "auc")
+lasso_result <- lasso_beta_check(neighbor_id_50270, "auc", interact=T) # interaction model does not converge
 lasso_result$cv; lasso_result$lasso$beta
-lasso_result <- lasso_beta_check(neighbor_id_11_50270, "auc")
-lasso_result$cv; lasso_result$lasso$beta
+prediction_result(lasso_result)
 
+  ##
 lasso_result <- lasso_beta_check(neighbor_id_50270, "default", w=ifelse(neighbor_id_50270$hyd_destination, 0.9, 0.1))
+lasso_result <- lasso_beta_check(neighbor_id_50270, "default", w=ifelse(neighbor_id_50270$hyd_destination, 0.9, 0.1), interact = T)
 lasso_result$cv; lasso_result$lasso$beta
+prediction_result(lasso_result)
 
 lasso_result <- lasso_beta_check(neighbor_id_11_50270, "default", w=ifelse(neighbor_id_50270$hyd_destination, 0.9, 0.1))
 lasso_result$cv; lasso_result$lasso$beta
@@ -213,20 +244,33 @@ lasso_result_id_50450 <- glmnet(x = x_mat,
 lasso_result_id_50450$beta # same lambda, similar result
 
 lasso_result <- lasso_beta_check(neighbor_id_50450, "default")
+lasso_result <- lasso_beta_check(neighbor_id_50450, "default", interact=T) # non-zero coca area*distance (higher false positive)
 lasso_result$cv; lasso_result$lasso$beta
+prediction_result(lasso_result)
+
 lasso_result <- lasso_beta_check(neighbor_id_50450 %>% select(-PPI_lab_prob, -coca_area, -coca_distance), "default")
+lasso_result <- lasso_beta_check(neighbor_id_50450 %>% select(-PPI_lab_prob, -coca_area, -coca_distance), "default", interact = T) # does not converge
 lasso_result$cv; lasso_result$lasso$beta
+prediction_result(lasso_result)
 
 lasso_result <- lasso_beta_check(neighbor_id_11_50450, "default")
+lasso_result <- lasso_beta_check(neighbor_id_11_50450, "default", interact = T)
 lasso_result$cv; lasso_result$lasso$beta
+prediction_result(lasso_result)
 
+  ## AUC does not converge
 lasso_result <- lasso_beta_check(neighbor_id_50450, "auc")
+lasso_result <- lasso_beta_check(neighbor_id_50450, "auc", interact = T)
 lasso_result$cv; lasso_result$lasso$beta
+prediction_result(lasso_result)
+
 lasso_result <- lasso_beta_check(neighbor_id_11_50450, "auc")
 lasso_result$cv; lasso_result$lasso$beta
 
 lasso_result <- lasso_beta_check(neighbor_id_50450, "default", w=ifelse(neighbor_id_50450$hyd_destination, 0.9, 0.1))
+lasso_result <- lasso_beta_check(neighbor_id_50450, "default", w=ifelse(neighbor_id_50450$hyd_destination, 0.9, 0.1), interact = T)
 lasso_result$cv; lasso_result$lasso$beta
+prediction_result(lasso_result)
 
 lasso_result <- lasso_beta_check(neighbor_id_11_50450, "default", w=ifelse(neighbor_id_50450$hyd_destination, 0.9, 0.1))
 lasso_result$cv; lasso_result$lasso$beta
