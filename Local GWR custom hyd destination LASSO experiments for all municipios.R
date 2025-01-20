@@ -167,7 +167,7 @@ lasso_exp <- function(type.measure_, interact_, scale_11, weight_=NULL) {
       data_id_i <- neighbor_11_i %>% filter(id == id_i)
       neighbor_11_i <- neighbor_11_i %>% filter(id != id_i)
       if (!is.null(weight_)) {
-        weight_i <- ifelse(neighbor_id1$hyd_destination, 0.9, 0.1)
+        weight_i <- ifelse(neighbor_11_i$hyd_destination, 0.9, 0.1)
       }else{
         weight_i <- NULL
       }
@@ -177,7 +177,7 @@ lasso_exp <- function(type.measure_, interact_, scale_11, weight_=NULL) {
       data_id_i <- neighbor_i %>% filter(id == id_i)
       neighbor_i <- neighbor_i %>% filter(id != id_i)
       if (!is.null(weight_)) {
-        weight_i <- ifelse(neighbor_id1$hyd_destination, 0.9, 0.1)
+        weight_i <- ifelse(neighbor_i$hyd_destination, 0.9, 0.1)
       }else{
         weight_i <- NULL
       }
@@ -187,7 +187,6 @@ lasso_exp <- function(type.measure_, interact_, scale_11, weight_=NULL) {
     y_pred_vec <- c(y_pred_vec, y_pred_i)
     y_vec <- c(y_vec, data_id_i$hyd_destination)
     id_vec <- c(id_vec, data_id_i$id)
-    print(paste0(i, "th complete"))
   }
   return(tibble(id=id_vec, hyd_destination=y_vec, prediction=y_pred_vec))
 }
@@ -199,8 +198,12 @@ for (j in 1:10) {
 }
 save("pred_tb_default", file = "Colombia Data/local GWR lasso default pred table (01-20-2025).RData")
 
+lapply(pred_tb_default, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
+
 pred_tb_weight <- list()
 for (j in 1:10) {
   pred_tb_weight[[paste0("result", j)]] <- lasso_exp("default", F, F, weight_=T)
 }
 save("pred_tb_weight", file = "Colombia Data/local GWR lasso default-weight pred table (01-20-2025).RData")
+
+lapply(pred_tb_weight, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
