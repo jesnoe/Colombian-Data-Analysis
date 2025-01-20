@@ -187,10 +187,12 @@ lasso_result_id_50270 <- glmnet(x = x_mat,
                                 lambda = 0.007506)
 lasso_result_id_50270$beta # same lambda, same result
 
-lasso_result <- lasso_beta_check(neighbor_id_50270, "default")
+lasso_result <- lasso_beta_check(neighbor_id_50270 %>% select(-id), "default")
+lasso_result$cv; lasso_result$lasso$beta
+lasso_result <- lasso_beta_check(neighbor_id_50270 %>% filter(id!=50270) %>% select(-id), "default")
+lasso_result$cv; lasso_result$lasso$beta
 lasso_result <- lasso_beta_check(neighbor_id_50270, "default", interact=T)
 
-lasso_result$cv; lasso_result$lasso$beta
 prediction_result(lasso_result)
 
   ##
