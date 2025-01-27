@@ -43,6 +43,11 @@ library(regclass)
     summarize(long=mean(long),
               lat=mean(lat))
   airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
+  ferry <- read.csv("Colombia Data/ferry terminals.csv") %>% as_tibble
+  police <- read.csv("Colombia Data/polices.csv") %>% as_tibble
+  military <- read.csv("Colombia Data/military.csv") %>% as_tibble
+  ferry$n_police <- police$n_polices
+  ferry$n_military <- military$n_military
 }
 
 cv.auc_mat <- read.csv("Colombia Data/local GWR lasso rescaled cv AUC (12-03-2024).csv") %>% as_tibble
@@ -167,7 +172,7 @@ lasso_exp <- function(type.measure_, interact_, scale_11, weight_=NULL) {
       data_id_i <- neighbor_11_i %>% filter(id == id_i)
       neighbor_11_i <- neighbor_11_i %>% filter(id != id_i)
       if (!is.null(weight_)) {
-        weight_i <- ifelse(neighbor_11_i$hyd_destination, 0.9, 0.1)
+        weight_i <- ifelse(neighbor_11_i$hyd_destination, 0.7, 0.3)
       }else{
         weight_i <- NULL
       }
@@ -177,13 +182,26 @@ lasso_exp <- function(type.measure_, interact_, scale_11, weight_=NULL) {
       data_id_i <- neighbor_i %>% filter(id == id_i)
       neighbor_i <- neighbor_i %>% filter(id != id_i)
       if (!is.null(weight_)) {
-        weight_i <- ifelse(neighbor_i$hyd_destination, 0.9, 0.1)
+        weight_i <- ifelse(neighbor_i$hyd_destination, 0.7, 0.3)
       }else{
         weight_i <- NULL
       }
       lasso_result_ <- lasso_beta_check(neighbor_i %>% select(-id), type.measure_, interact=interact_, w=weight_i)
     }
-    y_pred_i <- predicted_y(lasso_result_, data_id_i %>% select(-id, -hyd_destination) %>% as.matrix)
+    
+    if (interact_) {
+      if ("coca_area" %in% names(neighbor_i)) {
+        y_new <- model.matrix(as.formula(hyd_destination~.+coca_area*coca_distance+hyd_avg*hyd_price_distance), data_id_i)[, -1] %>% as_tibble
+      }else{
+        y_new <- model.matrix(as.formula(hyd_destination~.+hyd_avg*hyd_price_distance), data_id_i)[, -1] %>% as_tibble
+      }
+      y_new$hyd_destination <- data_id_i$hyd_destination
+      
+    }else{
+      y_new <- data_id_i
+    }
+    
+    y_pred_i <- predicted_y(lasso_result_, y_new %>% select(-id, -hyd_destination) %>% as.matrix)
     y_pred_vec <- c(y_pred_vec, y_pred_i)
     y_vec <- c(y_vec, data_id_i$hyd_destination)
     id_vec <- c(id_vec, data_id_i$id)
@@ -191,19 +209,212 @@ lasso_exp <- function(type.measure_, interact_, scale_11, weight_=NULL) {
   return(tibble(id=id_vec, hyd_destination=y_vec, prediction=y_pred_vec))
 }
 
-pred_tb
+# pred_tb (34 municipios are skipped due to na bw)
+ferry <- ferry %>%
+  mutate(ferry=ifelse(n_ferry > 0, 1, 0) %>% as.factor,
+         police=ifelse(n_police > 0, 1, 0) %>% as.factor,
+         military=ifelse(n_military > 0, 1, 0) %>% as.factor)
+gwr_data_hyd_destination_by_area <- left_join(gwr_data_hyd_destination_by_area, ferry %>% select(id, ferry:military), by="id") %>% 
+  mutate(airport=as.factor(airport),
+         armed_group=as.factor(armed_group))
+
+# map
+load("Colombia Data/local GWR lasso default pred table (01-25-2025).RData")
+pred <- rep(0, nrow(pred_tb_default$result1))
+for (i in 1:20) {
+  pred <- pred + pred_tb_default[[i]]$prediction
+}
+pred_freq_default <- pred_tb_default$result1 %>% mutate(prediction=pred, year=rep(c(2013, 2014, 2016), times=1086))
+
+load("Colombia Data/local GWR lasso default-weight pred table (01-25-2025).RData")
+pred <- rep(0, nrow(pred_tb_default_weight$result1))
+for (i in 1:20) {
+  pred <- pred + pred_tb_default_weight[[i]]$prediction
+}
+pred_freq_default_weight <- pred_tb_default_weight$result1 %>% mutate(prediction=pred, year=rep(c(2013, 2014, 2016), times=1086))
+
+load("Colombia Data/local GWR lasso default-weight 7-3 pred table (01-25-2025).RData")
+pred <- rep(0, nrow(pred_tb_default_weight$result1))
+for (i in 1:20) {
+  pred <- pred + pred_tb_default_weight[[i]]$prediction
+}
+pred_freq_default_weight_0.7_0.3 <- pred_tb_default_weight$result1 %>% mutate(prediction=pred, year=rep(c(2013, 2014, 2016), times=1086))
+
+load("Colombia Data/local GWR lasso default-interact pred table (01-25-2025).RData")
+pred <- rep(0, nrow(pred_tb_default_interact$result1))
+for (i in 1:20) {
+  pred <- pred + pred_tb_default_interact[[i]]$prediction
+}
+pred_freq_default_interact <- pred_tb_default_interact$result1 %>% mutate(prediction=pred, year=rep(c(2013, 2014, 2016), times=1086))
+
+load("Colombia Data/local GWR lasso default-interact-weight pred table (01-25-2025).RData")
+pred <- rep(0, nrow(pred_tb_default_interact_weight$result1))
+for (i in 1:20) {
+  pred <- pred + pred_tb_default_interact_weight[[i]]$prediction
+}
+pred_freq_default_interact_weight <- pred_tb_default_interact_weight$result1 %>% mutate(prediction=pred, year=rep(c(2013, 2014, 2016), times=1086))
+
+for (year_ in c(2013, 2014, 2016)) {
+  left_join(map_df, pred_freq_default %>% filter(year==year_) %>% select(-year), by="id") %>% 
+    ggplot(aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=prediction),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = map_df$long, y = map_df$lat) + 
+    coord_quickmap() +
+    labs(fill="", x="", y="", title=paste0("deviance, no interaction, normalized, equal weight in ", year_)) +
+    scale_fill_viridis_c(na.value = "white") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    ) -> pred_freq_default_plot
+  
+  left_join(map_df, pred_freq_default_weight %>% filter(year==year_) %>% select(-year), by="id") %>% 
+    ggplot(aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=prediction),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = map_df$long, y = map_df$lat) + 
+    coord_quickmap() +
+    labs(fill="", x="", y="", title=paste0("deviance, no interaction, normalized, 0.9/0.1 weight ", year_)) +
+    scale_fill_viridis_c(na.value = "white") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    ) -> pred_freq_default_weight_plot
+  
+  left_join(map_df, pred_freq_default_weight_0.7_0.3 %>% filter(year==year_) %>% select(-year), by="id") %>% 
+    ggplot(aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=prediction),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = map_df$long, y = map_df$lat) + 
+    coord_quickmap() +
+    labs(fill="", x="", y="", title=paste0("deviance, no interaction, normalized, 0.7/0.3 weight ", year_)) +
+    scale_fill_viridis_c(na.value = "white") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    ) -> pred_freq_default_weight_0.7_0.3_plot
+  
+  left_join(map_df, pred_freq_default_interact %>% filter(year==year_) %>% select(-year), by="id") %>% 
+    ggplot(aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=prediction),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = map_df$long, y = map_df$lat) + 
+    coord_quickmap() +
+    labs(fill="", x="", y="", title=paste0("deviance, with interaction, normalized, equal weight ", year_)) +
+    scale_fill_viridis_c(na.value = "white") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    ) -> pred_freq_default_interact_plot
+  
+  left_join(map_df, pred_freq_default_interact_weight %>% filter(year==year_) %>% select(-year), by="id") %>% 
+    ggplot(aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=prediction),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = map_df$long, y = map_df$lat) + 
+    coord_quickmap() +
+    labs(fill="", x="", y="", title=paste0("deviance, with interaction, normalized, 0.9/0.1 weight ", year_)) +
+    scale_fill_viridis_c(na.value = "white") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    ) -> pred_freq_default_interact_weight_plot
+  
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default pred map ", year_, " (01-27-2025).png"),
+         pred_freq_default_plot, scale=1)
+  # ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-weight 9-1 pred map ", year_, " (01-27-2025).png"),
+  #        pred_freq_default_weight_plot, scale=1)
+  # ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-weight 7-3 pred map ", year_, " (01-27-2025).png"),
+  #        pred_freq_default_weight_0.7_0.3_plot, scale=1)
+  # ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-interact pred map ", year_, " (01-27-2025).png"),
+  #        pred_freq_default_interact_plot, scale=1)
+  # ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-interact-weight 9-1 pred map ", year_, " (01-27-2025).png"),
+  #        pred_freq_default_interact_weight_plot, scale=1)
+}
+
+for (year_ in c(2013, 2014, 2016)) {
+  left_join(map_df, pred_freq_default %>% filter(year==year_) %>% select(-year), by="id") %>% 
+    ggplot(aes(x=long, y=lat)) + 
+    geom_polygon(aes(group=group, fill=hyd_destination),
+                 color = "black",
+                 linewidth = 0.1) + 
+    expand_limits(x = map_df$long, y = map_df$lat) + 
+    coord_quickmap() +
+    labs(fill="", x="", y="", title=paste0("hyd_destination in ", year_)) +
+    scale_fill_viridis_c(na.value = "white") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    ) -> hyd_destination_plot_year
+  
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso hyd_destination map ", year_, ".png"),
+         hyd_destination_plot_year, scale=1)
+}
+
+# generate results
 pred_tb_default <- list()
-for (j in 1:10) {
+start.time <- Sys.time()
+for (j in 1:20) {
   pred_tb_default[[paste0("result", j)]] <- lasso_exp("default", F, F)
+  print(paste0(j, "th complete"))
 }
-save("pred_tb_default", file = "Colombia Data/local GWR lasso default pred table (01-20-2025).RData")
+end.time <- Sys.time()
+end.time - start.time # 
+save("pred_tb_default", file = "Colombia Data/local GWR lasso default pred table (01-25-2025).RData")
+# lapply(pred_tb_default, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
 
-lapply(pred_tb_default, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
-
-pred_tb_weight <- list()
-for (j in 1:10) {
-  pred_tb_weight[[paste0("result", j)]] <- lasso_exp("default", F, F, weight_=T)
+pred_tb_default_weight <- list()
+start.time <- Sys.time()
+for (j in 1:20) {
+  pred_tb_default_weight[[paste0("result", j)]] <- lasso_exp("default", F, F, weight_=T)
+  print(paste0(j, "th complete"))
 }
-save("pred_tb_weight", file = "Colombia Data/local GWR lasso default-weight pred table (01-20-2025).RData")
+end.time <- Sys.time()
+end.time - start.time # 
+save("pred_tb_default_weight", file = "Colombia Data/local GWR lasso default-weight 7-3 pred table (01-25-2025).RData")
+# lapply(pred_tb_default_weight, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
 
-lapply(pred_tb_weight, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
+pred_tb_default_interact <- list()
+start.time <- Sys.time()
+for (j in 12:20) {
+  pred_tb_default_interact[[paste0("result", j)]] <- lasso_exp("default", T, F)
+  print(paste0(j, "th complete"))
+}
+end.time <- Sys.time()
+end.time - start.time # 
+save("pred_tb_default_interact", file = "Colombia Data/local GWR lasso default-interact pred table (01-25-2025).RData")
+# lapply(pred_tb_default_interact, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
+
+pred_tb_default_interact_weight <- list()
+start.time <- Sys.time()
+for (j in 1:20) {
+  pred_tb_default_interact_weight[[paste0("result", j)]] <- lasso_exp("default", T, F, weight_=T)
+  print(paste0(j, "th complete"))
+}
+end.time <- Sys.time()
+end.time - start.time # 
+save("pred_tb_default_interact_weight", file = "Colombia Data/local GWR lasso default-interact-weight pred table (01-25-2025).RData")
+# lapply(pred_tb_default_interact_weight, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
