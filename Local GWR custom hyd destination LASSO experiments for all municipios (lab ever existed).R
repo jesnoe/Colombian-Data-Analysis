@@ -55,7 +55,7 @@ local_GWR_coefs_bw_lasso <- read.csv("Colombia Data/local GWR lasso coefs rescal
 local_gwr_forward_coefs <- read.csv("Colombia Data/local GWR best coefs forward selection (10-29-2024).csv") %>% as_tibble
 load("Colombia Data/local GWR lasso rescaled result (12-03-2024).RData") # load local_GWR_coefs_lasso_result
 
-regression_data_years <- read.csv("Colombia Data/regression data all municipios (07-05-2024).csv") %>% as_tibble %>% 
+regression_data_years <- read.csv("Colombia Data/regression data all municipios ever lab (02-05-2025).csv") %>% as_tibble %>% 
   mutate(base_avg=scale(base_avg)[,1],
          paste_avg=scale(paste_avg)[,1],
          hyd_avg=scale(hyd_avg)[,1])
@@ -218,36 +218,39 @@ gwr_data_hyd_destination_by_area <- left_join(gwr_data_hyd_destination_by_area, 
   mutate(airport=as.factor(airport),
          armed_group=as.factor(armed_group))
 
+gwr_data_hyd_destination_by_area_11_scale <- left_join(gwr_data_hyd_destination_by_area_11_scale, ferry %>% select(id, ferry:military), by="id") %>% 
+  mutate(airport=as.factor(airport),
+         armed_group=as.factor(armed_group))
 # map
-load("Colombia Data/local GWR lasso default pred table (01-25-2025).RData")
+load("Colombia Data/local GWR lasso default pred table ever lab (02-05-2025).RData")
 pred <- rep(0, nrow(pred_tb_default$result1))
 for (i in 1:20) {
   pred <- pred + pred_tb_default[[i]]$prediction
 }
 pred_freq_default <- pred_tb_default$result1 %>% mutate(prediction=pred, year=rep(c(2013, 2014, 2016), times=1086))
 
-load("Colombia Data/local GWR lasso default-weight pred table (01-25-2025).RData")
+load("Colombia Data/local GWR lasso default-weight pred table ever lab (02-05-2025).RData")
 pred <- rep(0, nrow(pred_tb_default_weight$result1))
 for (i in 1:20) {
   pred <- pred + pred_tb_default_weight[[i]]$prediction
 }
 pred_freq_default_weight <- pred_tb_default_weight$result1 %>% mutate(prediction=pred, year=rep(c(2013, 2014, 2016), times=1086))
 
-load("Colombia Data/local GWR lasso default-weight 7-3 pred table (01-25-2025).RData")
+load("Colombia Data/local GWR lasso default-weight 7-3 pred table ever lab (02-05-2025).RData")
 pred <- rep(0, nrow(pred_tb_default_weight$result1))
 for (i in 1:20) {
   pred <- pred + pred_tb_default_weight[[i]]$prediction
 }
 pred_freq_default_weight_0.7_0.3 <- pred_tb_default_weight$result1 %>% mutate(prediction=pred, year=rep(c(2013, 2014, 2016), times=1086))
 
-load("Colombia Data/local GWR lasso default-interact pred table (01-25-2025).RData")
+load("Colombia Data/local GWR lasso default-interact pred table ever lab (02-05-2025).RData")
 pred <- rep(0, nrow(pred_tb_default_interact$result1))
 for (i in 1:20) {
   pred <- pred + pred_tb_default_interact[[i]]$prediction
 }
 pred_freq_default_interact <- pred_tb_default_interact$result1 %>% mutate(prediction=pred, year=rep(c(2013, 2014, 2016), times=1086))
 
-load("Colombia Data/local GWR lasso default-interact-weight pred table (01-25-2025).RData")
+load("Colombia Data/local GWR lasso default-interact-weight pred table ever lab (02-05-2025).RData")
 pred <- rep(0, nrow(pred_tb_default_interact_weight$result1))
 for (i in 1:20) {
   pred <- pred + pred_tb_default_interact_weight[[i]]$prediction
@@ -340,15 +343,20 @@ for (year_ in c(2013, 2014, 2016)) {
           line = element_blank()
     ) -> pred_freq_default_interact_weight_plot
   
-  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default pred map ", year_, " (01-27-2025).png"),
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default pred map ever lab ",
+                year_, " (02-05-2025).png"),
          pred_freq_default_plot, scale=1)
-  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-weight 9-1 pred map ", year_, " (01-27-2025).png"),
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-weight 9-1 pred map ever lab ",
+                year_, " (02-05-2025).png"),
          pred_freq_default_weight_plot, scale=1)
-  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-weight 7-3 pred map ", year_, " (01-27-2025).png"),
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-weight 7-3 pred map ever lab ",
+                year_, " (02-05-2025).png"),
          pred_freq_default_weight_0.7_0.3_plot, scale=1)
-  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-interact pred map ", year_, " (01-27-2025).png"),
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-interact pred map ever lab ",
+                year_, " (02-05-2025).png"),
          pred_freq_default_interact_plot, scale=1)
-  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-interact-weight 9-1 pred map ", year_, " (01-27-2025).png"),
+  ggsave(paste0("Colombia Data/Figs/local GWR coef maps/hyd destintion local GWR lasso experiments/local GWR lasso default-interact-weight 9-1 pred map ever lab ",
+                year_, " (02-05-2025).png"),
          pred_freq_default_interact_weight_plot, scale=1)
 }
 
@@ -383,7 +391,7 @@ for (j in 1:20) {
 }
 end.time <- Sys.time()
 end.time - start.time # 
-save("pred_tb_default", file = "Colombia Data/local GWR lasso default pred table (01-25-2025).RData")
+save("pred_tb_default", file = "Colombia Data/local GWR lasso default pred table ever lab (02-05-2025).RData")
 # lapply(pred_tb_default, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
 
 pred_tb_default_weight <- list()
@@ -394,27 +402,27 @@ for (j in 1:20) {
 }
 end.time <- Sys.time()
 end.time - start.time # 
-save("pred_tb_default_weight", file = "Colombia Data/local GWR lasso default-weight 7-3 pred table (01-25-2025).RData")
+save("pred_tb_default_weight", file = "Colombia Data/local GWR lasso default-weight 7-3 pred table ever lab (02-05-2025).RData")
 # lapply(pred_tb_default_weight, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
 
 pred_tb_default_interact <- list()
 start.time <- Sys.time()
-for (j in 12:20) {
+for (j in 1:20) {
   pred_tb_default_interact[[paste0("result", j)]] <- lasso_exp("default", T, F)
   print(paste0(j, "th complete"))
 }
 end.time <- Sys.time()
 end.time - start.time # 
-save("pred_tb_default_interact", file = "Colombia Data/local GWR lasso default-interact pred table (01-25-2025).RData")
+save("pred_tb_default_interact", file = "Colombia Data/local GWR lasso default-interact pred table ever lab (02-05-2025).RData")
 # lapply(pred_tb_default_interact, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
 
 pred_tb_default_interact_weight <- list()
 start.time <- Sys.time()
-for (j in 1:20) {
+for (j in 18:20) {
   pred_tb_default_interact_weight[[paste0("result", j)]] <- lasso_exp("default", T, F, weight_=T)
   print(paste0(j, "th complete"))
 }
 end.time <- Sys.time()
 end.time - start.time # 
-save("pred_tb_default_interact_weight", file = "Colombia Data/local GWR lasso default-interact-weight pred table (01-25-2025).RData")
+save("pred_tb_default_interact_weight", file = "Colombia Data/local GWR lasso default-interact-weight pred table ever lab (02-05-2025).RData")
 # lapply(pred_tb_default_interact_weight, function(x) confusionMatrix(x$prediction %>% factor(levels=c(0,1)), x$hyd_destination %>% factor(levels=c(0,1)), positive="1"))
