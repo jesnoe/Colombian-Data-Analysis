@@ -33,7 +33,7 @@ waterways <- st_read("Colombia Data/Shape Data/gis_osm_waterways_free_1.shp")
 waterways$fclass %>% unique
 rivers <- waterways %>% filter(fclass == "river")
 
-transpor <- st_read("Colombia Data/Shape Data/gis_osm_transport_free_1.shp")
+transport <- st_read("Colombia Data/Shape Data/gis_osm_transport_free_1.shp")
 ferry <- transport %>% filter(fclass == "ferry_terminal")
 airport <- transport %>% filter(fclass == "airport")
 

@@ -462,19 +462,19 @@ local_gwr_lasso_coef_map(local_GWR_coefs_lasso_hyd_source, cv_dev_min_mat_, "hyd
 
 load("Colombia Data/local GWR lasso base_dest (03-07-2025).RData") # local_GWR_coefs_lasso_base_dest
 cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_dest cv min dev (03-07-2024).csv") %>% as_tibble
-local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_dest, cv_dev_min_mat_, "base_source"); rm(local_GWR_coefs_lasso_base_dest)
+local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_dest, cv_dev_min_mat_, "base_destination"); rm(local_GWR_coefs_lasso_base_dest)
 
 load("Colombia Data/local GWR lasso base_dest interact (03-07-2025).RData") # local_GWR_coefs_lasso_base_dest_interact
 cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_dest interact cv min dev (03-07-2024).csv") %>% as_tibble
-local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_dest_interact, cv_dev_min_mat_, "base_source"); rm(local_GWR_coefs_lasso_base_dest)
+local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_dest_interact, cv_dev_min_mat_, "base_destination"); rm(local_GWR_coefs_lasso_base_dest)
 
 load("Colombia Data/local GWR lasso base_source (03-07-2025).RData") # local_GWR_coefs_lasso_base_source
 cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_source cv min dev (03-07-2024).csv") %>% as_tibble
-local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_source, cv_dev_min_mat_, "base_destination"); rm(local_GWR_coefs_lasso_base_source)
+local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_source, cv_dev_min_mat_, "base_source"); rm(local_GWR_coefs_lasso_base_source)
 
 load("Colombia Data/local GWR lasso base_source interact (03-07-2025).RData") # local_GWR_coefs_lasso_base_source_interact
 cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_source interact cv min dev (03-07-2024).csv") %>% as_tibble
-local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_source_interact, cv_dev_min_mat_, "base_destination"); rm(local_GWR_coefs_lasso_base_source)
+local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_source_interact, cv_dev_min_mat_, "base_source"); rm(local_GWR_coefs_lasso_base_source)
 
 local_GWR_coefs_lasso_list <- local_GWR_coefs_lasso_hyd_dest_interact; dep_var <- "hyd_destination"; cv_dev_min_mat <- cv_dev_min_mat_
 
