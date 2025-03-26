@@ -138,6 +138,89 @@ ever_regression_data_years <- function(dep_var) {
               coord=coord_unique))
 }
 
+ever_regression_data_years_price_pred <- function(dep_var) {
+  names(regression_data_years_price_pred)[which(names(regression_data_years_price_pred) == dep_var)] <- "y"
+  if (grepl("base", dep_var)) {
+    regression_data_years_price_pred_dep_var <- regression_data_years_price_pred %>% 
+      group_by(id) %>% 
+      summarize(y = ifelse(sum(y) > 0, 1, 0),
+                n_PPI_labs = ifelse(sum(n_PPI_labs) > 0, 1, 0),
+                price_avg = median(base_avg),
+                price_distance = min(base_price_distance),
+                coca_area = max(coca_area),
+                coca_distance = min(coca_distance),
+                seizures = sum(base_seizures),
+                n_armed_groups = sum(n_armed_groups),
+                river_length=river_length[1],
+                road_length=road_length[1],
+                population = population[1],
+                airport = airport[1]) %>% 
+      mutate(price_avg=scale(price_avg)[,1],
+             population=scale(population)[,1],
+             seizures = scale(seizures)[,1],
+             armed_group = ifelse(n_armed_groups > 0, 1, 0))
+    regression_data_years_price_pred_dep_var$lab_prob <- glm(n_PPI_labs~., data = regression_data_years_price_pred_dep_var %>% select(-id, -y), family=binomial)$fitted
+    gwr_data_coord <- left_join(regression_data_years_price_pred_dep_var %>%
+                                  select(-n_armed_groups, -n_PPI_labs),
+                                municipio_centroid %>% select(id, long, lat), by="id") %>% relocate(id, municipio)
+  }else if (grepl("hyd", dep_var)) {
+    regression_data_years_price_pred_dep_var <- regression_data_years_price_pred %>% 
+      group_by(id) %>% 
+      summarize(y = ifelse(sum(y) > 0, 1, 0),
+                n_hyd_labs = ifelse(sum(n_hyd_labs) > 0, 1, 0),
+                price_avg = median(hyd_avg),
+                price_distance = min(hyd_price_distance),
+                coca_area = max(coca_area),
+                coca_distance = min(coca_distance),
+                seizures = sum(hyd_seizures),
+                n_armed_groups = sum(n_armed_groups),
+                river_length=river_length[1],
+                road_length=road_length[1],
+                population = population[1],
+                airport = airport[1]) %>% 
+      mutate(price_avg=scale(price_avg)[,1],
+             population=scale(population)[,1],
+             seizures = scale(seizures)[,1],
+             armed_group = ifelse(n_armed_groups > 0, 1, 0))
+    regression_data_years_price_pred_dep_var$lab_prob <- glm(n_hyd_labs~., data = regression_data_years_price_pred_dep_var %>% select(-id, -y), family=binomial)$fitted
+    gwr_data_coord <- left_join(regression_data_years_price_pred_dep_var %>%
+                                  select(-n_armed_groups, -n_hyd_labs),
+                                municipio_centroid %>% select(id, long, lat), by="id") %>% relocate(id, municipio)
+  }
+  
+  
+  ### use regression_data_years_price_pred to make hyd_destination is 1 if a municipio was destination in at least 2 years
+  
+  coord_unique <- gwr_data_coord %>% select(id, long, lat) %>% unique
+  gwr_data_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T) %>% as.matrix
+  
+  gwr_data_dep_var <- gwr_data_coord %>%
+    select(-long, -lat) %>% 
+    mutate(y = as.factor(y))
+  
+  municipios_sf <- st_as_sf(municipios) %>% mutate(id = id %>% as.numeric) %>% filter(!(id %in% c(88001, 88564)))
+  municipios_sf$area_km2 <- st_area(municipios_sf) %>% units::set_units("km^2") %>% as.numeric
+  gwr_data_dep_var_by_area <- gwr_data_dep_var %>% 
+    left_join(municipios_sf %>% as_tibble %>% select(id, area_km2), by="id") %>% 
+    mutate(coca_area = scale(coca_area / area_km2)[,1],
+           river_length = scale(river_length / area_km2)[,1],
+           road_length = scale(road_length / area_km2)[,1]) %>% 
+    select(-area_km2)
+  gwr_data_dep_var_by_area_11_scale <- gwr_data_dep_var_by_area %>% 
+    mutate(across(price_avg:population, ~ scales::rescale(.x, c(-1,1))))
+  
+  ferry <- ferry %>%
+    mutate(ferry=ifelse(n_ferry > 0, 1, 0),
+           police=ifelse(n_police > 0, 1, 0),
+           military=ifelse(n_military > 0, 1, 0))
+  gwr_data_dep_var_by_area <- left_join(gwr_data_dep_var_by_area, ferry %>% select(id, ferry:military), by="id")
+  
+  gwr_data_dep_var_by_area_11_scale <- left_join(gwr_data_dep_var_by_area_11_scale, ferry %>% select(id, ferry:military), by="id")
+  return(list(norm=gwr_data_dep_var_by_area, 
+              scale_11=gwr_data_dep_var_by_area_11_scale,
+              dist=gwr_data_dist,
+              coord=coord_unique))
+}
 forward_selection <- function(id_i, data_id, local_gwr_lasso_coefs, sig_level=0.05) {
   i <- which(local_gwr_lasso_coefs$id == id_i)
   bw_i <- local_gwr_lasso_coefs$bw[i]
@@ -200,14 +283,40 @@ local_gwr_lasso_coefs_hyd_destination <- read.csv("Colombia Data/local GWR lasso
 load("Colombia Data/local GWR lasso hyd_dest (03-07-2025).RData") # local_GWR_coefs_lasso_hyd_dest
 
 regression_data_years <- read.csv("Colombia Data/regression data all municipios ever lab (02-05-2025).csv") %>% as_tibble
-regression_data_years %>% select(id, year, n_hyd_labs, hyd_avg, hyd_price_distance, coca_area, coca_distance, hyd_seizures, n_armed_groups) %>% arrange(id)
+regression_data_years %>% filter(hyd_avg < 100000)
 
+reg_data <- regression_data_years %>% 
+  filter(hyd_avg > 100000) %>%
+  select(id, hyd_avg, hyd_lab_prob, coca_area, coca_distance, hyd_price_distance, hyd_seizures, n_armed_groups, river_length, road_length, population, airport)
+reg_data <- left_join(reg_data, ferry %>%
+                        rename(ferry=n_ferry,
+                               police=n_police,
+                               military=n_military) %>% 
+                        mutate(ferry=ifelse(ferry > 0, 1, 0),
+                               police=ifelse(police > 0, 1, 0),
+                               military=ifelse(military > 0, 1, 0)),
+                      by="id")
+hyd_avg_lm <- lm(hyd_avg~., reg_data %>% filter(hyd_price_distance == 0) %>% select(-id, -hyd_price_distance))
+hyd_avg_lm %>% summary
+hyd_avg_lm$fitted.values
+
+hyd_avg_pred <- predict(hyd_avg_lm, reg_data %>% select(-hyd_price_distance))
+
+data.frame(price=ifelse(reg_data$hyd_price_distance == 0, reg_data$hyd_avg, NA), price_pred=hyd_avg_pred) %>% 
+  ggplot() +
+  geom_point(aes(x=price, y=price_pred)) +
+  geom_abline(slope = 1, intercept = 0) +
+  ggtitle("hyd. price vs. fitted price")
+
+regression_data_years_price_pred <- regression_data_years
+regression_data_years_price_pred$hyd_avg <- ifelse(regression_data_years$hyd_price_distance == 0, regression_data_years$hyd_avg, hyd_avg_pred)
 
 ## overfitting check
   # hyd_destination
 local_gwr_lasso_coefs_hyd_destination %>% filter(id %in% c(17777, 73770)) %>% select(id:price_avg)
 
 gwr_lasso_data <- ever_regression_data_years("hyd_destination")
+gwr_lasso_data <- ever_regression_data_years_price_pred("hyd_destination")
 
 id_index <- which(gwr_lasso_data$coord$id == 17777)
 data_id_ <- gwr_lasso_data$norm %>% 
@@ -227,6 +336,18 @@ glmnet(x = data_id_ %>% select(-(id:y)) %>% as.matrix,
        alpha = 1,
        # weights = ifelse(data_id_$y == 1, p, 1-p),
        lambda = local_GWR_coefs_lasso_hyd_dest$id_17777$bw_0.5$lambda) %>% coef
+glmnet(x = data_id_ %>% select(-(id:y), -price_distance, -coca_area, -coca_distance) %>% as.matrix,
+       y = data_id_$y,
+       family = binomial,
+       alpha = 1,
+       # weights = ifelse(data_id_$y == 1, p, 1-p),
+       lambda = local_GWR_coefs_lasso_hyd_dest$id_17777$bw_0.5$lambda) %>% coef
+glm_id <- glm(y~., data_id_ %>% select(-(id:municipio), -price_distance, -coca_area, -coca_distance), family=binomial)
+glm_id %>% summary
+data_id_$seizures %>% table
+confusionMatrix(data_id_$y, ifelse(glm_id$fitted.values < 0.5, 0, 1) %>% as.factor)
+data_id_ %>% ggplot() + geom_point(aes(x=1:nrow(data_id_), y=seizures)) + ggtitle("id=17777 seizures")
+
 local_GWR_coefs_lasso_hyd_dest_id <- local_GWR_coefs_lasso_hyd_dest$id_17777$bw_0.5
 local_GWR_coefs_lasso_hyd_dest_id %>% summary
 pred_id <- predict(local_GWR_coefs_lasso_hyd_dest_id,
@@ -237,6 +358,10 @@ ggplot(data.frame(y = data_id_$y, pred = forward_result_hyd_destination_id17777$
   geom_point(aes(x=pred, y=y)) + ggtitle("predicted prob. forward id=17777")
 ggplot(data.frame(y = data_id_$y, pred = pred_id[,1])) +
   geom_point(aes(x=pred, y=y)) + ggtitle("predicted prob. GWR id=17777")
+
+
+gwr_lasso_data <- ever_regression_data_years("hyd_destination")
+gwr_lasso_data <- ever_regression_data_years_price_pred("hyd_destination")
 
 id_index <- which(gwr_lasso_data$coord$id == 73770)
 data_id_ <- gwr_lasso_data$norm %>% 
@@ -253,6 +378,18 @@ glmnet(x = data_id_ %>% select(-(id:y)) %>% as.matrix,
        alpha = 1,
        # weights = ifelse(data_id_$y == 1, p, 1-p),
        lambda = local_GWR_coefs_lasso_hyd_dest$id_73770$bw_0.7$lambda) %>% coef
+glmnet(x = data_id_ %>% select(-(id:y), -price_distance, -coca_area, -coca_distance) %>% as.matrix,
+       y = data_id_$y,
+       family = binomial,
+       alpha = 1,
+       # weights = ifelse(data_id_$y == 1, p, 1-p),
+       lambda = local_GWR_coefs_lasso_hyd_dest$id_73770$bw_0.7$lambda) %>% coef
+glm_id <- glm(y~., data_id_ %>% select(-(id:municipio), -price_distance, -coca_area, -coca_distance), family=binomial)
+glm_id %>% summary
+data_id_$seizures %>% table
+confusionMatrix(data_id_$y, ifelse(glm_id$fitted.values < 0.5, 0, 1) %>% as.factor)
+data_id_ %>% ggplot() + geom_point(aes(x=1:nrow(data_id_), y=seizures)) + ggtitle("id=73770 seizures")
+
 local_GWR_coefs_lasso_hyd_dest_id <- local_GWR_coefs_lasso_hyd_dest$id_73770$bw_0.7
 local_GWR_coefs_lasso_hyd_dest_id %>% summary
 pred_id <- predict(local_GWR_coefs_lasso_hyd_dest_id,
@@ -264,6 +401,10 @@ ggplot(data.frame(y = data_id_$y, pred = forward_result_hyd_destination_id73770$
 ggplot(data.frame(y = data_id_$y, pred = pred_id[,1])) +
   geom_point(aes(x=pred, y=y)) + ggtitle("predicted prob. GWR id=73770")
 
+
+gwr_lasso_data <- ever_regression_data_years("hyd_destination")
+gwr_lasso_data <- ever_regression_data_years_price_pred("hyd_destination")
+
 local_gwr_lasso_coefs_hyd_destination %>% filter(id == 5390)
 id_index <- which(gwr_lasso_data$coord$id == 5390)
 data_id_ <- gwr_lasso_data$norm %>% 
@@ -271,6 +412,7 @@ data_id_ <- gwr_lasso_data$norm %>%
 forward_result_hyd_destination_id5390 <- forward_selection(5390, data_id_ %>% select(-(id:municipio)), local_gwr_lasso_coefs_hyd_destination)
 forward_result_hyd_destination_id5390$reg_model %>% lapply(summary)
 forward_result_hyd_destination_id5390$forward_p_value
+confusionMatrix(data_id_$y, ifelse(forward_result_hyd_destination_id5390$reg_model$model_2$fitted.values < 0.5, 0, 1) %>% as.factor)
 
 coef(local_GWR_coefs_lasso_hyd_dest$id_5390$bw_0.5)
 glmnet(x = data_id_ %>% select(-(id:y)) %>% as.matrix,
@@ -279,6 +421,23 @@ glmnet(x = data_id_ %>% select(-(id:y)) %>% as.matrix,
        alpha = 1,
        # weights = ifelse(data_id_$y == 1, p, 1-p),
        lambda = local_GWR_coefs_lasso_hyd_dest$id_5390$bw_0.5$lambda) %>% coef
+glmnet(x = data_id_ %>% select(-(id:y), -price_distance, -coca_area, -coca_distance) %>% as.matrix,
+       y = data_id_$y,
+       family = binomial,
+       alpha = 1,
+       # weights = ifelse(data_id_$y == 1, p, 1-p),
+       lambda = local_GWR_coefs_lasso_hyd_dest$id_5390$bw_0.5$lambda) %>% coef
+glm_id <- glm(y~., data_id_ %>% select(-(id:municipio), -price_distance, -coca_area, -coca_distance), family=binomial)
+glm_id %>% summary
+data_id_$seizures %>% table
+confusionMatrix(data_id_$y, ifelse(glm_id$fitted.values < 0.5, 0, 1) %>% as.factor)
+data_id_ %>% ggplot() + geom_point(aes(x=1:nrow(data_id_), y=seizures)) + ggtitle("id=5390 seizures")
+
+glm_id <- glm(y~., data_id_ %>% select(-(id:municipio), -price_distance, -coca_area, -coca_distance, -seizures), family=binomial)
+glm_id %>% summary
+confusionMatrix(data_id_$y, ifelse(glm_id$fitted.values < 0.5, 0, 1) %>% as.factor)
+data_id_$price_avg
+
 local_GWR_coefs_lasso_hyd_dest_id <- local_GWR_coefs_lasso_hyd_dest$id_5390$bw_0.5
 local_GWR_coefs_lasso_hyd_dest_id %>% summary
 pred_id <- predict(local_GWR_coefs_lasso_hyd_dest_id,
