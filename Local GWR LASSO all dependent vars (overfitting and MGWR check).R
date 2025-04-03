@@ -262,8 +262,8 @@ forward_selection <- function(id_i, data_id, local_gwr_lasso_coefs, sig_level=0.
     }
   }
   
-  result <- list(reg_model = reg_models, forward_p_value=p_values)
-  return(result)
+  # result <- list(reg_model = reg_models, forward_p_value=p_values)
+  # return(result)
   # reg_model_i <- glm(y~.,
   #                    data = prev_data,
   #                    family = binomial)
@@ -277,7 +277,7 @@ forward_selection <- function(id_i, data_id, local_gwr_lasso_coefs, sig_level=0.
 }
 
 
-cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_dest cv min dev (03-07-2024).csv") %>% as_tibble
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_dest cv min dev (03-07-2025).csv") %>% as_tibble
 local_GWR_coefs_bw_lasso <- read.csv("Colombia Data/local GWR lasso coefs rescaled (12-03-2024).csv") %>% as_tibble
 local_gwr_lasso_coefs_hyd_destination <- read.csv("Colombia Data/local GWR lasso result/local GWR lasso coefs hyd_destination (03-11-2025).csv") %>% as_tibble %>% arrange(id)
 load("Colombia Data/local GWR lasso hyd_dest (03-07-2025).RData") # local_GWR_coefs_lasso_hyd_dest
@@ -476,7 +476,7 @@ ggplot(data.frame(y = data_id_$y, pred = pred_id[,1])) +
   # base_destination
 load("Colombia Data/local GWR lasso base_dest (03-07-2025).RData") # local_GWR_coefs_lasso_base_dest
 local_gwr_lasso_coefs_base_destination <- read.csv("Colombia Data/local GWR lasso result/local GWR lasso coefs base_destination (03-11-2025).csv") %>% as_tibble# %>% arrange(id)
-cv_dev_min_mat_base_dest <- read.csv("Colombia Data/local GWR lasso base_dest cv min dev (03-07-2024).csv") %>% as_tibble
+cv_dev_min_mat_base_dest <- read.csv("Colombia Data/local GWR lasso base_dest cv min dev (03-07-2025).csv") %>% as_tibble
 
 local_gwr_lasso_coefs_base_destination %>% filter(id %in% c(15296, 85400)) %>% select(id, bw, airport, armed_group)
 gwr_lasso_data <- ever_regression_data_years("base_destination")

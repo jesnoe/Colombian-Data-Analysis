@@ -273,7 +273,7 @@ end.time <- Sys.time()
 end.time - start.time # 33.72533 mins for hyd_destination
 
 local_GWR_coefs_lasso_hyd_dest <- local_GWR_coefs_lasso_hyd_dest_list$lasso
-write.csv(local_GWR_coefs_lasso_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR lasso hyd_dest cv min dev (03-07-2024).csv", row.names = F)
+write.csv(local_GWR_coefs_lasso_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR lasso hyd_dest cv min dev (03-07-2025).csv", row.names = F)
 save("local_GWR_coefs_lasso_hyd_dest", file = "Colombia Data/local GWR lasso hyd_dest (03-07-2025).RData")
 rm(local_GWR_coefs_lasso_hyd_dest); rm(local_GWR_coefs_lasso_hyd_dest_list)
 
@@ -284,7 +284,7 @@ rm(local_GWR_coefs_lasso_hyd_dest); rm(local_GWR_coefs_lasso_hyd_dest_list)
 # end.time - start.time # 1.056492 hours for hyd_destination with interaction
 # 
 # local_GWR_coefs_lasso_hyd_dest_interact <- local_GWR_coefs_lasso_hyd_dest_list$lasso
-# write.csv(local_GWR_coefs_lasso_hyd_dest_interact$cv_dev_min_mat, "Colombia Data/local GWR lasso hyd_dest interact cv min dev (03-07-2024).csv", row.names = F)
+# write.csv(local_GWR_coefs_lasso_hyd_dest_interact$cv_dev_min_mat, "Colombia Data/local GWR lasso hyd_dest interact cv min dev (03-07-2025).csv", row.names = F)
 # save("local_GWR_coefs_lasso_hyd_dest_interact", file = "Colombia Data/local GWR lasso hyd_dest interact (03-07-2025).RData")
 # rm(local_GWR_coefs_lasso_hyd_dest_interact); rm(local_GWR_coefs_lasso_hyd_dest_list)
 
@@ -297,7 +297,7 @@ gwr_lasso_data <- ever_regression_data_years("hyd_source")
 # 
 # local_GWR_coefs_lasso_hyd_source <- local_GWR_coefs_lasso_hyd_source_list$lasso
 # local_GWR_coefs_lasso_hyd_source_list$cv_dev_min_mat[,-1] %>% as.matrix %>% as.vector %>% summary
-# write.csv(local_GWR_coefs_lasso_hyd_source_list$cv_dev_min_mat, "Colombia Data/local GWR lasso hyd_source cv min dev (03-07-2024).csv", row.names = F)
+# write.csv(local_GWR_coefs_lasso_hyd_source_list$cv_dev_min_mat, "Colombia Data/local GWR lasso hyd_source cv min dev (03-07-2025).csv", row.names = F)
 # save("local_GWR_coefs_lasso_hyd_source", file = "Colombia Data/local GWR lasso hyd_source (03-07-2025).RData")
 # rm(local_GWR_coefs_lasso_hyd_source); rm(local_GWR_coefs_lasso_hyd_source_list)
 
@@ -308,7 +308,7 @@ end.time <- Sys.time()
 end.time - start.time # 2.568997 hours for hyd_source with interaction
 
 local_GWR_coefs_lasso_hyd_source_interact <- local_GWR_coefs_lasso_hyd_source_list$lasso
-write.csv(local_GWR_coefs_lasso_hyd_source_interact$cv_dev_min_mat, "Colombia Data/local GWR lasso hyd_source interact cv min dev (03-07-2024).csv", row.names = F)
+write.csv(local_GWR_coefs_lasso_hyd_source_interact$cv_dev_min_mat, "Colombia Data/local GWR lasso hyd_source interact cv min dev (03-07-2025).csv", row.names = F)
 save("local_GWR_coefs_lasso_hyd_source_interact", file = "Colombia Data/local GWR lasso hyd_source interact (03-07-2025).RData")
 rm(local_GWR_coefs_lasso_hyd_source_interact); rm(local_GWR_coefs_lasso_hyd_source_list)
 
@@ -321,7 +321,7 @@ gwr_lasso_data <- ever_regression_data_years("base_destination")
 # end.time - start.time # 36.30055 mins for base_destination
 # 
 # local_GWR_coefs_lasso_base_dest <- local_GWR_coefs_lasso_base_dest_list$lasso
-# write.csv(local_GWR_coefs_lasso_base_dest_list$cv_dev_min_mat, "Colombia Data/local GWR lasso base_dest cv min dev (03-07-2024).csv", row.names = F)
+# write.csv(local_GWR_coefs_lasso_base_dest_list$cv_dev_min_mat, "Colombia Data/local GWR lasso base_dest cv min dev (03-07-2025).csv", row.names = F)
 # save("local_GWR_coefs_lasso_base_dest", file = "Colombia Data/local GWR lasso base_dest (03-07-2025).RData")
 # rm(local_GWR_coefs_lasso_base_dest); rm(local_GWR_coefs_lasso_base_dest_list)
 
@@ -332,7 +332,7 @@ end.time <- Sys.time()
 end.time - start.time # 1.809663 hours for base_destination with interaction
 
 local_GWR_coefs_lasso_base_dest_interact <- local_GWR_coefs_lasso_base_dest_list$lasso
-write.csv(local_GWR_coefs_lasso_base_dest_interact$cv_dev_min_mat, "Colombia Data/local GWR lasso base_dest interact cv min dev (03-07-2024).csv", row.names = F)
+write.csv(local_GWR_coefs_lasso_base_dest_interact$cv_dev_min_mat, "Colombia Data/local GWR lasso base_dest interact cv min dev (03-07-2025).csv", row.names = F)
 save("local_GWR_coefs_lasso_base_dest_interact", file = "Colombia Data/local GWR lasso base_dest interact (03-07-2025).RData")
 rm(local_GWR_coefs_lasso_base_dest); rm(local_GWR_coefs_lasso_base_dest_interact)
 
@@ -345,7 +345,7 @@ gwr_lasso_data <- ever_regression_data_years("base_source")
 # 
 # local_GWR_coefs_lasso_base_source <- local_GWR_coefs_lasso_base_source_list$lasso
 # local_GWR_coefs_lasso_base_source_list$cv_dev_min_mat[,-1] %>% as.matrix %>% as.vector %>% summary
-# write.csv(local_GWR_coefs_lasso_base_source_list$cv_dev_min_mat, "Colombia Data/local GWR lasso base_source cv min dev (03-07-2024).csv", row.names = F)
+# write.csv(local_GWR_coefs_lasso_base_source_list$cv_dev_min_mat, "Colombia Data/local GWR lasso base_source cv min dev (03-07-2025).csv", row.names = F)
 # save("local_GWR_coefs_lasso_base_source", file = "Colombia Data/local GWR lasso base_source (03-07-2025).RData")
 # rm(local_GWR_coefs_lasso_base_source); rm(local_GWR_coefs_lasso_base_source_list)
 
@@ -356,7 +356,7 @@ end.time <- Sys.time()
 end.time - start.time # 1.787975 hours for base_source with interaction
 
 local_GWR_coefs_lasso_base_source_interact <- local_GWR_coefs_lasso_base_source_list$lasso
-write.csv(local_GWR_coefs_lasso_base_source_interact$cv_dev_min_mat, "Colombia Data/local GWR lasso base_source interact cv min dev (03-07-2024).csv", row.names = F)
+write.csv(local_GWR_coefs_lasso_base_source_interact$cv_dev_min_mat, "Colombia Data/local GWR lasso base_source interact cv min dev (03-07-2025).csv", row.names = F)
 save("local_GWR_coefs_lasso_base_source_interact", file = "Colombia Data/local GWR lasso base_source interact (03-07-2025).RData")
 rm(local_GWR_coefs_lasso_base_source_interact); rm(local_GWR_coefs_lasso_base_source_list)
 
@@ -445,35 +445,35 @@ depto_map <- suppressMessages(fortify(departamentos)) %>%
   filter(id != 88) %>% 
   left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
 load("Colombia Data/local GWR lasso hyd_dest (03-07-2025).RData") # local_GWR_coefs_lasso_hyd_dest
-cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_dest cv min dev (03-07-2024).csv") %>% as_tibble
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_dest cv min dev (03-07-2025).csv") %>% as_tibble
 local_gwr_lasso_coef_map(local_GWR_coefs_lasso_hyd_dest, cv_dev_min_mat_, "hyd_destination"); rm(local_GWR_coefs_lasso_hyd_dest)
 
 load("Colombia Data/local GWR lasso hyd_dest interact (03-07-2025).RData") # local_GWR_coefs_lasso_hyd_dest_interact
-cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_dest interact cv min dev (03-07-2024).csv") %>% as_tibble
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_dest interact cv min dev (03-07-2025).csv") %>% as_tibble
 local_gwr_lasso_coef_map(local_GWR_coefs_lasso_hyd_dest_interact, cv_dev_min_mat_, "hyd_destination", interact_ = T)
 
 load("Colombia Data/local GWR lasso hyd_source (03-07-2025).RData") # local_GWR_coefs_lasso_hyd_source
-cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_source cv min dev (03-07-2024).csv") %>% as_tibble
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_source cv min dev (03-07-2025).csv") %>% as_tibble
 local_gwr_lasso_coef_map(local_GWR_coefs_lasso_hyd_source, cv_dev_min_mat_, "hyd_source"); rm(local_GWR_coefs_lasso_hyd_source)
 
 load("Colombia Data/local GWR lasso hyd_source interact (03-07-2025).RData") # local_GWR_coefs_lasso_hyd_source_interact
-cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_source interact cv min dev (03-07-2024).csv") %>% as_tibble
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_source interact cv min dev (03-07-2025).csv") %>% as_tibble
 local_gwr_lasso_coef_map(local_GWR_coefs_lasso_hyd_source, cv_dev_min_mat_, "hyd_source"); rm(local_GWR_coefs_lasso_hyd_source_interact)
 
 load("Colombia Data/local GWR lasso base_dest (03-07-2025).RData") # local_GWR_coefs_lasso_base_dest
-cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_dest cv min dev (03-07-2024).csv") %>% as_tibble
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_dest cv min dev (03-07-2025).csv") %>% as_tibble
 local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_dest, cv_dev_min_mat_, "base_destination"); rm(local_GWR_coefs_lasso_base_dest)
 
 load("Colombia Data/local GWR lasso base_dest interact (03-07-2025).RData") # local_GWR_coefs_lasso_base_dest_interact
-cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_dest interact cv min dev (03-07-2024).csv") %>% as_tibble
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_dest interact cv min dev (03-07-2025).csv") %>% as_tibble
 local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_dest_interact, cv_dev_min_mat_, "base_destination"); rm(local_GWR_coefs_lasso_base_dest)
 
 load("Colombia Data/local GWR lasso base_source (03-07-2025).RData") # local_GWR_coefs_lasso_base_source
-cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_source cv min dev (03-07-2024).csv") %>% as_tibble
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_source cv min dev (03-07-2025).csv") %>% as_tibble
 local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_source, cv_dev_min_mat_, "base_source"); rm(local_GWR_coefs_lasso_base_source)
 
 load("Colombia Data/local GWR lasso base_source interact (03-07-2025).RData") # local_GWR_coefs_lasso_base_source_interact
-cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_source interact cv min dev (03-07-2024).csv") %>% as_tibble
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso base_source interact cv min dev (03-07-2025).csv") %>% as_tibble
 local_gwr_lasso_coef_map(local_GWR_coefs_lasso_base_source_interact, cv_dev_min_mat_, "base_source"); rm(local_GWR_coefs_lasso_base_source)
 
 local_GWR_coefs_lasso_list <- local_GWR_coefs_lasso_hyd_dest_interact; dep_var <- "hyd_destination"; cv_dev_min_mat <- cv_dev_min_mat_
