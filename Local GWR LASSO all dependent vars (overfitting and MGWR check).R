@@ -221,6 +221,7 @@ ever_regression_data_years_price_pred <- function(dep_var) {
               dist=gwr_data_dist,
               coord=coord_unique))
 }
+
 forward_selection <- function(id_i, data_id, local_gwr_lasso_coefs, sig_level=0.05) {
   i <- which(local_gwr_lasso_coefs$id == id_i)
   bw_i <- local_gwr_lasso_coefs$bw[i]
