@@ -282,18 +282,22 @@ local_GWR_forward <- function(type.measure_="default", sig_level_=0.05, interact
     
     for (j in 1:length(bwd_range)) {
       bw_ij <- bwd_range[j]
+      bw_name <- paste0("bw_", bw_ij)
       
       neighbor_ij <- neighbor_id(id_i, bw_ij, scale_11_, coord_unique, local_gwr_dist)
       n_0_1 <- neighbor_ij$y %>% table
       
+      # restrict too unbalanced responses
       if (sum(n_0_1 < 8) > 0 | length(n_0_1) < 2) {
-        cv_dev_min_mat[[paste0("bw_", bw_ij)]][i] <- NA
+        cv_dev_min_mat[[bw_name]][i] <- NA
         local_GWR_coefs_forward_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
         next
       }
       
-      # data_id_ij <- neighbor_ij %>% filter(id == id_i)
-      # neighbor_ij <- neighbor_ij %>% filter(id != id_i)
+      # drop seizures or coca_area if nonzero observations are too rare
+      if (nonzero_seizure[[bw_name]][i] < 5) neighbor_ij$seizures <- NULL
+      if (nonzero_coca_area[[bw_name]][i] < 5) neighbor_ij$coca_area <- NULL
+      
       if (!is.null(weight_)) {
         weight_i <- ifelse(neighbor_ij$y == 1, weight_[1], weight_[2])
       }else{
@@ -390,17 +394,38 @@ regression_data_years <- read.csv("Colombia Data/regression data all municipios 
   }
 
 gwr_forward_data <- ever_regression_data_years_price_pred("hyd_destination")
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price cv min dev (04-09-2025).csv") %>% as_tibble
+
+min_seizure_scaled <- min(gwr_forward_data$norm$seizures) %>% round(3)
+min_coca_area_scaled <- min(gwr_forward_data$norm$coca_area) %>% round(3)
+coord_unique <- gwr_forward_data$coord
+local_gwr_dist <- gwr_forward_data$dist %>% as.matrix
+nonzero_seizure <- cv_dev_min_mat_
+nonzero_coca_area <- cv_dev_min_mat_ 
+for (i in 1:nrow(cv_dev_min_mat_)) {
+  id_i <- cv_dev_min_mat_$id[i]
+  for (bw_ij in bwd_range) {
+    col_name_ij <- paste0("bw_", bw_ij)
+    neighbor_ij <- neighbor_id(id_i, bw_ij, scale_11_=F, coord_unique, local_gwr_dist)
+    nonzero_seizure[[col_name_ij]][i] <- sum(round(neighbor_ij$seizures, 3) > min_seizure_scaled)
+    nonzero_coca_area[[col_name_ij]][i] <- sum(round(neighbor_ij$coca_area, 3) > min_coca_area_scaled)
+  }
+}
+nonzero_seizure
+nonzero_coca_area
+
 set.seed(100)
 start.time <- Sys.time()
 local_GWR_coefs_forward_hyd_dest_list <- local_GWR_forward(dep_var = "hyd_destination", gwr_forward_data_ = gwr_forward_data, sig_level_=0.1)
 end.time <- Sys.time()
 end.time - start.time # 1.043645 hours for hyd_destination (alpha = 0.05)
 end.time - start.time # 56.69292 mins for hyd_destination (alpha = 0.1)
+end.time - start.time # 1.062456 hours for hyd_destination drop (alpha = 0.1)
 
-local_GWR_coefs_forward_hyd_dest <- local_GWR_coefs_forward_hyd_dest_list$forward
-write.csv(local_GWR_coefs_forward_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price cv min dev (04-09-2025).csv", row.names = F)
-save("local_GWR_coefs_forward_hyd_dest", file = "Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price (04-09-2025).RData")
-rm(local_GWR_coefs_forward_hyd_dest); rm(local_GWR_coefs_forward_hyd_dest_list)
+local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop <- local_GWR_coefs_forward_hyd_dest_list$forward
+write.csv(local_GWR_coefs_forward_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price cv min dev alpha = 0.1 drop (04-21-2025).csv", row.names = F)
+save("local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop", file = "Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price alpha = 0.1 drop (04-21-2025).RData")
+rm(local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop); rm(local_GWR_coefs_forward_hyd_dest_list)
 
     # alpha = 0.1
 local_GWR_coefs_forward_hyd_dest_alpha_0.1 <- local_GWR_coefs_forward_hyd_dest_list$forward
@@ -433,7 +458,7 @@ local_gwr_forward_coef_map <- function(local_GWR_coefs_forward_list, cv_dev_min_
   names(forward_coef_table)[-(1:2)] <- indep_vars
   # if (!is.null(weight_)) interact_ <- " weight"
   write.csv(forward_coef_table,
-            paste0("Colombia Data/local GWR forward result predicted prices/local GWR forward coefs alpha=", alpha, " ", dep_var, weight_, " (04-09-2025).csv"),
+            paste0("Colombia Data/local GWR forward result predicted prices/local GWR forward coefs drop alpha=", alpha, " ", dep_var, weight_, " (04-21-2025).csv"),
             row.names = F)
   
   
@@ -484,7 +509,7 @@ local_gwr_forward_coef_map <- function(local_GWR_coefs_forward_list, cv_dev_min_
     }
     
     ggsave(paste0("Colombia Data/local GWR forward result predicted prices/coef maps/",
-                  dep_var, "/local GWR forward coef map ", var_name, " alpha=", alpha, " ", dep_var, weight_, " (04-09-2025).png"),
+                  dep_var, "/local GWR forward coef map drop ", var_name, " alpha=", alpha, " ", dep_var, weight_, " (04-21-2025).png"),
            gwr_coef_map, scale=1)
   }
 }
@@ -496,7 +521,7 @@ depto_map <- suppressMessages(fortify(departamentos)) %>%
   filter(id != 88) %>% 
   left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
 
-local_gwr_lasso_coefs_hyd_destination <- read.csv("Colombia Data/local GWR lasso result predicted prices/local GWR lasso coefs hyd_destination (03-28-2025).csv") %>%
+local_gwr_lasso_coefs_hyd_destination <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward coefs limited alpha=0.1 hyd_destination (04-15-2025).csv") %>%
   as_tibble %>% arrange(id)
 indep_vars_ <- names(local_gwr_lasso_coefs_hyd_destination)[-(1:3)]
 
@@ -510,6 +535,11 @@ cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR forward result predicted pr
 load("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price alpha = 0.1 (04-09-2025).RData") # local_GWR_coefs_forward_hyd_dest_alpha_0.1
 local_gwr_forward_coef_map(local_GWR_coefs_forward_hyd_dest_alpha_0.1, cv_dev_min_mat_, "hyd_destination", indep_vars_, alpha=0.1);# rm(local_GWR_coefs_forward_hyd_dest_alpha_0.1)
 # local_GWR_coefs_forward_list<-local_GWR_coefs_forward_hyd_dest_alpha_0.1; cv_dev_min_mat<-cv_dev_min_mat_; indep_vars<-indep_vars_; dep_var="hyd_destination"; weight_=NULL; alpha<-0.1
+
+  ## alpha = 0.1 variable drop
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price cv min dev alpha = 0.1 drop (04-21-2025).csv") %>% as_tibble
+load("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price alpha = 0.1 drop (04-21-2025).RData") # local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop
+local_gwr_forward_coef_map(local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop, cv_dev_min_mat_, "hyd_destination", indep_vars_, alpha=0.1);# rm(local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop)
 
 min_seizure_scaled <- min(gwr_forward_data$norm$seizures) %>% round(3)
 min_coca_area_scaled <- min(gwr_forward_data$norm$coca_area) %>% round(3)

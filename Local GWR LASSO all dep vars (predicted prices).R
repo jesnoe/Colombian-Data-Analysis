@@ -257,7 +257,7 @@ n_runs <- 10
 measures <- c("Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Precision", "Recall", "F1",
               "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy")
 
-local_GWR_forward <- function(type.measure_="default", interact_=F, scale_11_=F, weight_=NULL, dep_var, gwr_lasso_data_) {
+local_GWR_lasso <- function(type.measure_="default", interact_=F, scale_11_=F, weight_=NULL, dep_var, gwr_lasso_data_) {
   # weight_ = c(weight1, weight0)
   bwd_range <- seq(0.5, 3, by=0.1)
   coord_unique <- gwr_lasso_data_$coord
@@ -271,6 +271,7 @@ local_GWR_forward <- function(type.measure_="default", interact_=F, scale_11_=F,
     
     for (j in 1:length(bwd_range)) {
       bw_ij <- bwd_range[j]
+      bw_name <- paste0("bw_", bw_ij)
       
       neighbor_ij <- neighbor_id(id_i, bw_ij, scale_11_, coord_unique, local_gwr_dist)
       n_0_1 <- neighbor_ij$y %>% table
@@ -280,6 +281,11 @@ local_GWR_forward <- function(type.measure_="default", interact_=F, scale_11_=F,
         local_GWR_coefs_lasso_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
         next
       }
+      
+      # restrict too unbalanced responses
+      # drop seizures or coca_area if nonzero observations are too rare
+      if (nonzero_seizure[[bw_name]][i] < 5) neighbor_ij$seizures <- NULL
+      if (nonzero_coca_area[[bw_name]][i] < 5) neighbor_ij$coca_area <- NULL
       
       # data_id_ij <- neighbor_ij %>% filter(id == id_i)
       # neighbor_ij <- neighbor_ij %>% filter(id != id_i)
@@ -382,10 +388,11 @@ start.time <- Sys.time()
 local_GWR_coefs_lasso_hyd_dest_list <- local_GWR_lasso(dep_var = "hyd_destination", gwr_lasso_data_ = gwr_lasso_data)
 end.time <- Sys.time()
 end.time - start.time # 35.49563 mins for hyd_destination
+end.time - start.time # 38.3257 mins for hyd_destination drop
 
 local_GWR_coefs_lasso_hyd_dest <- local_GWR_coefs_lasso_hyd_dest_list$lasso
-# write.csv(local_GWR_coefs_lasso_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price cv min dev (03-28-2025).csv", row.names = F)
-# save("local_GWR_coefs_lasso_hyd_dest", file = "Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price (03-28-2025).RData")
+# write.csv(local_GWR_coefs_lasso_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price cv min dev drop (04-21-2025).csv", row.names = F)
+# save("local_GWR_coefs_lasso_hyd_dest", file = "Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price drop (04-21-2025).RData")
 rm(local_GWR_coefs_lasso_hyd_dest); rm(local_GWR_coefs_lasso_hyd_dest_list)
 
 gwr_lasso_data$norm
@@ -494,27 +501,32 @@ rm(local_GWR_coefs_lasso_hyd_dest_2016_weight_7_3); rm(local_GWR_coefs_lasso_hyd
 
 
 # coef map
-local_gwr_lasso_coef_map <- function(local_GWR_coefs_lasso_list, cv_dev_min_mat, dep_var, weight_=NULL) {
+local_gwr_lasso_coef_map <- function(local_GWR_coefs_lasso_list, cv_dev_min_mat, dep_var, indep_vars, weight_=NULL, interact_=NULL) {
   optimal_bw <- gsub("bw_", "",
                      cv_dev_min_mat[,-1] %>% apply(1, function(x) ifelse(sum(!is.na(x)) == 0, NA, bwd_range[which.min(x)]))
   ) %>% as.numeric
   
-  indep_vars <- c("Intercept", rownames(coef(local_GWR_coefs_lasso_list$id_5001$bw_2.5))[-1])
   lasso_coef_table <- tibble(id = cv_dev_min_mat$id, bw=optimal_bw)
-  lasso_coef_mat <- matrix(NA, nrow(lasso_coef_table), length(indep_vars))
+  lasso_coef_mat <- matrix(NA, nrow(lasso_coef_table), length(indep_vars)+1)
+  
+  indep_vars <- c("Intercept", indep_vars)
+  indep_vars_df <- data.frame(var_name=indep_vars)
   
   for (i in 1:nrow(lasso_coef_table)) {
     bw_i <- lasso_coef_table$bw[i]
     if (is.na(bw_i)) next
     local_GWR_lasso_i <- local_GWR_coefs_lasso_list[[i]][[paste0("bw_", bw_i)]]
-    lasso_coef_mat[i,] <- coef(local_GWR_lasso_i)[,1]
+    coefs_i <- coef(local_GWR_lasso_i)[,1]
+    coefs_i_df <- data.frame(var_name=c("Intercept", names(coefs_i)[-1]), coef=coefs_i)
+    
+    lasso_coef_mat[i,] <- left_join(indep_vars_df, coefs_i_df, by="var_name")$coef
   }
   
   lasso_coef_table <- bind_cols(lasso_coef_table, lasso_coef_mat)
   names(lasso_coef_table)[-(1:2)] <- indep_vars
   # if (!is.null(weight_)) interact_ <- " weight"
   write.csv(lasso_coef_table,
-            paste0("Colombia Data/local GWR lasso result predicted prices/local GWR lasso coefs ", dep_var, " ", weight_, " (03-28-2025).csv"),
+            paste0("Colombia Data/local GWR lasso result predicted prices/local GWR lasso coefs drop ", dep_var, " ", weight_, " (04-21-2025).csv"),
             row.names = F)
   
   
@@ -565,7 +577,7 @@ local_gwr_lasso_coef_map <- function(local_GWR_coefs_lasso_list, cv_dev_min_mat,
     }
     
     ggsave(paste0("Colombia Data/local GWR lasso result predicted prices/coef maps/",
-                  dep_var, interact_, "/local GWR lasso coef map ", var_name, " ", dep_var, weight_, " (03-28-2025).png"),
+                  dep_var, interact_, "/local GWR lasso coef map drop ", var_name, " ", dep_var, weight_, " (04-21-2025).png"),
            gwr_coef_map, scale=1)
   }
 }
@@ -575,10 +587,17 @@ depto_map <- suppressMessages(fortify(departamentos)) %>%
   mutate(id=as.numeric(id)) %>% 
   filter(id != 88) %>% 
   left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
+indep_vars_ <- names(local_gwr_lasso_coefs_hyd_destination)[-(1:3)]
 
 cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price cv min dev (03-28-2025).csv") %>% as_tibble
 load("Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price (03-28-2025).RData") # local_GWR_coefs_lasso_hyd_dest
-local_gwr_lasso_coef_map(local_GWR_coefs_lasso_hyd_dest, cv_dev_min_mat_, "hyd_destination"); rm(local_GWR_coefs_lasso_hyd_dest)
+local_gwr_lasso_coef_map(local_GWR_coefs_lasso_hyd_dest, cv_dev_min_mat_, "hyd_destination", indep_vars = indep_vars_); rm(local_GWR_coefs_lasso_hyd_dest)
+
+# with drop
+cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price cv min dev drop (04-21-2025).csv") %>% as_tibble
+load("Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price drop (04-21-2025).RData") # local_GWR_coefs_lasso_hyd_dest
+local_gwr_lasso_coef_map(local_GWR_coefs_lasso_hyd_dest, cv_dev_min_mat_, "hyd_destination", indep_vars = indep_vars_); rm(local_GWR_coefs_lasso_hyd_dest)
+# local_GWR_coefs_lasso_list<-local_GWR_coefs_lasso_hyd_dest; cv_dev_min_mat<-cv_dev_min_mat_; dep_var<-"hyd_destination"; indep_vars<-indep_vars_; weight_=NULL
 
 cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest 2013 predicted price cv min dev (03-28-2025).csv") %>% as_tibble
 load("Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest 2013 predicted price (03-28-2025).RData") # local_GWR_coefs_lasso_hyd_dest_2013
