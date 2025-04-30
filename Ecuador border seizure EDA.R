@@ -9,7 +9,7 @@ library(sf)
 library(sp)
 library(caret)
 library(randomForest)
-library(pracma)
+library(slider)
 library(GWmodel)
 library(pROC)
 library(glmnet)
@@ -49,7 +49,11 @@ library(regclass)
     pivot_longer(-(id:municipio), names_to="year", values_to="n_labs") %>% 
     mutate(year=substr(year,2,5) %>% as.integer) %>% 
     group_by(depto, year) %>% 
-    summarize(n_labs = sum(n_labs, na.rm = T))
+    summarize(n_labs = sum(n_labs, na.rm = T)) %>% 
+    group_by(depto) %>%
+    arrange(year) %>%
+    mutate(ma_n_labs = slide_dbl(n_labs, mean, .before = 3, .complete = TRUE))
+  
   labs_PPI <- read.csv("Colombia Data/Colombia-Laboratories-1997-2022 renamed (PRIMARY PRODUCTION INFRASTRUCTURE).csv") %>% as_tibble
   labs_PPI <- labs_PPI %>% rename(id=CODMPIO) %>% mutate(id=as.numeric(id)) %>%
     select(-c(CODDEPTO, MUNICIPIO, DEPARTAMENTO)) %>% 
@@ -73,52 +77,82 @@ library(regclass)
     mutate(year=as.integer(year)) %>% 
     filter(!is.na(coca_seizures)) %>% 
     group_by(depto, year) %>% 
-    summarize(coca_seizures = sum(coca_seizures, na.rm = T))
+    summarize(coca_seizures = sum(coca_seizures, na.rm = T)) %>% 
+    group_by(depto) %>%
+    arrange(year) %>%
+    mutate(ma_seizures = slide_dbl(coca_seizures, mean, .before = 3, .complete = TRUE))
+  
   base_seizures_long <- base_seizures %>% 
     left_join(municipios_capital %>% select(-id_depto), by="id") %>% 
     pivot_longer(`1999`:`2022`, names_to="year", values_to="base_seizures") %>% 
     mutate(year=as.integer(year)) %>% 
     filter(!is.na(base_seizures)) %>% 
     group_by(depto, year) %>% 
-    summarize(base_seizures = sum(base_seizures, na.rm = T))
+    summarize(base_seizures = sum(base_seizures, na.rm = T)) %>% 
+    group_by(depto) %>%
+    arrange(year) %>%
+    mutate(ma_seizures = slide_dbl(base_seizures, mean, .before = 3, .complete = TRUE))
+  
   hyd_seizures_long <- hyd_seizures %>% 
     left_join(municipios_capital %>% select(-id_depto), by="id") %>% 
     pivot_longer(`1999`:`2022`, names_to="year", values_to="hyd_seizures") %>% 
     mutate(year=as.integer(year)) %>% 
     filter(!is.na(hyd_seizures)) %>% 
     group_by(depto, year) %>% 
-    summarize(hyd_seizures = sum(hyd_seizures, na.rm = T))
+    summarize(hyd_seizures = sum(hyd_seizures, na.rm = T)) %>% 
+    group_by(depto) %>%
+    arrange(year) %>%
+    mutate(ma_seizures = slide_dbl(hyd_seizures, mean, .before = 3, .complete = TRUE))
   
   coca_seizures_avg_med <- coca_seizures_long %>% 
     group_by(year) %>% 
     summarize(national_avg = mean(coca_seizures, na.rm=T),
               national_med = median(coca_seizures, na.rm=T)) %>% 
     pivot_longer(-year, names_to = "depto", values_to = "coca_seizures")
-  coca_seizures_long <- bind_rows(coca_seizures_long, coca_seizures_avg_med)
+  coca_seizures_long <- bind_rows(coca_seizures_long, coca_seizures_avg_med) %>% 
+    group_by(depto) %>%
+    arrange(year) %>%
+    mutate(ma_seizures = slide_dbl(coca_seizures, mean, .before = 3, .complete = TRUE))
+  
   base_seizures_avg_med <- base_seizures_long %>% 
     group_by(year) %>% 
     summarize(national_avg = mean(base_seizures, na.rm=T),
               national_med = median(base_seizures, na.rm=T)) %>% 
     pivot_longer(-year, names_to = "depto", values_to = "base_seizures")
-  base_seizures_long <- bind_rows(base_seizures_long, base_seizures_avg_med)
+  base_seizures_long <- bind_rows(base_seizures_long, base_seizures_avg_med) %>% 
+    group_by(depto) %>%
+    arrange(year) %>%
+    mutate(ma_seizures = slide_dbl(base_seizures, mean, .before = 3, .complete = TRUE))
+  
   hyd_seizures_avg_med <- hyd_seizures_long %>% 
     group_by(year) %>% 
     summarize(national_avg = mean(hyd_seizures, na.rm=T),
               national_med = median(hyd_seizures, na.rm=T)) %>% 
     pivot_longer(-year, names_to = "depto", values_to = "hyd_seizures")
-  hyd_seizures_long <- bind_rows(hyd_seizures_long, hyd_seizures_avg_med)
+  hyd_seizures_long <- bind_rows(hyd_seizures_long, hyd_seizures_avg_med) %>% 
+    group_by(depto) %>%
+    arrange(year) %>%
+    mutate(ma_seizures = slide_dbl(hyd_seizures, mean, .before = 3, .complete = TRUE))
+  
   labs_hyd_avg_med <- labs_hyd %>% 
     group_by(year) %>% 
     summarize(national_avg = mean(n_labs, na.rm=T),
               national_med = median(n_labs, na.rm=T)) %>% 
     pivot_longer(-year, names_to = "depto", values_to = "n_labs")
-  labs_hyd <- bind_rows(labs_hyd, labs_hyd_avg_med)
+  labs_hyd <- bind_rows(labs_hyd, labs_hyd_avg_med) %>% 
+    group_by(depto) %>%
+    arrange(year) %>%
+    mutate(ma_n_labs = slide_dbl(n_labs, mean, .before = 3, .complete = TRUE))
+  
   labs_PPI_avg_med <- labs_PPI %>% 
     group_by(year) %>% 
     summarize(national_avg = mean(n_labs, na.rm=T),
               national_med = median(n_labs, na.rm=T)) %>% 
     pivot_longer(-year, names_to = "depto", values_to = "n_labs")
-  labs_PPI <- bind_rows(labs_PPI, labs_PPI_avg_med)
+  labs_PPI <- bind_rows(labs_PPI, labs_PPI_avg_med) %>% 
+    group_by(depto) %>%
+    arrange(year) %>%
+    mutate(ma_n_labs = slide_dbl(n_labs, mean, .before = 3, .complete = TRUE))
   
   price_2013_2015 <- read.csv("Colombia Data/Colombia Price Data 2013-2015 edited.csv") %>% as_tibble
   price_2016_2021 <- read.csv("Colombia Data/Colombia Price Data 2016-2021 edited.csv") %>% as_tibble
@@ -144,82 +178,142 @@ library(regclass)
   price_annual <- bind_rows(price_annual, price_annual_avg_med)
 }
 
-Ecuador_border <- c("Narino", "Putumayo", "national_avg", "national_med")
-East_coast <- c("Antioquia", "Atlantico", "Bolivar", "Cauca", "Choco", "Cordoba", "La Guajira", "Magdalena", "Sucre", "Valle del Cauca", "national_avg", "national_med")
-Venezuela_border <- c("Arauca", "Boyaca", "Cesar", "Guainia", "La Guajira", "Norte de Santander", "Vichada", "national_avg", "national_med")
+Ecuador_border <- c("Narino", "Putumayo")
+East_coast <- c("Antioquia", "Atlantico", "Bolivar", "Cauca", "Choco", "Cordoba", "La Guajira", "Magdalena", "Sucre", "Valle del Cauca")
+Venezuela_border <- c("Arauca", "Boyaca", "Cesar", "Guainia", "La Guajira", "Norte de Santander", "Vichada")
+national_stat <- c("national_avg", "national_med")
 coca_seizures_long %>% ggplot() +
   geom_line(aes(x=year, y=coca_seizures, group=depto, color=depto))
 coca_seizures_long %>%
   filter(depto %in% Ecuador_border) %>% ggplot() +
-  geom_line(aes(x=year, y=coca_seizures, group=depto, color=depto))
-
+  geom_line(aes(x=year, y=coca_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=coca_seizures, group=depto, color=depto),
+            data=coca_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 base_seizures_long %>% ggplot() +
   geom_line(aes(x=year, y=base_seizures, group=depto, color=depto))
 base_seizures_long %>%
   filter(depto %in% Ecuador_border) %>% ggplot() +
-  geom_line(aes(x=year, y=base_seizures, group=depto, color=depto))
+  geom_line(aes(x=year, y=base_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=base_seizures, group=depto, color=depto),
+            data=base_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 hyd_seizures_long %>% ggplot() +
   geom_line(aes(x=year, y=hyd_seizures, group=depto, color=depto))
 hyd_seizures_long %>%
   filter(depto %in% Ecuador_border) %>% ggplot() +
-  geom_line(aes(x=year, y=hyd_seizures, group=depto, color=depto))
+  geom_line(aes(x=year, y=hyd_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=hyd_seizures, group=depto, color=depto),
+            data=hyd_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 labs_PPI %>% ggplot() + ggtitle("PPI Labs") +
   geom_line(aes(x=year, y=n_labs, group=depto, color=depto))
 labs_PPI %>%
   filter(depto %in% Ecuador_border) %>% ggplot() + ggtitle("PPI Labs") +
-  geom_line(aes(x=year, y=n_labs, group=depto, color=depto))
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto),
+            data=labs_PPI %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 labs_hyd %>% ggplot() + ggtitle("hyd Labs") +
   geom_line(aes(x=year, y=n_labs, group=depto, color=depto))
 labs_hyd %>%
   filter(depto %in% Ecuador_border) %>% ggplot() + ggtitle("hyd Labs") +
-  geom_line(aes(x=year, y=n_labs, group=depto, color=depto))
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto),
+            data=labs_hyd %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 
 # East Coast
 coca_seizures_long %>%
   filter(depto %in% East_coast) %>% ggplot() +
-  geom_line(aes(x=year, y=coca_seizures, group=depto, color=depto))
+  geom_line(aes(x=year, y=coca_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=coca_seizures, group=depto, color=depto),
+            data=coca_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 base_seizures_long %>%
   filter(depto %in% East_coast) %>% ggplot() +
-  geom_line(aes(x=year, y=base_seizures, group=depto, color=depto))
+  geom_line(aes(x=year, y=base_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=base_seizures, group=depto, color=depto),
+            data=base_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 hyd_seizures_long %>%
   filter(depto %in% East_coast) %>% ggplot() +
-  geom_line(aes(x=year, y=hyd_seizures, group=depto, color=depto))
+  geom_line(aes(x=year, y=hyd_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=hyd_seizures, group=depto, color=depto),
+            data=hyd_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 labs_PPI %>%
   filter(depto %in% East_coast) %>% ggplot() + ggtitle("PPI Labs") +
-  geom_line(aes(x=year, y=n_labs, group=depto, color=depto))
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto),
+            data=labs_PPI %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 labs_hyd %>%
   filter(depto %in% East_coast) %>% ggplot() + ggtitle("hyd Labs") +
-  geom_line(aes(x=year, y=n_labs, group=depto, color=depto))
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto),
+            data=labs_hyd %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 
 # Venezuela Border
 coca_seizures_long %>%
   filter(depto %in% Venezuela_border) %>% ggplot() +
-  geom_line(aes(x=year, y=coca_seizures, group=depto, color=depto))
+  geom_line(aes(x=year, y=coca_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=coca_seizures, group=depto, color=depto),
+            data=coca_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 base_seizures_long %>%
   filter(depto %in% Venezuela_border) %>% ggplot() +
-  geom_line(aes(x=year, y=base_seizures, group=depto, color=depto))
+  geom_line(aes(x=year, y=base_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=base_seizures, group=depto, color=depto),
+            data=base_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 hyd_seizures_long %>%
   filter(depto %in% Venezuela_border) %>% ggplot() +
-  geom_line(aes(x=year, y=hyd_seizures, group=depto, color=depto))
+  geom_line(aes(x=year, y=hyd_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=hyd_seizures, group=depto, color=depto),
+            data=hyd_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 labs_PPI %>%
   filter(depto %in% Venezuela_border) %>% ggplot() + ggtitle("PPI Labs") +
-  geom_line(aes(x=year, y=n_labs, group=depto, color=depto))
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto),
+            data=labs_PPI %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 labs_hyd %>%
   filter(depto %in% Venezuela_border) %>% ggplot() + ggtitle("hyd Labs") +
-  geom_line(aes(x=year, y=n_labs, group=depto, color=depto))
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=n_labs, group=depto, color=depto),
+            data=labs_hyd %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 
 
 # price data
@@ -247,4 +341,45 @@ price_annual %>% filter(drug == "hyd_avg" & depto %in% Venezuela_border) %>%
   ggplot() + ggtitle("hyd prices") +
   geom_line(aes(x=year, y=price, group=depto, color=depto))
 
+
+# MA plots
+coca_seizures_long %>%
+  filter(depto %in% Ecuador_border) %>% ggplot() +
+  geom_line(aes(x=year, y=ma_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=ma_seizures, group=depto, color=depto),
+            data=coca_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
+
+base_seizures_long %>%
+  filter(depto %in% Ecuador_border) %>% ggplot() +
+  geom_line(aes(x=year, y=ma_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=ma_seizures, group=depto, color=depto),
+            data=base_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
+
+hyd_seizures_long %>%
+  filter(depto %in% Ecuador_border) %>% ggplot() +
+  geom_line(aes(x=year, y=ma_seizures, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=ma_seizures, group=depto, color=depto),
+            data=hyd_seizures_long %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
+
+labs_PPI %>%
+  filter(depto %in% Ecuador_border) %>% ggplot() + ggtitle("PPI Labs") +
+  geom_line(aes(x=year, y=ma_n_labs, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=ma_n_labs, group=depto, color=depto),
+            data=labs_PPI %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
+
+labs_hyd %>%
+  filter(depto %in% Ecuador_border) %>% ggplot() + ggtitle("hyd Labs") +
+  geom_line(aes(x=year, y=ma_n_labs, group=depto, color=depto)) +
+  geom_line(aes(x=year, y=ma_n_labs, group=depto, color=depto),
+            data=labs_hyd %>% filter(depto %in% national_stat),
+            linetype = "longdash",
+            linewidth = 1.5)
 

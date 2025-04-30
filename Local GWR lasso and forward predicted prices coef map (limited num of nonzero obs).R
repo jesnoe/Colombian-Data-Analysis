@@ -488,7 +488,7 @@ load("Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_
 local_gwr_lasso_coef_map_limited(local_GWR_coefs_lasso_hyd_dest, cv_dev_min_mat_, "hyd_destination"); rm(local_GWR_coefs_lasso_hyd_dest)
 
 
-## alpha = 0.1
+## alpha = 0.1 model drop
 cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price cv min dev alpha = 0.1 (04-09-2025).csv") %>% as_tibble
 load("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price alpha = 0.1 (04-09-2025).RData") # local_GWR_coefs_forward_hyd_dest_alpha_0.1
 local_gwr_forward_coef_map_limited(local_GWR_coefs_forward_hyd_dest_alpha_0.1, cv_dev_min_mat_, "hyd_destination", indep_vars_, alpha=0.1);# rm(local_GWR_coefs_forward_hyd_dest_alpha_0.1)
@@ -496,8 +496,8 @@ local_gwr_forward_coef_map_limited(local_GWR_coefs_forward_hyd_dest_alpha_0.1, c
 
 ## alpha = 0.1 drop
 cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price cv min dev alpha = 0.1 drop (04-21-2025).csv") %>% as_tibble
-load("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price alpha = 0.1 (04-21-2025).RData") # local_GWR_coefs_forward_hyd_dest_alpha_0.1
-local_gwr_forward_coef_map_limited(local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop, cv_dev_min_mat_, "hyd_destination", indep_vars_, alpha=0.1);# rm(local_GWR_coefs_forward_hyd_dest_alpha_0.1)
+load("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price alpha = 0.1 drop (04-21-2025).RData") # local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop
+local_gwr_forward_coef_map_limited(local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop, cv_dev_min_mat_, "hyd_destination", indep_vars_, alpha=0.1);# rm(local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop)
 # local_GWR_coefs_forward_list<-local_GWR_coefs_forward_hyd_dest_alpha_0.1; cv_dev_min_mat<-cv_dev_min_mat_; indep_vars<-indep_vars_; dep_var="hyd_destination"; weight_=NULL; alpha<-0.1;
 
 forward_gwr_coefs_model_drop <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward coefs limited alpha=0.1 hyd_destination (04-15-2025).csv") %>% as_tibble
@@ -508,3 +508,124 @@ forward_gwr_coefs_model_drop %>% filter(id %in% (forward_gwr_coefs_var_drop %>% 
 
 forward_gwr_coefs_model_drop[,-(1:3)] %>% apply(2, function(x) sum(is.na(x)))
 forward_gwr_coefs_var_drop[,-(1:3)] %>% apply(2, function(x) sum(is.na(x)))
+
+
+# local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop high lab_prob coef data check
+id_i <- 25307
+bw_ij <- 0.6
+
+data_id <- neighbor_id(id_i, bw_ij, scale_11_=F, coord_unique, local_gwr_dist)
+data_id_bw_1.4 <- neighbor_id(id_i, 1.4, scale_11_=F, coord_unique, local_gwr_dist)
+nonzero_seizure %>% filter(id == id_i) %>% bind_rows(nonzero_coca_area %>% filter(id == id_i))
+
+
+data_id$lab_prob %>% boxplot(ylim=c(0,1), main="lab_prob bw=0.6") # mostly lower than 0.2. An outlier over 0.4
+data_id_bw_1.4$lab_prob %>% boxplot(ylim=c(0,1), main="lab_prob bw=1.4") # max=0.9604825
+data_id %>% filter(y == 1) %>% pull(lab_prob) %>% boxplot
+data_id %>% filter(y == 0) %>% pull(lab_prob) %>% boxplot
+
+gwr_forward_data$norm$lab_prob %>% hist
+gwr_forward_data$norm$lab_prob %>% summary
+scale(gwr_forward_data$norm$lab_prob) %>% summary
+
+local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop$id_25307$bw_0.6 %>% summary
+glm(y~., data_id %>% mutate(airport = as.factor(airport)) %>% select(y, airport, lab_prob, armed_group, price_avg), family=binomial) %>% summary
+glm(y~., 
+    data_id %>% 
+      mutate(airport = as.factor(airport),
+             lab_prob = ifelse(lab_prob < 0.5, 0, 1) %>% as.factor) %>% # no positive obs
+      select(y, airport, lab_prob, armed_group, price_avg),
+    family=binomial) %>% summary
+local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop$id_25307$bw_1.4 %>% summary
+
+
+## confusion matrix and summary for model drop and variable drop results
+gwr_forward_data$norm %>% filter(id %in% (forward_gwr_coefs_model_drop %>% filter(is.na(bw)) %>% pull(id))) %>% print(n=30) # only 1 positive 44847, URIBIA, La Guajira
+gwr_forward_data$norm %>% filter(id %in% (forward_gwr_coefs_var_drop %>% filter(is.na(bw)) %>% pull(id))) %>% print(n=29) # all negative
+
+lasso_gwr_coefs_model_drop <- read.csv("Colombia Data/local GWR lasso result predicted prices/local GWR lasso coefs limited hyd_destination (04-15-2025).csv") %>% as_tibble
+lasso_gwr_coefs_var_drop <- read.csv("Colombia Data/local GWR lasso result predicted prices/local GWR lasso coefs drop hyd_destination (04-21-2025).csv") %>% as_tibble
+gwr_forward_data$norm %>% filter(id %in% (lasso_gwr_coefs_model_drop %>% filter(is.na(bw)) %>% pull(id))) %>% print(n=30) # only 1 positive 44847, URIBIA, La Guajira
+gwr_forward_data$norm %>% filter(id %in% (lasso_gwr_coefs_var_drop %>% filter(is.na(bw)) %>% pull(id))) %>% print(n=29) # all negative
+
+load("Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price model drop (04-15-2025).RData") # local_GWR_coefs_lasso_hyd_dest_model_drop
+load("Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price drop (04-21-2025).RData") # local_GWR_coefs_lasso_hyd_dest
+
+forward_pi_hat_model_drop <- c()
+forward_pi_hat_var_drop <- c()
+lasso_pi_hat_model_drop <- c()
+lasso_pi_hat_var_drop <- c()
+for (i in 1:nrow(forward_gwr_coefs_model_drop)) {
+  id_i <- forward_gwr_coefs_model_drop$id[i]
+  bw_i <- forward_gwr_coefs_model_drop$bw[i]
+  neighbor_i <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
+  if (is.na(bw_i)) {forward_pi_hat_model_drop <- c(forward_pi_hat_model_drop, 0)}
+  else {
+    model_i <- local_GWR_coefs_forward_hyd_dest_alpha_0.1[[i]][[paste0("bw_", bw_i)]]
+    forward_pi_hat_model_drop <- c(forward_pi_hat_model_drop, model_i$fitted.values[neighbor_i$id == id_i])
+  }
+  
+  bw_i <- forward_gwr_coefs_var_drop$bw[i]
+  neighbor_i <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
+  if (is.na(bw_i)) {forward_pi_hat_var_drop <- c(forward_pi_hat_var_drop, 0)}
+  else {
+    model_i <- local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop[[i]][[paste0("bw_", bw_i)]]
+    forward_pi_hat_var_drop <- c(forward_pi_hat_var_drop, model_i$fitted.values[neighbor_i$id == id_i])
+  }
+  
+  bw_i <- lasso_gwr_coefs_model_drop$bw[i]
+  neighbor_i <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
+  if (is.na(bw_i)) {lasso_pi_hat_model_drop <- c(lasso_pi_hat_model_drop, 0)}
+  else {
+    neighbor_i_data <- neighbor_i %>% filter(id == id_i) %>% select(-id, -y) %>% t %>% as.data.frame %>% rename(data=V1)
+    neighbor_i_data$var_name <- row.names(neighbor_i_data)
+    model_i <- local_GWR_coefs_lasso_hyd_dest[[i]][[paste0("bw_", bw_i)]]
+    if (is.na(model_i) %>% length == 1)  {lasso_pi_hat_model_drop <- c(lasso_pi_hat_model_drop, 0)}
+    else {
+      intercept_i <- coef(model_i)[1]
+      neighbor_i_data <- left_join(neighbor_i_data, data.frame(var_name = coef(model_i)[-1,] %>% names,
+                                                               coef = coef(model_i)[-1,]),
+                                   by = "var_name")
+      bX <- intercept_i + sum(neighbor_i_data$data * neighbor_i_data$coef, na.rm=T)
+      lasso_pi_hat_model_drop <- c(lasso_pi_hat_model_drop, 1/(1+exp(-bX)))
+    }
+  }
+  
+  bw_i <- lasso_gwr_coefs_var_drop$bw[i]
+  neighbor_i <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
+  if (is.na(bw_i)) {lasso_pi_hat_var_drop <- c(lasso_pi_hat_var_drop, 0)}
+  else {
+    neighbor_i_data <- neighbor_i %>% filter(id == id_i) %>% select(-id, -y) %>% t %>% as.data.frame %>% rename(data=V1)
+    neighbor_i_data$var_name <- row.names(neighbor_i_data)
+    model_i <- local_GWR_coefs_lasso_hyd_dest_model_drop[[i]][[paste0("bw_", bw_i)]]
+    if (is.na(model_i) %>% length == 1)  {lasso_pi_hat_var_drop <- c(lasso_pi_hat_var_drop, 0)}
+    else {
+      intercept_i <- coef(model_i)[1]
+      neighbor_i_data <- left_join(neighbor_i_data, data.frame(var_name = coef(model_i)[-1,] %>% names,
+                                                               coef = coef(model_i)[-1,]),
+                                   by = "var_name")
+      bX <- intercept_i + sum(neighbor_i_data$data * neighbor_i_data$coef, na.rm=T)
+      lasso_pi_hat_var_drop <- c(lasso_pi_hat_var_drop, 1/(1+exp(-bX)))
+    }
+  }
+}
+forward_pi_hat_model_drop
+forward_pi_hat_var_drop
+gwr_forward_pi_hat <- tibble(id = forward_gwr_coefs_model_drop$id,
+                             forward_pi_hat_model_drop = forward_pi_hat_model_drop,
+                             forward_pi_hat_var_drop = forward_pi_hat_var_drop,
+                             lasso_pi_hat_model_drop = lasso_pi_hat_model_drop,
+                             lasso_pi_hat_var_drop = lasso_pi_hat_var_drop)
+
+gwr_forward_data_norm <- gwr_forward_data$norm %>% 
+  left_join(gwr_forward_pi_hat, by = "id") %>% 
+  mutate(y_forward_model_drop = ifelse(forward_pi_hat_model_drop < 0.5, 0, 1),
+         y_forward_var_drop = ifelse(forward_pi_hat_var_drop < 0.5, 0, 1),
+         y_lasso_pi_hat_model_drop = ifelse(lasso_pi_hat_model_drop < 0.5, 0, 1),
+         y_lasso_pi_hat_var_drop = ifelse(lasso_pi_hat_var_drop < 0.5, 0, 1)) %>% 
+  relocate(id:y, y_forward_model_drop, y_forward_var_drop, y_lasso_pi_hat_model_drop, y_lasso_pi_hat_var_drop)
+gwr_forward_data_norm
+confusionMatrix(gwr_forward_data_norm$y_forward_model_drop %>% as.factor, gwr_forward_data_norm$y %>% as.factor, positive = "1")
+confusionMatrix(gwr_forward_data_norm$y_forward_var_drop %>% as.factor, gwr_forward_data_norm$y %>% as.factor, positive = "1")
+confusionMatrix(gwr_forward_data_norm$y_lasso_pi_hat_model_drop %>% as.factor, gwr_forward_data_norm$y %>% as.factor, positive = "1")
+confusionMatrix(gwr_forward_data_norm$y_lasso_pi_hat_var_drop %>% as.factor, gwr_forward_data_norm$y %>% as.factor, positive = "1")
