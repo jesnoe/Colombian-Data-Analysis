@@ -257,7 +257,8 @@ n_runs <- 10
 measures <- c("Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Precision", "Recall", "F1",
               "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy")
 
-local_GWR_lasso <- function(type.measure_="default", interact_=F, scale_11_=F, weight_=NULL, dep_var, gwr_lasso_data_) {
+local_GWR_lasso <- function(type.measure_="default", interact_=F, scale_11_=F, weight_=NULL, dep_var, gwr_lasso_data_, method_) {
+  # method_ : "model drop" or "var drop"
   # weight_ = c(weight1, weight0)
   bwd_range <- seq(0.5, 3, by=0.1)
   coord_unique <- gwr_lasso_data_$coord
@@ -284,8 +285,20 @@ local_GWR_lasso <- function(type.measure_="default", interact_=F, scale_11_=F, w
       
       # restrict too unbalanced responses
       # drop seizures or coca_area if nonzero observations are too rare
-      if (nonzero_seizure[[bw_name]][i] < 5) neighbor_ij$seizures <- NULL
-      if (nonzero_coca_area[[bw_name]][i] < 5) neighbor_ij$coca_area <- NULL
+      
+      if (method_ == "model drop") {
+        if (nonzero_seizure[[bw_name]][i] < 5 | nonzero_coca_area[[bw_name]][i] < 5) {
+          cv_dev_min_mat[[paste0("bw_", bw_ij)]][i] <- NA
+          local_GWR_coefs_lasso_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
+          next
+        }
+      }
+      
+      if (method_ == "var drop") {
+        if (nonzero_seizure[[bw_name]][i] < 5) neighbor_ij$seizures <- NULL
+        if (nonzero_coca_area[[bw_name]][i] < 5) neighbor_ij$coca_area <- NULL
+      }
+      
       
       # data_id_ij <- neighbor_ij %>% filter(id == id_i)
       # neighbor_ij <- neighbor_ij %>% filter(id != id_i)
@@ -306,12 +319,14 @@ local_GWR_lasso <- function(type.measure_="default", interact_=F, scale_11_=F, w
         )
       }
       
+      
       # n_nonzero <- sum(lasso_result_ij$lasso$beta != 0)
       # if (n_nonzero == 0) {
       #   cv_dev_min_mat[[paste0("bw_", bw_ij)]][i] <- NA
       #   local_GWR_coefs_lasso_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
       #   next
       # }
+      
       
       cv_dev_min_mat[[paste0("bw_", bw_ij)]][i] <- min(lasso_result_ij$cv$cvm)
       local_GWR_coefs_lasso_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- lasso_result_ij$lasso
@@ -383,17 +398,28 @@ regression_data_years_price_pred$paste_avg <- ifelse(regression_data_years$paste
 }
 
 gwr_lasso_data <- ever_regression_data_years_price_pred("hyd_destination")
+gwr_lasso_data$norm$seizures <- gwr_lasso_data$norm %>% select(-seizures) %>% left_join(regression_data_aggr, by="id") %>% select(-id) %>% pull(seizures)
 set.seed(100)
 start.time <- Sys.time()
-local_GWR_coefs_lasso_hyd_dest_list <- local_GWR_lasso(dep_var = "hyd_destination", gwr_lasso_data_ = gwr_lasso_data)
+local_GWR_coefs_lasso_hyd_dest_list <- local_GWR_lasso(dep_var = "hyd_destination", gwr_lasso_data_ = gwr_lasso_data, method_="model drop")
 end.time <- Sys.time()
-end.time - start.time # 35.49563 mins for hyd_destination
-end.time - start.time # 38.3257 mins for hyd_destination drop
+end.time - start.time # 29.48492 mins for hyd_destination model drop
 
-local_GWR_coefs_lasso_hyd_dest <- local_GWR_coefs_lasso_hyd_dest_list$lasso
-# write.csv(local_GWR_coefs_lasso_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price cv min dev drop (04-21-2025).csv", row.names = F)
-# save("local_GWR_coefs_lasso_hyd_dest", file = "Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price drop (04-21-2025).RData")
-rm(local_GWR_coefs_lasso_hyd_dest); rm(local_GWR_coefs_lasso_hyd_dest_list)
+local_GWR_coefs_lasso_hyd_dest_model_drop <- local_GWR_coefs_lasso_hyd_dest_list$lasso
+# write.csv(local_GWR_coefs_lasso_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price cv min dev model drop (05-09-2025).csv", row.names = F)
+# save("local_GWR_coefs_lasso_hyd_dest_model_drop", file = "Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price model drop (05-09-2025).RData")
+rm(local_GWR_coefs_lasso_hyd_dest_model_drop); rm(local_GWR_coefs_lasso_hyd_dest_list)
+
+set.seed(5640)
+start.time <- Sys.time()
+local_GWR_coefs_lasso_hyd_dest_list <- local_GWR_lasso(dep_var = "hyd_destination", gwr_lasso_data_ = gwr_lasso_data, method_="var drop")
+end.time <- Sys.time()
+end.time - start.time # 37.32521 mins for hyd_destination model drop
+
+local_GWR_coefs_lasso_hyd_dest_var_drop <- local_GWR_coefs_lasso_hyd_dest_list$lasso
+write.csv(local_GWR_coefs_lasso_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price cv min dev var drop (05-09-2025).csv", row.names = F)
+save("local_GWR_coefs_lasso_hyd_dest_var_drop", file = "Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price var drop (05-09-2025).RData")
+rm(local_GWR_coefs_lasso_hyd_dest_var_drop); rm(local_GWR_coefs_lasso_hyd_dest_list)
 
 gwr_lasso_data$norm
 regression_data_each_year_price_pred("hyd_destination", 2013)$norm

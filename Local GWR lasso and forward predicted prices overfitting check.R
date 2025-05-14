@@ -319,6 +319,15 @@ local_gwr_forward_coef_map_limited(local_GWR_coefs_forward_hyd_dest_alpha_0.1_dr
 
 forward_gwr_coefs_model_drop <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward coefs limited alpha=0.1 hyd_destination (04-15-2025).csv") %>% as_tibble
 forward_gwr_coefs_var_drop <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward coefs limited drop alpha=0.1 hyd_destination (04-21-2025).csv") %>% as_tibble
+step_gwr_coefs_model_drop <- read.csv("Colombia Data/local GWR stepwise result predicted prices/local GWR stepwise coefs limited alpha=0.1 hyd_destination model drop (05-12-2025).csv") %>% as_tibble
+step_gwr_coefs_var_drop <- read.csv("Colombia Data/local GWR stepwise result predicted prices/local GWR stepwise coefs limited alpha=0.1 hyd_destination var drop (05-12-2025).csv") %>% as_tibble
+
+step_gwr_coefs_var_drop %>% filter(lab_prob > 10000)
+
+data_id <- neighbor_id(25805, 0.5, scale_11_=F, coord_unique, local_gwr_dist)
+data_id %>% select(y, airport, armed_group, ferry:military, seizures, coca_area) %>% arrange(y) %>% print(n=49)
+# variable drop method does not change bandwidth (the number of neighbors), and thus the same quasi-complete separation
+# On the other hand, model drop method increases bandwidth, which result in the less or no quasi-complete separation
 
 forward_gwr_coefs_model_drop %>% filter(abs(seizures) > 1000)
 forward_gwr_coefs_var_drop %>% filter(abs(seizures) > 1000)
@@ -326,6 +335,7 @@ forward_gwr_coefs_var_drop %>% filter(abs(seizures) > 1000)
 # local_GWR_coefs_forward_hyd_dest_alpha_0.1_drop high lab_prob coef data check
 forward_overfit_model_drop <- forward_gwr_coefs_model_drop %>% filter(abs(seizures) > 1000)
 forward_overfit_var_drop <- forward_gwr_coefs_var_drop %>% filter(abs(seizures) > 1000)
+step_overfit_var_drop <- step_gwr_coefs_var_drop %>% filter(abs(lab_prob) > 1000)
 forward_overfit_model_drop$id[!(forward_overfit_model_drop$id %in% forward_overfit_var_drop$id)]
 
 id_overfit <- forward_overfit_model_drop$id
@@ -342,7 +352,7 @@ for (i in 1:nrow(forward_overfit_model_drop)) {
   ggsave(paste0("Colombia Data/overfitting check/forward model drop/id=", id_i, " seizures.png"), scale = 1)
 }
 
-stepwise <- function(data_id, w=NULL, sig_level=0.05) {
+stepwise <- function(data_id, w=NULL, sig_level=0.05, iter_limit) {
   prev_data <- data_id %>% select(y)
   remaining_data <- data_id %>% select(-y)
   non_sigular_col_index <- which((remaining_data %>% apply(2, function(x) x %>% table %>% length)) > 1)
@@ -353,6 +363,7 @@ stepwise <- function(data_id, w=NULL, sig_level=0.05) {
   reg_models <- list()
   p_values <- list()
   significance <- 1
+  backward <- 0
   k <- 1
   while (significance) {
     p_values_i <- tibble()
@@ -369,27 +380,62 @@ stepwise <- function(data_id, w=NULL, sig_level=0.05) {
       p_value_j <- ifelse(p_value_j == 0, 1, p_value_j)
       p_values_i <- bind_rows(p_values_i, tibble(var_name=var_name_j, p_value=p_value_j))
     }
+    
+    if (sum(p_values_i$p_value <= sig_level) == 0) {
+      break
+    }
+    
     p_values[[paste0("p_values_", k)]] <- p_values_i
+    
     while (sum(p_values_i$p_value <= sig_level) > 0) {
       best_col_index <- which.min(p_values_i$p_value)
-      prev_data_test <- bind_cols(prev_data, remaining_data[, best_col_index])
-      remaining_data_test <- remaining_data[, -best_col_index]
-      reg_model_test <- glm(y~., data = prev_data, weights = w, family = binomial)
-      if (any(summary(reg_model_test)$coefficients[,4][-1] > sig_level)) {
-        p_values_i[best_col_index] <- 1
-        next
-      }else{
-        prev_data <- prev_data_test
-        remaining_data <- remaining_data_test
-        reg_model <- reg_model_test
-        reg_models[[paste0("model_", k)]] <- glm(y~., data = prev_data, family = binomial)
-        k <- k + 1
+      prev_data <- bind_cols(prev_data, remaining_data[, best_col_index])
+      remaining_data <- remaining_data[, -best_col_index]
+      reg_model <- glm(y~., data = prev_data, weights = w, family = binomial)
+      reg_models[[paste0("model_", k)]] <- reg_model
+      k <- k + 1
+      
+      if (ncol(remaining_data) < 1) break
+      
+      p_values_i <- tibble()
+      for (j in 1:ncol(remaining_data)) {
+        new_var_j <- remaining_data[,j]
+        reg_data_j <- bind_cols(prev_data, new_var_j)
+        reg_model_j <- glm(y~.,
+                           data = reg_data_j,
+                           weights = w,
+                           family = binomial)
+        var_name_j <- names(new_var_j)
+        reg_model_coefs_j <- summary(reg_model_j)$coefficients
+        p_value_j <- reg_model_coefs_j[which(rownames(reg_model_coefs_j) == var_name_j), 4]
+        p_value_j <- ifelse(p_value_j == 0, 1, p_value_j)
+        p_values_i <- bind_rows(p_values_i, tibble(var_name=var_name_j, p_value=p_value_j))
+      }
+      p_values[[paste0("p_values_", k)]] <- p_values_i
+    }
+    
+    
+    p_values_i <- tibble(var_name = names(prev_data)[-1], p_value = summary(reg_model)$coefficients[,4][-1])
+    p_values[[paste0("p_values_", k+1)]] <- p_values_i
+    while (any(p_values_i$p_value > sig_level)) {
+      if (backward) {
+        significance <- 0
         break
       }
+      worst_col_index <- which.max(p_values_i$p_value) + 1
+      remaining_data <- bind_cols(remaining_data, prev_data[, worst_col_index])
+      prev_data <- prev_data[, -worst_col_index]
+      reg_model <- glm(y~., data = prev_data, weights = w, family = binomial)
+      reg_models[[paste0("model_", k)]] <- reg_model
+      k <- k + 1
+      
+      p_values_i <- tibble(var_name = names(prev_data)[-1], p_value = summary(reg_model)$coefficients[,4][-1])
+      p_values[[paste0("p_values_", k)]] <- p_values_i
+      if(ncol(prev_data) < 2) break
     }
-    if (sum(p_values_i$p_value <= sig_level) == 0) {
-      significance <- 0
-    }
+    backward <- 1
+    
+    if (k > iter_limit) break
   }
   
   result <- list(reg_model = reg_models, p_values=p_values)
@@ -402,12 +448,15 @@ regression_data_aggr <- regression_data_years %>%
 
 forward_overfit_model_drop_raw_seizure <- list()
 for (i in 1:nrow(forward_overfit_model_drop)) {
-  id_i <- id_overfit[i]
-  bw_i <- bw_overfit[i]
+  id_i <- forward_overfit_model_drop$id[i]
+  bw_i <- forward_overfit_model_drop$bw[i]
   data_id <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
-  nonzero_seizure %>% filter(id == id_i) %>% bind_rows(nonzero_coca_area %>% filter(id == id_i))
-  step_raw_seizure_id <- stepwise(data_id[,-5] %>% left_join(regression_data_aggr, by="id") %>% select(-id), sig_level = 0.1)
+  step_raw_seizure_id <- stepwise(data_id %>% select(-seizures) %>% left_join(regression_data_aggr, by="id") %>% select(-id), sig_level = 0.1, iter_limit = 100)
   # step_raw_seizure_id <- stepwise(data_id[,-1], sig_level = 0.1)
+  if (length(step_raw_seizure_id) == 0) {
+    forward_overfit_model_drop_raw_seizure[[i]] <- NA
+    next
+  }
   forward_overfit_model_drop_raw_seizure[[i]] <- step_raw_seizure_id$reg_model[[length(step_raw_seizure_id$reg_model)]]
 }
 lapply(forward_overfit_model_drop_raw_seizure, coef)
@@ -417,14 +466,128 @@ for (i in 1:nrow(forward_overfit_var_drop)) {
   id_i <- forward_overfit_var_drop$id[i]
   bw_i <- forward_overfit_var_drop$bw[i]
   data_id <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
-  nonzero_seizure %>% filter(id == id_i) %>% bind_rows(nonzero_coca_area %>% filter(id == id_i))
-  step_raw_seizure_id <- stepwise(data_id[,-5] %>% left_join(regression_data_aggr, by="id") %>% select(-id), sig_level = 0.1)
+  step_raw_seizure_id <- stepwise(data_id %>% select(-seizures) %>% left_join(regression_data_aggr, by="id") %>% select(-id), sig_level = 0.1, iter_limit = 100)
   # step_raw_seizure_id <- stepwise(data_id[,-1], sig_level = 0.1)
   forward_overfit_var_drop_raw_seizure[[i]] <- step_raw_seizure_id$reg_model[[length(step_raw_seizure_id$reg_model)]]
 }
 lapply(forward_overfit_var_drop_raw_seizure, coef)
 
+glm(y~., gwr_forward_data$norm %>% select(-seizures) %>% left_join(regression_data_aggr, by="id") %>% select(-id, -municipio), family = binomial) %>% summary
+gwr_forward_data$norm$seizures %>% summary
+regression_data_aggr$seizures %>% summary
 
+
+### quasi separation check
+forward_overfit_model_drop
+QS_check_for_0_model_drop <- matrix(0, nrow(forward_overfit_model_drop), 7)
+QS_check_for_1_model_drop <- matrix(0, nrow(forward_overfit_model_drop), 7)
+QS_cases_reg_models_norm_seizures <- list()
+QS_cases_reg_models_raw_seizures <- list()
+for (i in 1:nrow(forward_overfit_model_drop)) {
+  id_i <- forward_overfit_model_drop$id[i]
+  bw_i <- forward_overfit_model_drop$bw[i]
+  data_id <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
+  data_id_0 <- data_id %>% filter(y == 0)
+  data_id_1 <- data_id %>% filter(y == 1)
+  n_data_0 <- nrow(data_id_0)
+  n_data_1 <- nrow(data_id_1)
+  QS_cherck_for_0_i <- c(id_i, n_data_0,
+                         sum(data_id_0$airport == 1) / n_data_0,
+                         sum(data_id_0$armed_group == 1) / n_data_0,
+                         sum(data_id_0$ferry == 1) / n_data_0,
+                         sum(data_id_0$police == 1) / n_data_0,
+                         sum(data_id_0$military == 1) / n_data_0)
+  QS_cherck_for_1_i <- c(id_i, n_data_1,
+                         sum(data_id_1$airport == 1) / n_data_1,
+                         sum(data_id_1$armed_group == 1) / n_data_1,
+                         sum(data_id_1$ferry == 1) / n_data_1,
+                         sum(data_id_1$police == 1) / n_data_1,
+                         sum(data_id_1$military == 1) / n_data_1)
+  QS_check_for_0_model_drop[i,] <- QS_cherck_for_0_i
+  QS_check_for_1_model_drop[i,] <- QS_cherck_for_1_i
+  
+  QS_cases_reg_models_norm_seizures[[i]] <- glm(y~., data = data_id %>% select(-id), family = binomial)
+  QS_cases_reg_models_raw_seizures[[i]] <- glm(y~., data = data_id %>% select(-seizures) %>% left_join(regression_data_aggr, by="id") %>% select(-id), family = binomial)
+}
+QS_check_for_0_model_drop <- as_tibble(QS_check_for_0_model_drop)
+QS_check_for_1_model_drop <- as_tibble(QS_check_for_1_model_drop)
+names(QS_check_for_0_model_drop) <- c("id", "n_obs", "y_airport", "y_armed_group", "y_ferry", "y_police", "y_military")
+names(QS_check_for_1_model_drop) <- c("id", "n_obs", "y_airport", "y_armed_group", "y_ferry", "y_police", "y_military")
+QS_check_for_0_model_drop %>% left_join(gwr_forward_data$norm %>% select(id, coca_area, seizures), by="id")
+QS_check_for_1_model_drop %>% left_join(gwr_forward_data$norm %>% select(id, coca_area, seizures), by="id")
+QS_cases_reg_models_norm_seizures
+QS_cases_reg_models_raw_seizures
+
+
+QS_check_for_0_var_drop <- matrix(0, nrow(forward_overfit_var_drop), 7)
+QS_check_for_1_var_drop <- matrix(0, nrow(forward_overfit_var_drop), 7)
+QS_cases_reg_models_var_drop_norm_seizures <- list()
+QS_cases_reg_models_var_drop_raw_seizures <- list()
+for (i in 1:nrow(forward_overfit_var_drop)) {
+  id_i <- forward_overfit_var_drop$id[i]
+  bw_i <- forward_overfit_var_drop$bw[i]
+  data_id <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
+  data_id_0 <- data_id %>% filter(y == 0)
+  data_id_1 <- data_id %>% filter(y == 1)
+  n_data_0 <- nrow(data_id_0)
+  n_data_1 <- nrow(data_id_1)
+  QS_cherck_for_0_i <- c(id_i, n_data_0,
+                         sum(data_id_0$airport == 1) / n_data_0,
+                         sum(data_id_0$armed_group == 1) / n_data_0,
+                         sum(data_id_0$ferry == 1) / n_data_0,
+                         sum(data_id_0$police == 1) / n_data_0,
+                         sum(data_id_0$military == 1) / n_data_0)
+  QS_cherck_for_1_i <- c(id_i, n_data_1,
+                         sum(data_id_1$airport == 1) / n_data_1,
+                         sum(data_id_1$armed_group == 1) / n_data_1,
+                         sum(data_id_1$ferry == 1) / n_data_1,
+                         sum(data_id_1$police == 1) / n_data_1,
+                         sum(data_id_1$military == 1) / n_data_1)
+  QS_check_for_0_var_drop[i,] <- QS_cherck_for_0_i
+  QS_check_for_1_var_drop[i,] <- QS_cherck_for_1_i
+}
+QS_check_for_0_var_drop <- as_tibble(QS_check_for_0_var_drop)
+QS_check_for_1_var_drop <- as_tibble(QS_check_for_1_var_drop)
+names(QS_check_for_0_var_drop) <- c("id", "n_obs", "y_airport", "y_armed_group", "y_ferry", "y_police", "y_military")
+names(QS_check_for_1_var_drop) <- c("id", "n_obs", "y_airport", "y_armed_group", "y_ferry", "y_police", "y_military")
+QS_check_for_0_var_drop %>% print(n=21)
+QS_check_for_1_var_drop %>% print(n=21)
+
+
+step_overfit_var_drop
+step_QS_check_for_0_var_drop <- matrix(0, nrow(step_overfit_var_drop), 7)
+step_QS_check_for_1_var_drop <- matrix(0, nrow(step_overfit_var_drop), 7)
+for (i in 1:nrow(step_overfit_var_drop)) {
+  id_i <- step_overfit_var_drop$id[i]
+  bw_i <- step_overfit_var_drop$bw[i]
+  data_id <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
+  data_id_0 <- data_id %>% filter(y == 0)
+  data_id_1 <- data_id %>% filter(y == 1)
+  n_data_0 <- nrow(data_id_0)
+  n_data_1 <- nrow(data_id_1)
+  QS_cherck_for_0_i <- c(id_i, n_data_0,
+                         sum(data_id_0$airport == 1) / n_data_0,
+                         sum(data_id_0$armed_group == 1) / n_data_0,
+                         sum(data_id_0$ferry == 1) / n_data_0,
+                         sum(data_id_0$police == 1) / n_data_0,
+                         sum(data_id_0$military == 1) / n_data_0)
+  QS_cherck_for_1_i <- c(id_i, n_data_1,
+                         sum(data_id_1$airport == 1) / n_data_1,
+                         sum(data_id_1$armed_group == 1) / n_data_1,
+                         sum(data_id_1$ferry == 1) / n_data_1,
+                         sum(data_id_1$police == 1) / n_data_1,
+                         sum(data_id_1$military == 1) / n_data_1)
+  step_QS_check_for_0_var_drop[i,] <- QS_cherck_for_0_i
+  step_QS_check_for_1_var_drop[i,] <- QS_cherck_for_1_i
+}
+step_QS_check_for_0_var_drop <- as_tibble(step_QS_check_for_0_var_drop)
+step_QS_check_for_1_var_drop <- as_tibble(step_QS_check_for_1_var_drop)
+names(step_QS_check_for_0_var_drop) <- c("id", "n_obs", "y_airport", "y_armed_group", "y_ferry", "y_police", "y_military")
+names(step_QS_check_for_1_var_drop) <- c("id", "n_obs", "y_airport", "y_armed_group", "y_ferry", "y_police", "y_military")
+step_QS_check_for_0_var_drop %>% print(n=21)
+step_QS_check_for_1_var_drop %>% print(n=21)
+
+##
 data_id$lab_prob %>% boxplot(ylim=c(0,1), main="lab_prob bw=0.6") # mostly lower than 0.2. An outlier over 0.4
 data_id_bw_1.4$lab_prob %>% boxplot(ylim=c(0,1), main="lab_prob bw=1.4") # max=0.9604825
 data_id %>% filter(y == 1) %>% pull(lab_prob) %>% boxplot

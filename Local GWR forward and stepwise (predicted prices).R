@@ -269,7 +269,7 @@ forward_selection <- function(data_id, w=NULL, sig_level=0.05) {
   return(reg_model)
 }
 
-local_GWR_forward <- function(type.measure_="default", sig_level_=0.05, interact_=F, scale_11_=F, weight_=NULL, dep_var, gwr_forward_data_) {
+local_GWR_forward <- function(type.measure_="default", sig_level_=0.05, interact_=F, scale_11_=F, weight_=NULL, dep_var, gwr_forward_data_, method_) {
   bwd_range <- seq(0.5, 3, by=0.1)
   coord_unique <- gwr_forward_data_$coord
   local_gwr_dist <- gwr_forward_data_$dist %>% as.matrix
@@ -294,9 +294,18 @@ local_GWR_forward <- function(type.measure_="default", sig_level_=0.05, interact
         next
       }
       
-      # drop seizures or coca_area if nonzero observations are too rare
-      if (nonzero_seizure[[bw_name]][i] < 5) neighbor_ij$seizures <- NULL
-      if (nonzero_coca_area[[bw_name]][i] < 5) neighbor_ij$coca_area <- NULL
+      if (method_ == "model drop") {
+        if (nonzero_seizure[[bw_name]][i] < 5 | nonzero_coca_area[[bw_name]][i] < 5) {
+          cv_dev_min_mat[[paste0("bw_", bw_ij)]][i] <- NA
+          local_GWR_coefs_forward_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
+          next
+        }
+      }
+      
+      if (method_ == "var drop") {
+        if (nonzero_seizure[[bw_name]][i] < 5) neighbor_ij$seizures <- NULL
+        if (nonzero_coca_area[[bw_name]][i] < 5) neighbor_ij$coca_area <- NULL
+      }
       
       if (!is.null(weight_)) {
         weight_i <- ifelse(neighbor_ij$y == 1, weight_[1], weight_[2])
@@ -334,6 +343,161 @@ local_GWR_forward <- function(type.measure_="default", sig_level_=0.05, interact
   
   return(list(cv_dev_min_mat=cv_dev_min_mat,
               forward=local_GWR_coefs_forward_result))
+}
+
+stepwise <- function(data_id, w=NULL, sig_level=0.05, iter_limit) {
+  prev_data <- data_id %>% select(y)
+  remaining_data <- data_id %>% select(-y)
+  non_sigular_col_index <- which((remaining_data %>% apply(2, function(x) x %>% table %>% length)) > 1)
+  remaining_data <- remaining_data[,non_sigular_col_index]
+  reg_model <- NULL
+  
+  result <- list()
+  reg_models <- list()
+  p_values <- list()
+  significance <- 1
+  backward <- 0
+  k <- 1
+  while (significance) {
+    p_values_i <- tibble()
+    for (j in 1:ncol(remaining_data)) {
+      new_var_j <- remaining_data[,j]
+      reg_data_j <- bind_cols(prev_data, new_var_j)
+      reg_model_j <- glm(y~.,
+                         data = reg_data_j,
+                         weights = w,
+                         family = binomial)
+      var_name_j <- names(new_var_j)
+      reg_model_coefs_j <- summary(reg_model_j)$coefficients
+      p_value_j <- reg_model_coefs_j[which(rownames(reg_model_coefs_j) == var_name_j), 4]
+      p_value_j <- ifelse(p_value_j == 0, 1, p_value_j)
+      p_values_i <- bind_rows(p_values_i, tibble(var_name=var_name_j, p_value=p_value_j))
+    }
+    
+    if (sum(p_values_i$p_value <= sig_level) == 0) {
+      break
+    }
+    
+    p_values[[paste0("p_values_", k)]] <- p_values_i
+    
+    while (sum(p_values_i$p_value <= sig_level) > 0) {
+      best_col_index <- which.min(p_values_i$p_value)
+      prev_data <- bind_cols(prev_data, remaining_data[, best_col_index])
+      remaining_data <- remaining_data[, -best_col_index]
+      reg_model <- glm(y~., data = prev_data, weights = w, family = binomial)
+      reg_models[[paste0("model_", k)]] <- reg_model
+      k <- k + 1
+      
+      if (ncol(remaining_data) < 1) break
+      
+      p_values_i <- tibble()
+      for (j in 1:ncol(remaining_data)) {
+        new_var_j <- remaining_data[,j]
+        reg_data_j <- bind_cols(prev_data, new_var_j)
+        reg_model_j <- glm(y~.,
+                           data = reg_data_j,
+                           weights = w,
+                           family = binomial)
+        var_name_j <- names(new_var_j)
+        reg_model_coefs_j <- summary(reg_model_j)$coefficients
+        p_value_j <- reg_model_coefs_j[which(rownames(reg_model_coefs_j) == var_name_j), 4]
+        p_value_j <- ifelse(p_value_j == 0, 1, p_value_j)
+        p_values_i <- bind_rows(p_values_i, tibble(var_name=var_name_j, p_value=p_value_j))
+      }
+      p_values[[paste0("p_values_", k)]] <- p_values_i
+    }
+    
+    
+    p_values_i <- tibble(var_name = names(prev_data)[-1], p_value = summary(reg_model)$coefficients[,4][-1])
+    p_values[[paste0("p_values_", k+1)]] <- p_values_i
+    while (any(p_values_i$p_value > sig_level)) {
+      if (backward) {
+        significance <- 0
+        break
+      }
+      worst_col_index <- which.max(p_values_i$p_value) + 1
+      remaining_data <- bind_cols(remaining_data, prev_data[, worst_col_index])
+      prev_data <- prev_data[, -worst_col_index]
+      reg_model <- glm(y~., data = prev_data, weights = w, family = binomial)
+      reg_models[[paste0("model_", k)]] <- reg_model
+      k <- k + 1
+      
+      p_values_i <- tibble(var_name = names(prev_data)[-1], p_value = summary(reg_model)$coefficients[,4][-1])
+      p_values[[paste0("p_values_", k)]] <- p_values_i
+      if(ncol(prev_data) < 2) break
+    }
+    backward <- 1
+    
+    if (k > iter_limit) break
+  }
+  
+  result <- list(reg_model = reg_models, p_values=p_values)
+  return(result)
+}
+
+local_GWR_stepwise <- function(type.measure_="default", sig_level_=0.05, interact_=F, scale_11_=F, weight_=NULL, dep_var, gwr_stepwise_data_, iter_limit_, method_) {
+  bwd_range <- seq(0.5, 3, by=0.1)
+  coord_unique <- gwr_stepwise_data_$coord
+  local_gwr_dist <- gwr_stepwise_data_$dist %>% as.matrix
+  
+  cv_dev_min_mat <- cv_dev_min_mat_ 
+  local_GWR_coefs_stepwise_result <- list()
+  for (i in 1:nrow(cv_dev_min_mat)) {
+    id_i <- cv_dev_min_mat$id[i]
+    local_GWR_coefs_stepwise_result[[paste0("id_", id_i)]] <- list()
+    
+    for (j in 1:length(bwd_range)) {
+      bw_ij <- bwd_range[j]
+      bw_name <- paste0("bw_", bw_ij)
+      
+      neighbor_ij <- neighbor_id(id_i, bw_ij, scale_11_, coord_unique, local_gwr_dist)
+      n_0_1 <- neighbor_ij$y %>% table
+      
+      # restrict too unbalanced responses
+      if (sum(n_0_1 < 8) > 0 | length(n_0_1) < 2) {
+        cv_dev_min_mat[[bw_name]][i] <- NA
+        local_GWR_coefs_stepwise_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
+        next
+      }
+      
+      if (method_ == "model drop") {
+        if (nonzero_seizure[[bw_name]][i] < 5 | nonzero_coca_area[[bw_name]][i] < 5) {
+          cv_dev_min_mat[[paste0("bw_", bw_ij)]][i] <- NA
+          local_GWR_coefs_stepwise_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
+          next
+        }
+      }
+      
+      if (method_ == "var drop") {
+        if (nonzero_seizure[[bw_name]][i] < 5) neighbor_ij$seizures <- NULL
+        if (nonzero_coca_area[[bw_name]][i] < 5) neighbor_ij$coca_area <- NULL
+      }
+      
+      if (!is.null(weight_)) {
+        weight_i <- ifelse(neighbor_ij$y == 1, weight_[1], weight_[2])
+      }else{
+        weight_i <- NULL
+      }
+      
+      stepwise_result_ij <- stepwise(neighbor_ij %>% select(-id), w=weight_i, sig_level=sig_level_, iter_limit=iter_limit_)
+      if (is.empty.list(stepwise_result_ij$reg_model)) {
+        cv_dev_min_mat[[paste0("bw_", bw_ij)]][i] <- NA
+        local_GWR_coefs_stepwise_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
+      }else{
+        stepwise_result_ij <- stepwise_result_ij$reg_model[[length(stepwise_result_ij$reg_model)]]
+        deviance_i <- ifelse(is.null(stepwise_result_ij$deviance), NA, stepwise_result_ij$deviance)
+        cv_dev_min_mat[[paste0("bw_", bw_ij)]][i] <- deviance_i
+        stepwise_result_ij$model <- NULL
+        stepwise_result_ij$data <- NULL
+        local_GWR_coefs_stepwise_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- stepwise_result_ij
+      }
+      
+    }
+    if (i %% 100 == 0) print(paste0(i, "th municipio complete"))
+  }
+  
+  return(list(cv_dev_min_mat=cv_dev_min_mat,
+              stepwise=local_GWR_coefs_stepwise_result))
 }
 
 cv_dev_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_dest cv min dev (03-07-2025).csv") %>% as_tibble
@@ -414,6 +578,34 @@ for (i in 1:nrow(cv_dev_min_mat_)) {
 nonzero_seizure
 nonzero_coca_area
 
+# stepwise
+gwr_forward_data$norm$seizures <- gwr_forward_data$norm %>% select(-seizures) %>% left_join(regression_data_aggr, by="id") %>% select(-id) %>% pull(seizures)
+
+set.seed(100)
+start.time <- Sys.time()
+local_GWR_coefs_step_hyd_dest_list <- local_GWR_stepwise(dep_var = "hyd_destination", gwr_stepwise_data_ = gwr_forward_data,
+                                                         method_="model drop", iter_limit_ = 40, sig_level_ = 0.1)
+end.time <- Sys.time()
+end.time - start.time # 1.154734 hours for hyd_destination model drop
+
+local_GWR_coefs_step_hyd_dest_model_drop <- local_GWR_coefs_step_hyd_dest_list$stepwise
+write.csv(local_GWR_coefs_step_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR stepwise result predicted prices/local GWR stepwise hyd_dest predicted price cv min dev model drop (05-09-2025).csv", row.names = F)
+save("local_GWR_coefs_step_hyd_dest_model_drop", file = "Colombia Data/local GWR stepwise result predicted prices/local GWR stepwise hyd_dest predicted price model drop (05-09-2025).RData")
+rm(local_GWR_coefs_step_hyd_dest_model_drop); rm(local_GWR_coefs_step_hyd_dest_list)
+
+set.seed(5640)
+start.time <- Sys.time()
+local_GWR_coefs_step_hyd_dest_list <- local_GWR_stepwise(dep_var = "hyd_destination", gwr_stepwise_data_ = gwr_forward_data,
+                                                         method_="var drop", iter_limit_ = 40, sig_level_ = 0.1)
+end.time <- Sys.time()
+end.time - start.time # 54.86374 mins for hyd_destination var drop
+
+local_GWR_coefs_step_hyd_dest_var_drop <- local_GWR_coefs_step_hyd_dest_list$stepwise
+write.csv(local_GWR_coefs_step_hyd_dest_list$cv_dev_min_mat, "Colombia Data/local GWR stepwise result predicted prices/local GWR stepwise hyd_dest predicted price cv min dev var drop (05-09-2025).csv", row.names = F)
+save("local_GWR_coefs_step_hyd_dest_var_drop", file = "Colombia Data/local GWR stepwise result predicted prices/local GWR stepwise hyd_dest predicted price var drop (05-09-2025).RData")
+rm(local_GWR_coefs_step_hyd_dest_var_drop); rm(local_GWR_coefs_step_hyd_dest_list)
+
+## forward selection
 set.seed(100)
 start.time <- Sys.time()
 local_GWR_coefs_forward_hyd_dest_list <- local_GWR_forward(dep_var = "hyd_destination", gwr_forward_data_ = gwr_forward_data, sig_level_=0.1)
