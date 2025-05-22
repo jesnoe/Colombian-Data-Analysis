@@ -16,6 +16,7 @@ library(pROC)
 library(glmnet)
 library(reshape2)
 library(regclass)
+library(logistf)
 ########## used bandwidth range 0.5~3.0 due to the time limit
 {
   municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
@@ -257,6 +258,10 @@ regression_data_years <- read.csv("Colombia Data/regression data all municipios 
   paste_avg_pred <- predict(paste_avg_lm, reg_data %>% select(-paste_price_distance))
   regression_data_years_price_pred <- regression_data_years
   regression_data_years_price_pred$paste_avg <- ifelse(regression_data_years$paste_price_distance == 0, regression_data_years$paste_avg, paste_avg_pred)
+  
+  regression_data_aggr <- regression_data_years %>% 
+    group_by(id) %>% 
+    summarize(seizures = mean(hyd_seizures, na.rm=T))
   }
 
 neighbor_id <- function(id_i, bw_i, scale_11_, coord_unique_, local_gwr_dist_) {
@@ -322,12 +327,40 @@ forward_gwr_coefs_var_drop <- read.csv("Colombia Data/local GWR forward result p
 step_gwr_coefs_model_drop <- read.csv("Colombia Data/local GWR stepwise result predicted prices/local GWR stepwise coefs limited alpha=0.1 hyd_destination model drop (05-12-2025).csv") %>% as_tibble
 step_gwr_coefs_var_drop <- read.csv("Colombia Data/local GWR stepwise result predicted prices/local GWR stepwise coefs limited alpha=0.1 hyd_destination var drop (05-12-2025).csv") %>% as_tibble
 
-step_gwr_coefs_var_drop %>% filter(lab_prob > 10000)
+step_gwr_coefs_var_drop %>% filter(lab_prob > 10000) # id=25805
+step_gwr_coefs_model_drop %>% filter(id == 25805)
 
-data_id <- neighbor_id(25805, 0.5, scale_11_=F, coord_unique, local_gwr_dist)
+id_i <- 5002; bw_i <- 2
+id_i <- 25805; bw_i <- 0.5
+data_id <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
 data_id %>% select(y, airport, armed_group, ferry:military, seizures, coca_area) %>% arrange(y) %>% print(n=49)
 # variable drop method does not change bandwidth (the number of neighbors), and thus the same quasi-complete separation
 # On the other hand, model drop method increases bandwidth, which result in the less or no quasi-complete separation
+
+## Penalized MLE comparisons
+data_id %>% select(y, airport:military, -lab_prob) %>% arrange(y) %>% print(n=49)
+glm(y~., data_id %>% select(-id), family = binomial) %>% summary
+glm(y~., data_id %>% select(-seizures) %>% left_join(regression_data_aggr, by="id") %>% select(-id), family = binomial) %>% summary
+glm(y~., data_id %>% select(-seizures) %>% left_join(regression_data_aggr, by="id") %>% mutate(seizures=scale(log(1+seizures))[,1]) %>% select(-id), family = binomial) %>% summary
+penal_logist <- logistf(y~., data=data_id %>% select(-id, -coca_area, -(airport:military)))
+penal_logist_raw_seizure <- logistf(y~., data_id %>% select(-seizures) %>% left_join(regression_data_aggr, by="id") %>% select(-id, -coca_area), family = binomial) %>% summary
+penal_logist %>% summary
+penal_logist_raw_seizure %>% summary
+penal_logist
+profile(penal_logist, variable="seizures")
+profile(penal_logist, variable="airport")
+profile(penal_logist, variable="ferry")
+profile(penal_logist, variable="police")
+profile(penal_logist, variable="military")
+
+data(sex2)
+fit<-logistf(case ~ age+oc+vic+vicl+vis+dia, data=sex2)
+profile(fit, variable="age") %>% plot
+
+res <- matrix(NA, 10, 3) 
+dimnames(res) <- list(1:10, c("std", "seizures", "log-likelihood"))
+res[, "seizures"]
+res[order(abs(res[,"seizures"]+9.6624703)),]
 
 forward_gwr_coefs_model_drop %>% filter(abs(seizures) > 1000)
 forward_gwr_coefs_var_drop %>% filter(abs(seizures) > 1000)
@@ -442,9 +475,6 @@ stepwise <- function(data_id, w=NULL, sig_level=0.05, iter_limit) {
   return(result)
 }
 
-regression_data_aggr <- regression_data_years %>% 
-  group_by(id) %>% 
-  summarize(seizures = mean(hyd_seizures, na.rm=T))
 
 forward_overfit_model_drop_raw_seizure <- list()
 for (i in 1:nrow(forward_overfit_model_drop)) {
@@ -475,7 +505,6 @@ lapply(forward_overfit_var_drop_raw_seizure, coef)
 glm(y~., gwr_forward_data$norm %>% select(-seizures) %>% left_join(regression_data_aggr, by="id") %>% select(-id, -municipio), family = binomial) %>% summary
 gwr_forward_data$norm$seizures %>% summary
 regression_data_aggr$seizures %>% summary
-
 
 ### quasi separation check
 forward_overfit_model_drop
