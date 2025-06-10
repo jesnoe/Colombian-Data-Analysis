@@ -222,8 +222,9 @@ neighbor_id <- function(id_i, bw_i, scale_11_, coord_unique_, local_gwr_dist_, g
   return(result)
 }
 
-local_GWR_PML <- function(type.measure_="default", cv_aic_min_mat, sig_level_=0.05, interact_=F, scale_11_=F, weight_=NULL, dep_var, gwr_PML_data_, method_) {
+local_GWR_PML <- function(type.measure_="default", cv_aic_min_mat, sig_level_=0.05, gwr_PML_data_, method_, n_drop, interact_=F, scale_11_=F, weight_=NULL, dep_var) {
   bwd_range <- seq(0.5, 3, by=0.1)
+  n_drop <- n_drop + 1
   coord_unique <- gwr_PML_data_$coord
   local_gwr_dist <- gwr_PML_data_$dist %>% as.matrix
   
@@ -247,19 +248,25 @@ local_GWR_PML <- function(type.measure_="default", cv_aic_min_mat, sig_level_=0.
       }
       
       n_unique_vals <- neighbor_ij %>% select(-id) %>% apply(2, function(x) length(table(x)))
-      # if (method_ == "model drop") {
-      #   if (any(n_unique_vals < 2) | any(n_unique_vals[3:4] < 5)) {
-      #     cv_aic_min_mat[[paste0("bw_", bw_ij)]][i] <- NA
-      #     local_GWR_coefs_PML_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
-      #     next
-      #   }
-      # }
+      if (method_ == "model drop") {
+        if (any(n_unique_vals < 2) | any(n_unique_vals[3:4] < n_drop)) { # change to 6?
+          cv_aic_min_mat[[paste0("bw_", bw_ij)]][i] <- NA
+          local_GWR_coefs_PML_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
+          next
+        }
+      }
       
       
       if (method_ == "var drop") {
-        if (any(n_unique_vals)) neighbor_ij[, 1+which(n_unique_vals<2)] <- NULL
-        if (any(n_unique_vals[3] < 5)) neighbor_ij[,3] <- NULL
-        if (any(n_unique_vals[4] < 5)) neighbor_ij[,4] <- NULL
+        if (any(n_unique_vals[["coca_area"]] < n_drop)) {
+          neighbor_ij$coca_area <- NULL
+          n_unique_vals[["coca_area"]] <- n_drop
+        }
+        if (any(n_unique_vals[["seizures"]] < n_drop)) {
+          neighbor_ij$seizures <- NULL
+          n_unique_vals[["seizures"]] <- n_drop
+        }
+        if (any(n_unique_vals < 2)) neighbor_ij[, 1+which(n_unique_vals<2)] <- NULL
       }
       
       if (!is.null(weight_)) {
@@ -353,6 +360,7 @@ regression_data_years <- read.csv("Colombia Data/regression data all municipios 
 
 gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
 cv_aic_min_mat_ <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price cv min dev (04-09-2025).csv") %>% as_tibble
+bwd_range <- seq(0.5, 3, by=0.1)
 
 min_seizure_scaled <- min(gwr_data$norm$seizures) %>% round(3)
 min_coca_area_scaled <- min(gwr_data$norm$coca_area) %>% round(3)
@@ -373,13 +381,13 @@ nonzero_seizure
 nonzero_coca_area
 
 # penalized MLE
-# type.measure_="default"; cv_aic_min_mat=cv_aic_min_mat_; sig_level_=0.1; interact_=F; scale_11_=F; weight_=NULL; dep_var="hyd_destination"; gwr_PML_data_=gwr_data; method_="model drop"
+# type.measure_="default"; cv_aic_min_mat=cv_aic_min_mat_; sig_level_=0.1; interact_=F; scale_11_=F; weight_=NULL; dep_var="hyd_destination"; gwr_PML_data_=gwr_data; method_="model drop"; n_drop <- 5
 cv_aic_min_mat_[,-1] <- NA
 set.seed(100)
 start.time <- Sys.time()
 local_GWR_coefs_PML_hyd_dest_list <- local_GWR_PML(dep_var = "hyd_destination", cv_aic_min_mat=cv_aic_min_mat_, gwr_PML_data_ = gwr_data, method_="model drop", sig_level_ = 0.1)
 end.time <- Sys.time()
-end.time - start.time # 39.6034 mins for hyd_destination model drop
+end.time - start.time # 54.72302 mins for hyd_destination model drop
 
 local_GWR_coefs_PML_hyd_dest_model_drop <- local_GWR_coefs_PML_hyd_dest_list$PML
 write.csv(local_GWR_coefs_PML_hyd_dest_list$cv_aic_min_mat, "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic model drop (05-21-2025).csv", row.names = F)
@@ -388,13 +396,13 @@ rm(local_GWR_coefs_PML_hyd_dest_model_drop); rm(local_GWR_coefs_PML_hyd_dest_lis
 
 set.seed(5640)
 start.time <- Sys.time()
-local_GWR_coefs_PML_hyd_dest_list <- local_GWR_PML(dep_var = "hyd_destination", cv_aic_min_mat=cv_aic_min_mat_, gwr_PML_data_ = gwr_data, method_="var drop", sig_level_ = 0.1)
+local_GWR_coefs_PML_hyd_dest_list <- local_GWR_PML(dep_var = "hyd_destination", cv_aic_min_mat=cv_aic_min_mat_, gwr_PML_data_ = gwr_data, method_="var drop", sig_level_ = 0.1, n_drop=5)
 end.time <- Sys.time()
-end.time - start.time # 1.132069 hours for hyd_destination var drop
+end.time - start.time # 39.89051 mins for hyd_destination var drop
 
 local_GWR_coefs_PML_hyd_dest_var_drop <- local_GWR_coefs_PML_hyd_dest_list$PML
-write.csv(local_GWR_coefs_PML_hyd_dest_list$cv_aic_min_mat, "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic var drop (05-21-2025).csv", row.names = F)
-save("local_GWR_coefs_PML_hyd_dest_var_drop", file = "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price var drop (05-21-2025).RData")
+write.csv(local_GWR_coefs_PML_hyd_dest_list$cv_aic_min_mat, "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic var drop (06-05-2025).csv", row.names = F)
+save("local_GWR_coefs_PML_hyd_dest_var_drop", file = "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price var drop (06-05-2025).RData")
 rm(local_GWR_coefs_PML_hyd_dest_var_drop); rm(local_GWR_coefs_PML_hyd_dest_list)
 
 
@@ -415,13 +423,13 @@ rm(local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled); rm(local_GWR_coe
 
 set.seed(5640)
 start.time <- Sys.time()
-local_GWR_coefs_PML_hyd_dest_list <- local_GWR_PML(dep_var = "hyd_destination", cv_aic_min_mat=cv_aic_min_mat_, gwr_PML_data_ = gwr_data, method_="var drop", sig_level_ = 0.1)
+local_GWR_coefs_PML_hyd_dest_list <- local_GWR_PML(dep_var = "hyd_destination", cv_aic_min_mat=cv_aic_min_mat_, gwr_PML_data_ = gwr_data, method_="var drop", sig_level_ = 0.1, n_drop = 5)
 end.time <- Sys.time()
-end.time - start.time # 1.034158 hours for hyd_destination var drop
+end.time - start.time # 1.050017 hours for hyd_destination var drop
 
 local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled <- local_GWR_coefs_PML_hyd_dest_list$PML
-write.csv(local_GWR_coefs_PML_hyd_dest_list$cv_aic_min_mat, "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic var drop log seizure scaled (05-21-2025).csv", row.names = F)
-save("local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled", file = "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price var drop log seizure scaled (05-21-2025).RData")
+write.csv(local_GWR_coefs_PML_hyd_dest_list$cv_aic_min_mat, "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic var drop log seizure scaled (06-05-2025).csv", row.names = F)
+save("local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled", file = "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price var drop log seizure scaled (06-05-2025).RData")
 rm(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled); rm(local_GWR_coefs_PML_hyd_dest_list)
 
 

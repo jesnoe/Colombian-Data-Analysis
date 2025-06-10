@@ -286,6 +286,7 @@ regression_data_years <- read.csv("Colombia Data/regression data all municipios 
 
 gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
 cv_aic_min_mat_ <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price cv min dev (04-09-2025).csv") %>% as_tibble
+bwd_range <- seq(0.5, 3, by=0.1)
 
 min_seizure_scaled <- min(gwr_data$norm$seizures) %>% round(3)
 min_coca_area_scaled <- min(gwr_data$norm$coca_area) %>% round(3)
@@ -386,26 +387,36 @@ local_gwr_coef_map <- function(local_GWR_coefs_list, cv_aic_min_mat, dep_var, in
 }
 
 # coef map by F1 scores
-local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_, criteria, dep_var, indep_vars) {
+local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_, criteria, dep_var, indep_vars, alpha=0.1, n_drop) {
   indep_vars <- c("Intercept", indep_vars)
   coef_table <- tibble(id = PML_best_bw_tbl_$id, bw=PML_best_bw_tbl_[[criteria]])
+  pval_table <- coef_table
   coef_mat <- matrix(NA, nrow(coef_table), length(indep_vars))
-  
+  pval_mat <- coef_mat
+    
   indep_vars_df <- data.frame(var_name=indep_vars)
   for (i in 1:nrow(coef_table)) {
     bw_i <- coef_table$bw[i]
     if (is.na(bw_i)) next
     local_GWR_model_i <- local_GWR_coefs_list[[i]][[paste0("bw_", bw_i)]]
     coef_i <- coef(local_GWR_model_i)
-    coef_i_df <- data.frame(var_name=c("Intercept", names(coef_i)[-1]), coef=coef_i)
-    coef_mat[i,] <- left_join(indep_vars_df, coef_i_df, by="var_name")$coef
+    coef_i_df <- data.frame(var_name=c("Intercept", names(coef_i)[-1]), coef=coef_i, p_value=local_GWR_model_i$prob)
+    coef_i_df <- left_join(indep_vars_df, coef_i_df, by="var_name")
+    coef_mat[i,] <- coef_i_df$coef
+    pval_mat[i,] <- coef_i_df$p_value
   }
   
   coef_table <- bind_cols(coef_table, coef_mat)
+  pval_table <- bind_cols(pval_table, pval_mat)
   names(coef_table)[-(1:2)] <- indep_vars
+  names(pval_table)[-(1:2)] <- indep_vars
   # if (!is.null(weight_)) interact_ <- " weight"
   write.csv(coef_table,
-            paste0("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs ", dep_var, " ", criteria, " model drop exclude (05-21-2025).csv"),
+            paste0("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs ", dep_var, " ", criteria, " model drop ", n_drop, " (06-05-2025).csv"),
+            row.names = F)
+  write.csv(pval_table,
+            paste0("Colombia Data/local GWR PML result predicted prices/local GWR PML p-values ", dep_var, " ", criteria, " model drop ", n_drop, " (06-05-2025).csv"),
+            # paste0("Colombia Data/local GWR PML result predicted prices/local GWR PML p-values alpha=", alpha, " ", dep_var, " ", criteria, " var drop (06-05-2025).csv"),
             row.names = F)
   
   
@@ -413,14 +424,18 @@ local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_,
     var_name <- names(coef_table)[i]
     gwr_coefs_i <- data.frame(id=coef_table$id,
                               coef=coef_table[[var_name]],
-                              rounded_coef=coef_table[[var_name]] %>% round(3))
+                              rounded_coef=coef_table[[var_name]] %>% round(3),
+                              p_value=pval_table[[var_name]])
     min_coef <- min(gwr_coefs_i$coef, na.rm=T)
     max_coef <- max(gwr_coefs_i$coef, na.rm=T)
+    coef_map_coords_bw <- map_df %>% 
+      left_join(gwr_coefs_i, by="id")
+    # gwr_coefs_i$coef <- ifelse(gwr_coefs_i$p_value > alpha, NA, gwr_coefs_i$coef)
     coef_map_coords <- map_df %>% 
       left_join(gwr_coefs_i, by="id")
     
     if (i == 2) {
-      gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) + 
+      gwr_coef_map <- ggplot(coef_map_coords_bw, aes(x=long, y=lat)) + 
         geom_polygon(aes(group=group, fill=coef),
                      color = "black",
                      linewidth = 0.1) + 
@@ -456,7 +471,9 @@ local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_,
     }
     
     ggsave(paste0("Colombia Data/local GWR PML result predicted prices/coef maps/",
-                  dep_var, "/local GWR PML coef by drop ", var_name, " ", dep_var, " ", criteria, " model drop (05-21-2025).png"),
+                  dep_var, "/local GWR PML coef by drop ", var_name,
+                  # " alpha=", alpha,
+                  " ", dep_var, " ", criteria, " model drop ", n_drop, " (06-05-2025).png"),
            gwr_coef_map, scale=1)
   }
 }
@@ -499,24 +516,50 @@ load("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest
 local_gwr_coef_map(local_GWR_coefs_PML_hyd_dest_model_drop, cv_aic_min_mat_, "hyd_destination", indep_vars_, alpha=0.1);# rm(local_GWR_coefs_PML_hyd_dest_model_drop)
 # local_GWR_coefs_list<-local_GWR_coefs_PML_hyd_dest_model_drop; cv_aic_min_mat<-cv_aic_min_mat_; indep_vars<-indep_vars_; dep_var="hyd_destination"; weight_=NULL; alpha<-0.1
 
-cv_aic_min_mat_ <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic var drop (05-21-2025).csv") %>% as_tibble
-load("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price var drop (05-21-2025).RData") # local_GWR_coefs_PML_hyd_dest_var_drop
+cv_aic_min_mat_ <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic var drop (06-05-2025).csv") %>% as_tibble
+load("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price var drop (06-05-2025).RData") # local_GWR_coefs_PML_hyd_dest_var_drop
 local_gwr_coef_map(local_GWR_coefs_PML_hyd_dest_var_drop, cv_aic_min_mat_, "hyd_destination", indep_vars_, alpha=0.1);# rm(local_GWR_coefs_PML_hyd_dest_var_drop)
 
 # local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled
 load("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price model drop log seizure scaled (05-21-2025).RData")
+# local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled
+load("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price var drop log seizure scaled (06-05-2025).RData")
 
 ## Penalized MLE comparisons
-PML_gwr_coefs_model_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs drop alpha=0.1 hyd_destination model drop (05-21-2025).csv") %>% as_tibble
-PML_gwr_coefs_F1_model_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination PML_seizure_bw_F1 model drop (05-21-2025).csv") %>% as_tibble
+PML_gwr_coefs_model_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination model drop (05-21-2025).csv") %>% as_tibble
+PML_gwr_coefs_F1_model_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination PML_seizure_bw_F1 model drop 5 (06-05-2025).csv") %>% as_tibble
 PML_gwr_coefs_F1_model_drop_alpha_ex <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs alpha=0.1 hyd_destination PML_seizure_bw_F1 model drop (05-21-2025).csv") %>% as_tibble
 PML_gwr_coefs_F1_model_drop_log_seizure <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination PML_log_seizure_bw_F1 model drop (05-21-2025).csv") %>% as_tibble
+
+PML_gwr_coefs_F1_var_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination PML_seizure_bw_F1 var drop (06-05-2025).csv") %>% as_tibble
+PML_gwr_coefs_F1_var_drop_log_seizure <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination PML_log_seizure_bw_F1 var drop (06-05-2025).csv") %>% as_tibble
+
+PML_F1_score_hyd_dest_model_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price F1 model drop (05-21-2025).csv") %>% as_tibble
+PML_F1_score_hyd_dest_model_drop_log_seizure <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price F1 model drop log seizure scaled (05-21-2025).csv") %>% as_tibble
+PML_F1_score_hyd_dest_var_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price F1 var drop (06-05-2025).csv") %>% as_tibble
+PML_F1_score_hyd_dest_var_drop_log_seizure <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price F1 var drop log seizure scaled (06-05-2025).csv") %>% as_tibble
+
+PML_gwr_coefs_var_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination var drop (06-05-2025).csv") %>% as_tibble
+PML_gwr_coefs_F1_var_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination PML_seizure_bw_F1 var drop (06-05-2025).csv") %>% as_tibble
+
 PML_gwr_aic_model_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic model drop (05-21-2025).csv") %>% as_tibble
 PML_gwr_aic_model_drop_log_seizure <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic model drop log seizure scaled (05-21-2025).csv") %>% as_tibble
 step_gwr_aic_model_drop <- read.csv("Colombia Data/local GWR stepwise result predicted prices/local GWR stepwise hyd_dest predicted price cv min dev model drop (05-09-2025).csv") %>% as_tibble
-PML_gwr_coefs_var_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs drop alpha=0.1 hyd_destination model drop (05-21-2025).csv") %>% as_tibble
-PML_gwr_aic_var_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic var drop (05-21-2025).csv") %>% as_tibble
+PML_gwr_aic_var_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic var drop (06-05-2025).csv") %>% as_tibble
+PML_gwr_aic_var_drop_log_seizure <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic var drop log seizure scaled (06-05-2025).csv") %>% as_tibble
 
+PML_gwr_coefs_F1_model_drop %>% filter(coca_area > 100)
+PML_gwr_coefs_F1_model_drop %>% filter(coca_area < -100)
+PML_gwr_coefs_F1_model_drop %>% filter(lab_prob > 100)
+
+data_id <- neighbor_id(73270, 1.3, scale_11_=F, coord_unique, local_gwr_dist)
+local_GWR_coefs_PML_hyd_dest_model_drop$id_73270$bw_1.3 %>% summary
+
+data_id <- neighbor_id(81001, 2.3, scale_11_=F, coord_unique, local_gwr_dist)
+local_GWR_coefs_PML_hyd_dest_model_drop$id_81001$bw_2.3 %>% summary
+
+data_id <- neighbor_id(81065, 1.7, scale_11_=F, coord_unique, local_gwr_dist)
+local_GWR_coefs_PML_hyd_dest_model_drop$id_81065$bw_1.7 %>% summary
 
 PML_gwr_coefs_model_drop %>% filter(seizures > 100)
 PML_gwr_coefs_model_drop %>% filter(abs(seizures) > 100 & id %in% (municipio_centroid %>% filter(depto == "Meta") %>% pull(id)))
@@ -524,7 +567,7 @@ PML_gwr_coefs_model_drop %>% filter(abs(lab_prob) > 100 & id %in% (municipio_cen
 id_i <- 50350; bw_i <- 1.5
 id_i <- 50370; bw_i <- 0.9
 
-id_i <- 41615; bw_i <- 0.8
+id_i <- 41615; bw_i <- 1.2
 id_i <- 5031 ; bw_i <- 1.2
 
 id_i <- 5002 ; bw_i <- 0.9
@@ -588,6 +631,12 @@ n_neighbors_id <- local_GWR_coefs_PML_hyd_dest_model_drop$id_5002 %>% lapply(fun
 # PML_F1_score_hyd_dest_model_drop_log_seizure <- PML_F1_score(local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled, PML_gwr_aic_model_drop_log_seizure)
 # write.csv(PML_F1_score_hyd_dest_model_drop_log_seizure,
 #           "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price F1 model drop log seizure scaled (05-21-2025).csv", row.names = F)
+PML_F1_score_hyd_dest_var_drop <- PML_F1_score(local_GWR_coefs_PML_hyd_dest_var_drop, PML_gwr_aic_var_drop)
+write.csv(PML_F1_score_hyd_dest_var_drop,
+          "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price F1 var drop (06-05-2025).csv", row.names = F)
+PML_F1_score_hyd_dest_var_drop_log_seizure <- PML_F1_score(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled, PML_gwr_aic_var_drop_log_seizure)
+write.csv(PML_F1_score_hyd_dest_var_drop_log_seizure,
+          "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price F1 var drop log seizure scaled (06-05-2025).csv", row.names = F)
 
 PML_best_bw_tbl <- tibble(id = PML_gwr_aic_model_drop$id,
                           PML_seizure_bw_AIC = PML_gwr_aic_model_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist,
@@ -600,10 +649,48 @@ PML_best_bw_tbl %>% ggplot + geom_point(aes(x=PML_log_seizure_bw_AIC, y=PML_log_
 PML_best_bw_tbl %>% ggplot + geom_point(aes(x=PML_seizure_bw_F1, y=PML_log_seizure_bw_F1)) + ggtitle("best bandwidths - PML seizures F1 vs. PML log(seizures) F1")
 
 local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_model_drop, PML_best_bw_tbl, criteria="PML_seizure_bw_F1", dep_var = "hyd_destination",
-                             indep_vars = names(local_GWR_coefs_PML_hyd_dest_model_drop$id_5040$bw_1.4$model)[-1])
+                             indep_vars = names(local_GWR_coefs_PML_hyd_dest_model_drop$id_5040$bw_1.4$model)[-1], alpha = 0.1)
 
 local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled, PML_best_bw_tbl, criteria="PML_log_seizure_bw_F1", dep_var = "hyd_destination",
                              indep_vars = names(local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled$id_5040$bw_1.4$model)[-1])
+
+PML_best_bw_tbl <- tibble(id = PML_gwr_aic_var_drop$id,
+                          PML_seizure_bw_AIC = PML_gwr_aic_var_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist,
+                          PML_seizure_bw_F1 = PML_F1_score_hyd_dest_var_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist)
+local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_var_drop, PML_best_bw_tbl, criteria="PML_seizure_bw_F1", dep_var = "hyd_destination",
+                             indep_vars = indep_vars_, alpha = 0.1)
+
+# coef map by F1 model drop with n_drop > 4
+PML_F1_score_hyd_dest_model_drop_n_drop_5 <- PML_F1_score_hyd_dest_model_drop
+PML_F1_score_hyd_dest_model_drop_n_drop_5[nonzero_coca_area < 6] <- NA
+PML_F1_score_hyd_dest_model_drop_n_drop_5[nonzero_seizure < 6] <- NA
+
+PML_F1_score_hyd_dest_model_drop_log_seizure_n_drop_5 <- PML_F1_score_hyd_dest_model_drop_log_seizure
+PML_F1_score_hyd_dest_model_drop_log_seizure_n_drop_5[nonzero_coca_area < 6] <- NA
+PML_F1_score_hyd_dest_model_drop_log_seizure_n_drop_5[nonzero_seizure < 6] <- NA
+
+PML_best_bw_tbl <- tibble(id = PML_gwr_aic_model_drop$id,
+                          PML_seizure_bw_F1 = PML_F1_score_hyd_dest_model_drop_n_drop_5[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist,
+                          PML_log_seizure_bw_F1 = PML_F1_score_hyd_dest_model_drop_log_seizure_n_drop_5[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist)
+local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_model_drop, PML_best_bw_tbl, criteria="PML_seizure_bw_F1", dep_var = "hyd_destination",
+                             indep_vars = indep_vars_, alpha = 0.1, n_drop = 5)
+local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled, PML_best_bw_tbl, criteria="PML_log_seizure_bw_F1", dep_var = "hyd_destination",
+                             indep_vars = indep_vars_, alpha = 0.1, n_drop = 5)
+
+
+# coef map by F1 var drop 
+PML_best_bw_tbl_var_drop  <- tibble(id = PML_gwr_aic_var_drop$id,
+                                    PML_seizure_bw_AIC = PML_gwr_aic_var_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist,
+                                    PML_seizure_bw_F1 = PML_F1_score_hyd_dest_var_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist,
+                                    PML_log_seizure_bw_AIC = PML_gwr_aic_var_drop_log_seizure[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist,
+                                    PML_log_seizure_bw_F1 = PML_F1_score_hyd_dest_var_drop_log_seizure[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist)
+
+local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_var_drop, PML_best_bw_tbl_var_drop, criteria="PML_seizure_bw_F1", dep_var = "hyd_destination",
+                             indep_vars = names(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_5040$bw_1.4$model)[-1])
+
+local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled, PML_best_bw_tbl_var_drop, criteria="PML_log_seizure_bw_F1", dep_var = "hyd_destination",
+                             indep_vars = names(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_5040$bw_1.4$model)[-1])
+
 
 # exclude AIC or F1 in the matrix if a focal point is false negative
 PML_gwr_aic_model_drop_ex <- PML_gwr_aic_model_drop
@@ -703,10 +790,18 @@ PML_gwr_coefs_F1_model_drop %>% filter(abs(coca_area) < 100)
 var_name <- "coca_area"
 PML_reg_loglik(local_GWR_coefs_PML_hyd_dest_model_drop$id_81001$bw_2.3, 100)[[var_name]] %>% 
   ggplot() + geom_point(aes(x=beta, y=loglik)) + geom_line(aes(x=beta, y=loglik)) + labs(x = paste0("beta - ", var_name), y = "log likelihood")
+PML_reg_loglik(local_GWR_coefs_PML_hyd_dest_model_drop$id_81001$bw_2.3, 100)[[var_name]] %>% mutate(likelihood = exp(loglik)) %>% 
+  ggplot() + geom_point(aes(x=beta, y=likelihood)) + geom_line(aes(x=beta, y=likelihood)) + labs(x = paste0("beta - ", var_name), y = "likelihood") + xlim(-150, -100)
+
 PML_reg_loglik(local_GWR_coefs_PML_hyd_dest_model_drop$id_81220$bw_2.6, 100)[[var_name]] %>% 
   ggplot() + geom_point(aes(x=beta, y=loglik)) + geom_line(aes(x=beta, y=loglik)) + labs(x = paste0("beta - ", var_name), y = "log likelihood")
 PML_reg_loglik(local_GWR_coefs_PML_hyd_dest_model_drop$id_5002$bw_0.9, 100)[[var_name]] %>% 
   ggplot() + geom_point(aes(x=beta, y=loglik)) + geom_line(aes(x=beta, y=loglik)) + labs(x = paste0("beta - ", var_name), y = "log likelihood")
+
+local_GWR_coefs_PML_hyd_dest_model_drop$id_73347$bw_0.8 %>% summary
+local_GWR_coefs_PML_hyd_dest_model_drop$id_73347$bw_0.8$model
+logistf(y~., data = local_GWR_coefs_PML_hyd_dest_model_drop$id_73347$bw_0.8$model %>% select(-coca_area)) %>% summary
+logistf(y~., data = local_GWR_coefs_PML_hyd_dest_model_drop$id_73347$bw_0.8$model %>% filter(coca_area < -0.18) %>% select(-coca_area)) %>% summary
 
 
 # coef map limit by p-value
@@ -797,8 +892,6 @@ PML_reg_loglik(local_GWR_coefs_PML_hyd_dest_model_drop$id_73347$bw_0.8, 100)[[va
   ggplot() + geom_point(aes(x=beta, y=loglik)) + geom_line(aes(x=beta, y=loglik)) + labs(x = paste0("beta - ", var_name), y = "log likelihood")
 PML_reg_loglik(local_GWR_coefs_PML_hyd_dest_model_drop$id_73347$bw_0.8, 100)[[var_name]] %>% mutate(likelihood = exp(loglik)) %>% 
   ggplot() + geom_point(aes(x=beta, y=likelihood)) + geom_line(aes(x=beta, y=likelihood)) + labs(x = paste0("beta - ", var_name), y = "likelihood") + xlim(100, 150)
-local_GWR_coefs_PML_hyd_dest_model_drop$id_73347$bw_0.8 %>% summary
-local_GWR_coefs_PML_hyd_dest_model_drop$id_73347$bw_0.8$model
 
 PML_gwr_coefs_F1_model_drop_alpha_ex %>% filter(abs(coca_area) < 100)
 PML_reg_loglik(local_GWR_coefs_PML_hyd_dest_model_drop$id_15104$bw_3, 100)[[var_name]] %>% 
@@ -839,3 +932,84 @@ cat("\nLikelihood ratio test=", LL, " on ", object$df, " df, p=", 1 -pchisq(LL, 
 length(indep_vars_) # 12
 (t(cv_aic_min_mat_[which(cv_aic_min_mat_$id == 5002),-1]) %>% as.vector - 2*12) / n_neighbors_id + 2*12
 plot(bwd_range, (t(cv_aic_min_mat_[which(cv_aic_min_mat_$id == 5002),-1]) %>% as.vector - 2*12) / n_neighbors_id + 2*12, type = "p", ylab="(AIC - 2p)/n + 2p")
+
+
+## var drop check
+PML_gwr_coefs_F1_var_drop %>% filter(coca_area > 100)
+local_GWR_coefs_PML_hyd_dest_var_drop$id_44090$bw_1.1$model
+neighbor_id_44090 <- neighbor_id(44090, 1.1, scale_11_=F, coord_unique, local_gwr_dist)
+
+
+## coca_area map
+coca_area_aggr <- regression_data_years %>% select(id, coca_area) %>% group_by(id) %>% summarize(coca_area = max(coca_area))
+coca_area_map_coords <- map_df %>% left_join(coca_area_aggr, by="id")
+
+coca_area_aggr_map <- ggplot(coca_area_map_coords, aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group, fill=coca_area),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = depto_map$long, y = depto_map$lat) + 
+  coord_quickmap() +
+  scale_fill_viridis_c(na.value = "white") +
+  labs(fill="coca_area", x="", y="", title=dep_var) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  )
+ggsave(paste0("Colombia Data/Figs/coca_area/coca_area aggregated.png"), coca_area_aggr_map, scale=1)
+
+coca_area_aggr_map <- ggplot(coca_area_map_coords, aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group, fill=log(1+coca_area)),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = depto_map$long, y = depto_map$lat) + 
+  coord_quickmap() +
+  scale_fill_viridis_c(na.value = "white") +
+  labs(fill="coca_area", x="", y="", title=dep_var) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  )
+ggsave(paste0("Colombia Data/Figs/coca_area/log coca_area aggregated.png"), coca_area_aggr_map, scale=1)
+
+
+gwr_data_map_coords <- map_df %>% left_join(gwr_data$norm %>% select(-y), by="id")
+lab_prob_map <- ggplot(gwr_data_map_coords, aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group, fill=lab_prob),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = depto_map$long, y = depto_map$lat) + 
+  coord_quickmap() +
+  scale_fill_viridis_c(na.value = "white") +
+  labs(fill="lab_prob", x="", y="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  )
+ggsave(paste0("Colombia Data/Figs/coca_area/lab_prob.png"), lab_prob_map, scale=1)
+
+
+ggplot(gwr_data_map_coords, aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group, fill=airport),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = depto_map$long, y = depto_map$lat) + 
+  coord_quickmap() +
+  scale_fill_viridis_c(na.value = "white") +
+  labs(fill="airport", x="", y="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  )
