@@ -288,8 +288,10 @@ regression_data_years <- read.csv("Colombia Data/regression data all municipios 
   
   regression_data_aggr <- regression_data_years %>% 
     group_by(id) %>% 
-    summarize(seizures = mean(hyd_seizures, na.rm=T))
+    summarize(seizures = mean(hyd_seizures, na.rm=T),
+              coca_area = max(coca_area, na.rm=T))
   regression_data_aggr$seizures_log_scale <- scale(log(regression_data_aggr$seizures+1))[,1]
+  regression_data_aggr$coca_area_log_scale <- scale(log(regression_data_aggr$coca_area+1))[,1]
   }
 
 gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
@@ -744,8 +746,9 @@ PML_F1_score_hyd_dest_model_drop_all[, -1][n_lab_prob[,-1] < 5]
 PML_F1_score_hyd_dest_model_drop_all[, -1][n_binary[,-1] < 2] %>% summary
 
 # PML_best_bw_tbl <- tibble(id = PML_F1_score_hyd_dest_model_drop_all$id,
-#                           PML_seizure_bw_F1 = PML_F1_score_hyd_dest_model_drop_all[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist)
+#                           PML_seizure_bw_F1 = PML_F1_score_hyd_dest_model_drop_all[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist)
 PML_best_bw_tbl <- tibble(id = PML_F1_score_hyd_dest_model_drop_all$id,
+                          PML_seizure_bw_F1 = PML_F1_score_hyd_dest_model_drop_all[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist,
                           PML_log_seizure_coca_bw_F1 = PML_F1_score_hyd_dest_model_drop_all[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist)
 
 local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_model_drop, PML_best_bw_tbl, criteria="PML_seizure_bw_F1", dep_var = "hyd_destination",
@@ -756,12 +759,12 @@ local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure
 # coef map by F1 var drop 
 PML_best_bw_tbl_var_drop  <- tibble(id = PML_gwr_aic_var_drop$id,
                                     # PML_seizure_bw_AIC = PML_gwr_aic_var_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist,
-                                    # PML_seizure_bw_F1 = PML_F1_score_hyd_dest_var_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist),
+                                    PML_seizure_bw_F1 = PML_F1_score_hyd_dest_var_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist,
                                     # PML_log_seizure_coca_bw_AIC = PML_gwr_aic_var_drop_log_seizure_coca[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist,
                                     PML_log_seizure_coca_bw_F1 = PML_F1_score_hyd_dest_var_drop_log_seizure[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist)
 
 local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_var_drop, PML_best_bw_tbl_var_drop, criteria="PML_seizure_bw_F1", dep_var = "hyd_destination",
-                             indep_vars = names(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_5040$bw_1.4$model)[-1], n_drop=5)
+                             indep_vars = names(local_GWR_coefs_PML_hyd_dest_var_drop$id_5040$bw_1.4$model)[-1], n_drop=5)
 
 local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled, PML_best_bw_tbl_var_drop, criteria="PML_log_seizure_coca_bw_F1", dep_var = "hyd_destination",
                              indep_vars = names(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_5040$bw_1.4$model)[-1], n_drop=5)
@@ -780,6 +783,8 @@ local_gwr_PML_coef_map_by_F1_n_drop <- function(local_GWR_coefs_list, dep_var, i
   PML_F1_score_hyd_dest_model_drop_all[, -1][n_road_length[,-1] < n_drop] <- NA
   PML_F1_score_hyd_dest_model_drop_all[, -1][n_lab_prob[,-1] < n_drop] <- NA
   PML_F1_score_hyd_dest_model_drop_all[, -1][n_binary[,-1] < 2] <- NA
+  # write.csv(PML_F1_score_hyd_dest_model_drop_all, "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price F1 all var model drop log seizure coca scaled (06-20-2025).csv",
+  # row.names = F)
   
   PML_best_bw_tbl_ <- tibble(id = PML_F1_score_hyd_dest_model_drop_all$id,
                              PML_seizure_bw_F1 = PML_F1_score_hyd_dest_model_drop_all[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist)

@@ -291,7 +291,7 @@ local_GWR_PML <- function(type.measure_="default", cv_aic_min_mat, sig_level_=0.
         weight_i <- NULL
       }
       
-      tryCatch(
+      result_i <- tryCatch(
         {
           PML_result_ij <- logistf(y~., neighbor_ij %>% select(-id), weights=weight_i, alpha=sig_level_)
           AIC_i <- extractAIC(PML_result_ij)[[2]]
@@ -299,10 +299,14 @@ local_GWR_PML <- function(type.measure_="default", cv_aic_min_mat, sig_level_=0.
           local_GWR_coefs_PML_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- PML_result_ij
         },
         error = function(e) {
-          cv_aic_min_mat[[paste0("bw_", bw_ij)]][i] <- NA
-          local_GWR_coefs_PML_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
+          return(e)
         }
       )
+      
+      if (inherits(result_i, "error")) {
+        cv_aic_min_mat[[paste0("bw_", bw_ij)]][i] <- NA
+        local_GWR_coefs_PML_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
+      }
       
     }
     if (i %% 100 == 0) print(paste0(i, "th municipio complete"))
