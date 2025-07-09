@@ -56,7 +56,11 @@ library(logistf)
   n_river_length <- read.csv("Colombia Data/n_river_length.csv") %>% as_tibble
   n_road_length <- read.csv("Colombia Data/n_road_length.csv") %>% as_tibble
   n_lab_prob <- read.csv("Colombia Data/n_lab_prob.csv") %>% as_tibble
-  n_binary <- read.csv("Colombia Data/n_binary.csv") %>% as_tibble
+  n_airport <- read.csv("Colombia Data/n_airport.csv") %>% as_tibble
+  n_armed_group <- read.csv("Colombia Data/n_armed_group.csv") %>% as_tibble
+  n_ferry <- read.csv("Colombia Data/n_ferry.csv") %>% as_tibble
+  n_police <- read.csv("Colombia Data/n_police.csv") %>% as_tibble
+  n_military <- read.csv("Colombia Data/n_military.csv") %>% as_tibble
 }
 
 minmax_scale <- function(vec) {
@@ -302,26 +306,46 @@ min_seizure_scaled <- min(gwr_data$norm$seizures) %>% round(3)
 min_coca_area_scaled <- min(gwr_data$norm$coca_area) %>% round(3)
 coord_unique <- gwr_data$coord
 local_gwr_dist <- gwr_data$dist %>% as.matrix
+# gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+# gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+# gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
 
 # nonzero_seizure <- cv_aic_min_mat_
-# nonzero_coca_area <- cv_aic_min_mat_ 
+# nonzero_coca_area <- cv_aic_min_mat_
 # n_price <- cv_aic_min_mat_
 # n_river_length <- cv_aic_min_mat_
 # n_road_length <- cv_aic_min_mat_
 # n_lab_prob <- cv_aic_min_mat_
-# n_binary <- cv_aic_min_mat_
+# n_airport <- cv_aic_min_mat_
+# n_armed_group <- cv_aic_min_mat_
+# n_ferry <- cv_aic_min_mat_
+# n_police <- cv_aic_min_mat_
+# n_military <- cv_aic_min_mat_
 # for (i in 1:nrow(cv_aic_min_mat_)) {
 #   id_i <- cv_aic_min_mat_$id[i]
 #   for (bw_ij in bwd_range) {
 #     col_name_ij <- paste0("bw_", bw_ij)
 #     neighbor_ij <- neighbor_id(id_i, bw_ij, scale_11_=F, coord_unique, local_gwr_dist)
-#     nonzero_seizure[[col_name_ij]][i] <- sum(round(neighbor_ij$seizures, 3) > min_seizure_scaled)
+#     nonzero_seizure[[col_name_ij]][i] <- unique(neighbor_ij$seizures) %>% length
 #     nonzero_coca_area[[col_name_ij]][i] <- sum(round(neighbor_ij$coca_area, 3) > min_coca_area_scaled)
+    # nonzero_seizure[[col_name_ij]][i] <- sum(round(neighbor_ij$seizures, 3) > min_seizure_scaled)
+    # nonzero_coca_area[[col_name_ij]][i] <- sum(round(neighbor_ij$coca_area, 3) > min_coca_area_scaled)
 #     n_price[[col_name_ij]][i] <- table(neighbor_ij$price_avg) %>% length
 #     n_river_length[[col_name_ij]][i] <- table(neighbor_ij$river_length) %>% length
 #     n_road_length[[col_name_ij]][i] <- table(neighbor_ij$road_length) %>% length
 #     n_lab_prob[[col_name_ij]][i] <- table(neighbor_ij$lab_prob) %>% length
-#     n_binary[[col_name_ij]][i] <- neighbor_ij %>% select(airport, armed_group, ferry, police, military) %>% apply(2, function(x) table(x) %>% length %>% min)
+#     
+#     n_airport_ij <- table(neighbor_ij$airport)
+#     n_armed_group_ij <- table(neighbor_ij$armed_group)
+#     n_ferry_ij <- table(neighbor_ij$ferry)
+#     n_police_ij <- table(neighbor_ij$police)
+#     n_military_ij <- table(neighbor_ij$military)
+#     
+#     n_airport[[col_name_ij]][i] <- ifelse(n_airport_ij %>% length == 2, n_airport_ij %>% min, 0)
+#     n_armed_group[[col_name_ij]][i] <- ifelse(n_armed_group_ij %>% length == 2, n_armed_group_ij %>% min, 0)
+#     n_ferry[[col_name_ij]][i] <- ifelse(n_ferry_ij %>% length == 2, n_ferry_ij %>% min, 0)
+#     n_police[[col_name_ij]][i] <- ifelse(n_police_ij %>% length == 2, n_police_ij %>% min, 0)
+#     n_military[[col_name_ij]][i] <- ifelse(n_military_ij %>% length == 2, n_military_ij %>% min, 0)
 #   }
 # }
 # nonzero_seizure %>% write.csv("Colombia Data/nonzero_seizure.csv", row.names = F)
@@ -330,7 +354,11 @@ local_gwr_dist <- gwr_data$dist %>% as.matrix
 # n_river_length %>% write.csv("Colombia Data/n_river_length.csv", row.names = F)
 # n_road_length %>% write.csv("Colombia Data/n_road_length.csv", row.names = F)
 # n_lab_prob %>% write.csv("Colombia Data/n_lab_prob.csv", row.names = F)
-# n_binary %>% write.csv("Colombia Data/n_binary.csv", row.names = F)
+# n_airport %>% write.csv("Colombia Data/n_airport.csv", row.names = F)
+# n_armed_group %>% write.csv("Colombia Data/n_armed_group.csv", row.names = F)
+# n_ferry %>% write.csv("Colombia Data/n_ferry.csv", row.names = F)
+# n_police %>% write.csv("Colombia Data/n_police.csv", row.names = F)
+# n_military %>% write.csv("Colombia Data/n_military.csv", row.names = F)
 
 bwd_range <- seq(0.5, 3, by=0.1)
 depto_map <- suppressMessages(fortify(departamentos)) %>% 
@@ -388,9 +416,17 @@ PML_gwr_coefs_F1_model_drop_log_seizure_coca %>% filter(abs(lab_prob) > 50)
 high_lab_prob_id <- PML_gwr_coefs_F1_model_drop_log_seizure_coca %>% filter(abs(lab_prob) > 50) %>% pull(id)
 local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled$id_5002$bw_0.6$model
 
+PML_gwr_coefs_F1_model_drop_log_seizure_coca %>% filter(abs(armed_group) > 25)
+n_airport %>% filter(id %in% high_armed_group_id)
+n_armed_group %>% filter(id %in% high_armed_group_id)
+n_ferry %>% filter(id %in% high_armed_group_id)
+n_police %>% filter(id %in% high_armed_group_id)
+n_military %>% filter(id %in% high_armed_group_id)
+
 gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
 gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
-gwr_data$norm$lab_prob <- scale(gwr_data$norm$lab_prob)[,1]
+gwr_data$norm$lab_prob_scaled <- scale(gwr_data$norm$lab_prob)[,1]
+gwr_data$norm$lab_prob_log_scaled <- scale(log(1+gwr_data$norm$lab_prob))[,1]
 id_i <- 81591; bw_i <- 1.6
 id_i <- 81794; bw_i <- 1.3
 id_i <- 15212; bw_i <- 0.7
@@ -400,6 +436,7 @@ id_i <- 17444; bw_i <- 0.6
 id_i <- 5002; bw_i <- 0.6
 id_i <- 5031; bw_i <- 1.2
 data_id <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
+data_id %>% select(airport:military, -lab_prob) %>% apply(2, function(x) min(c(sum(x), length(x) - sum(x))))
 data_id %>% select(y, armed_group) %>% arrange(armed_group, y) %>% print(n=nrow(data_id))
   # perfect prediction?
 data.frame(id=data_id$id,
@@ -407,7 +444,9 @@ data.frame(id=data_id$id,
            y_pred=ifelse(local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled[[paste0("id_",id_i)]][[paste0("bw_",bw_i)]]$predict < 0.5, 0, 1),
            armed_group=data_id$armed_group)
 local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled[[paste0("id_",id_i)]][[paste0("bw_",bw_i)]] %>% summary
-logistf(y~.-id, data_id) %>% summary
+logistf(y~.-id-lab_prob_scaled-lab_prob_log_scaled, data_id) %>% summary
+logistf(y~.-id-lab_prob-lab_prob_log_scaled, data_id) %>% summary
+logistf(y~.-id-lab_prob_scaled-lab_prob, data_id) %>% summary # id=17662: -130 even for lab_prob_log_scaled, too small number of obs.?
 # logistf(y~.-id, data_id %>% mutate(across(c(airport:armed_group, ferry:military), ~as.factor(.x))) %>% summary# same result
 logistf(y~.-id, data_id[-5,]) %>% summary
 

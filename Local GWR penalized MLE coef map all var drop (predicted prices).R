@@ -56,7 +56,11 @@ library(logistf)
   n_river_length <- read.csv("Colombia Data/n_river_length.csv") %>% as_tibble
   n_road_length <- read.csv("Colombia Data/n_road_length.csv") %>% as_tibble
   n_lab_prob <- read.csv("Colombia Data/n_lab_prob.csv") %>% as_tibble
-  n_binary <- read.csv("Colombia Data/n_binary.csv") %>% as_tibble
+  n_airport <- read.csv("Colombia Data/n_airport.csv") %>% as_tibble
+  n_armed_group <- read.csv("Colombia Data/n_armed_group.csv") %>% as_tibble
+  n_ferry <- read.csv("Colombia Data/n_ferry.csv") %>% as_tibble
+  n_police <- read.csv("Colombia Data/n_police.csv") %>% as_tibble
+  n_military <- read.csv("Colombia Data/n_military.csv") %>% as_tibble
 }
 
 minmax_scale <- function(vec) {
@@ -438,7 +442,7 @@ local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_,
   names(pval_table)[-(1:2)] <- indep_vars
   # if (!is.null(weight_)) interact_ <- " weight"
   write.csv(coef_table,
-            paste0("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs ", dep_var, " ", criteria, " all var model drop ", n_drop, " (06-20-2025).csv"),
+            paste0("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs ", dep_var, " ", criteria, " all var drop ", n_drop, " (07-07-2025).csv"),
             row.names = F)
   # write.csv(pval_table,
   #           paste0("Colombia Data/local GWR PML result predicted prices/local GWR PML p-values ", dep_var, " ", criteria, " all var model drop ", n_drop, " (06-17-2025).csv"),
@@ -499,7 +503,7 @@ local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_,
     ggsave(paste0("Colombia Data/local GWR PML result predicted prices/coef maps/",
                   dep_var, "/local GWR PML coef by drop ", var_name,
                   # " alpha=", alpha,
-                  " ", dep_var, " ", criteria, " all var model drop ", n_drop, " (06-20-2025).png"),
+                  " ", dep_var, " ", criteria, " all var drop ", n_drop, " (07-07-2025).png"),
            gwr_coef_map, scale=1)
   }
 }
@@ -757,17 +761,17 @@ local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure
                              indep_vars = names(local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled$id_5040$bw_1.4$model)[-1], alpha = 0.1, n_drop = 5)
 
 # coef map by F1 var drop 
-PML_best_bw_tbl_var_drop  <- tibble(id = PML_gwr_aic_var_drop$id,
+PML_best_bw_tbl_var_drop  <- tibble(id = PML_F1_score_hyd_dest_var_drop_n_drop7$id,
                                     # PML_seizure_bw_AIC = PML_gwr_aic_var_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist,
-                                    PML_seizure_bw_F1 = PML_F1_score_hyd_dest_var_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist,
+                                    # PML_seizure_bw_F1 = PML_F1_score_hyd_dest_var_drop[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist,
                                     # PML_log_seizure_coca_bw_AIC = PML_gwr_aic_var_drop_log_seizure_coca[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.min(x)]))) %>% unlist,
-                                    PML_log_seizure_coca_bw_F1 = PML_F1_score_hyd_dest_var_drop_log_seizure[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist)
+                                    PML_log_seizure_coca_bw_F1 = PML_F1_score_hyd_dest_var_drop_n_drop7[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist)
 
 local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_var_drop, PML_best_bw_tbl_var_drop, criteria="PML_seizure_bw_F1", dep_var = "hyd_destination",
                              indep_vars = names(local_GWR_coefs_PML_hyd_dest_var_drop$id_5040$bw_1.4$model)[-1], n_drop=5)
 
 local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled, PML_best_bw_tbl_var_drop, criteria="PML_log_seizure_coca_bw_F1", dep_var = "hyd_destination",
-                             indep_vars = names(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_5040$bw_1.4$model)[-1], n_drop=5)
+                             indep_vars = names(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_5040$bw_1.4$model)[-1], n_drop=7)
 
 
 
