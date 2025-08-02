@@ -576,7 +576,7 @@ PML_F1_score_hyd_dest_var_drop_log_seizure <- read.csv("Colombia Data/local GWR 
 PML_gwr_aic_model_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic model drop (05-21-2025).csv") %>% as_tibble
 PML_gwr_aic_var_drop <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic all var drop (06-17-2025).csv") %>% as_tibble
 PML_gwr_aic_model_drop_log_seizure_coca <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price model drop log seizure coca scaled (06-20-2025).csv") %>% as_tibble
-PML_gwr_aic_var_drop_log_seizure_coca <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price all var drop log seizure coca scaled (06-20-2025).csv") %>% as_tibble
+PML_gwr_aic_var_drop_log_seizure_coca <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price aic all var drop log seizure coca scaled n_drop=7 (07-07-2025).csv") %>% as_tibble
 
 PML_gwr_coefs_F1_model_drop %>% filter(abs(coca_area) > 100)
 PML_gwr_coefs_F1_model_drop %>% filter(coca_area > 100)
