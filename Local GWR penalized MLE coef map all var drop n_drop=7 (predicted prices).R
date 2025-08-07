@@ -542,7 +542,7 @@ PML_F1_score_hyd_dest_var_drop_log_seizure_5 %>% filter(id == 73200)
 PML_F1_score_hyd_dest_var_drop_log_seizure_7 %>% filter(id == 73200)
 PML_F1_score_hyd_dest_var_drop_log_seizure_10 %>% filter(id == 73200)
 
-id_i <- 73770; bw_i <- 0.7
+id_i <- 73319; bw_i <- 0.7
 data_id <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
 data_id %>% arrange(y) %>% print(n=nrow(data_id))
 data_id[,-1] %>% apply(2, function(x) table(x) %>% length)
@@ -831,8 +831,8 @@ CM_var_drop_10$byClass
 global_reg <- glm(y~.-id-municipio, gwr_data$norm, family=binomial)
 global_PML <- logistf(y~.-id-municipio, gwr_data$norm)
 
-CM_global_reg <- confusionMatrix(global_reg$model$y, ifelse(global_reg$fitted.values < 0.5, 0, 1) %>% as.factor, positive = "1")
-CM_global_PML <- confusionMatrix(global_PML$model$y, ifelse(global_PML$predict < 0.5, 0, 1) %>% as.factor, positive = "1")
+CM_global_reg <- confusionMatrix(ifelse(global_reg$fitted.values < 0.5, 0, 1) %>% as.factor, global_reg$model$y, positive = "1")
+CM_global_PML <- confusionMatrix(ifelse(global_PML$predict < 0.5, 0, 1) %>% as.factor, global_PML$model$y, positive = "1")
 CM_global_reg$byClass
 CM_global_PML$byClass
 
