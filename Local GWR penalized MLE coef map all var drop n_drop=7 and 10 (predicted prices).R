@@ -837,94 +837,131 @@ CM_global_reg$byClass
 CM_global_PML$byClass
 
 ### LASSO coef map for comparison with PML GWR var_drop n_drop=10
-nfolds. <- 10
-indep_vars <- c("Intercept", indep_vars_)
-lasso_gwr_coefs_n_drop_10 <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10
-for (i in 1:nrow(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10)) {
-  id_i <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10$id[i]
-  bw_i <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10$bw[i]
-  if (is.na(bw_i)) next
-  local_GWR_model_i <- local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled[[i]][[paste0("bw_", bw_i)]]
-  
-  x_mat <- model.matrix(as.formula(y~.), local_GWR_model_i$model)[, -1]
-  y_vec <- local_GWR_model_i$model$y
-  id_cv.glmnet <- cv.glmnet(x = x_mat,
-                            y = y_vec,
-                            family = "binomial",
-                            nfolds = nfolds.,
-                            type.measure = "deviance")
-  lambda_lasso <- id_cv.glmnet$lambda.min
-  lasso_GWR_model_i <- glmnet(x = x_mat,
-                              y = y_vec,
-                              family = "binomial",
-                              alpha = 1,
-                              lambda = lambda_lasso)
+# local_GWR_coefs_lasso_hyd_dest_var_drop
+load("Colombia Data/local GWR PML result predicted prices/local GWR lasso hyd_dest predicted price var drop n_drop=10 (08-11-2025).RData")
+lasso_gwr_aic_var_drop_log_seizure_coca <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR lasso hyd_dest predicted price cv min dev var drop n_drop=10 (08-11-2025).csv") %>% as_tibble
+bwd_range <- seq(0.5, 3, by=0.1)
+gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
+gwr_data_lab_prob <- gwr_data$norm$lab_prob
+gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+gwr_data$norm$lab_prob <- scale(log(1+gwr_data_lab_prob))[,1]
+coord_unique <- gwr_data$coord
+local_gwr_dist <- gwr_data$dist
 
-  lasso_GWR_coef_i <- coef(lasso_GWR_model_i)
-  coef_names_i <- rownames(lasso_GWR_coef_i)
-  coef_names_i[1] <- "Intercept"
-  for (j in 1:length(coef_names_i)) {
-    lasso_gwr_coefs_n_drop_10[[coef_names_i[j]]][i] <- lasso_GWR_coef_i[j]
+lasso_F1_score <- function(lasso_model_list, cv_aic_min_mat) {
+  F1_mat <- cv_aic_min_mat
+  for (i in 1:nrow(cv_aic_min_mat)) {
+    id_i <- cv_aic_min_mat$id[i]
+    lasso_model_list_id <- lasso_model_list[[i]]
+    for (j in 1:length(lasso_model_list_id)) {
+      if (is.na(cv_aic_min_mat[i, j+1])) {
+        F1_mat[i,j+1] <- NA
+        next
+      }
+      
+      bw_ij <- bwd_range[j]
+      lasso_model_list_id_bw <- lasso_model_list_id[[j]]
+      neighbor_ij <- neighbor_id(id_i, bw_ij, F, coord_unique, local_gwr_dist) %>% select(-id) %>% select(y, lasso_model_list_id_bw$beta %>% rownames)
+      lasso_model_list_id_bw_y <- neighbor_ij$y
+      lasso_model_list_id_bw_pred <- predict(lasso_model_list_id_bw, neighbor_ij  %>% select(-y) %>% as.matrix, type="response")
+      lasso_model_list_id_bw_pred <- ifelse(lasso_model_list_id_bw_pred < 0.5, 0, 1) %>% factor(levels = c("0", "1"))
+      lasso_model_list_id_bw_CM <- confusionMatrix(lasso_model_list_id_bw_pred, lasso_model_list_id_bw_y, positive = "1")
+      F1_mat[i,j+1] <- lasso_model_list_id_bw_CM$byClass[7] # F1 score
+      
+    }
+  }
+  return(F1_mat)
+}
+
+lasso_F1_score_hyd_dest_var_drop_log_seizure <- lasso_F1_score(local_GWR_coefs_lasso_hyd_dest_var_drop, lasso_gwr_aic_var_drop_log_seizure_coca)
+# write.csv(lasso_F1_score_hyd_dest_var_drop_log_seizure,
+#           "Colombia Data/local GWR PML result predicted prices/local GWR lasso hyd_dest predicted price F1 all var drop log seizure scaled n_drop=10 (08-11-2025).csv", row.names = F)
+lasso_F1_score_hyd_dest_var_drop_log_seizure <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR lasso hyd_dest predicted price F1 all var drop log seizure scaled n_drop=10 (08-11-2025).csv") %>% as_tibble
+
+local_gwr_lasso_coef_map_by_F1 <- function(local_GWR_coefs_list, lasso_best_bw_tbl_, criteria, dep_var, indep_vars, alpha=0.1, n_drop) {
+  indep_vars <- c("Intercept", indep_vars)
+  coef_table <- tibble(id = lasso_best_bw_tbl_$id, bw=lasso_best_bw_tbl_[[criteria]])
+  coef_mat <- matrix(NA, nrow(coef_table), length(indep_vars))
+  
+  indep_vars_df <- data.frame(var_name=indep_vars)
+  for (i in 1:nrow(coef_table)) {
+    bw_i <- coef_table$bw[i]
+    if (is.na(bw_i)) next
+    local_GWR_model_i <- local_GWR_coefs_list[[i]][[paste0("bw_", bw_i)]]
+    coef_i <- coef(local_GWR_model_i)[,1]
+    coef_i_df <- data.frame(var_name=c("Intercept", names(coef_i)[-1]), coef=coef_i)
+    coef_i_df <- left_join(indep_vars_df, coef_i_df, by="var_name")
+    coef_mat[i,] <- coef_i_df$coef
+  }
+  
+  coef_table <- bind_cols(coef_table, coef_mat)
+  names(coef_table)[-(1:2)] <- indep_vars
+  # if (!is.null(weight_)) interact_ <- " weight"
+  write.csv(coef_table,
+            paste0("Colombia Data/local GWR PML result predicted prices/local GWR lasso coefs ", dep_var, " ", criteria, " all var drop ", n_drop, " (08-11-2025).csv"),
+            row.names = F)
+  
+  
+  for (i in c(2, 4:length(coef_table))) {
+    var_name <- names(coef_table)[i]
+    gwr_coefs_i <- data.frame(id=coef_table$id,
+                              coef=coef_table[[var_name]],
+                              rounded_coef=coef_table[[var_name]] %>% round(3))
+    min_coef <- min(gwr_coefs_i$coef, na.rm=T)
+    max_coef <- max(gwr_coefs_i$coef, na.rm=T)
+    coef_map_coords_bw <- map_df %>% 
+      left_join(gwr_coefs_i, by="id")
+    coef_map_coords <- map_df %>% 
+      left_join(gwr_coefs_i, by="id")
+    
+    if (i == 2) {
+      gwr_coef_map <- ggplot(coef_map_coords_bw, aes(x=long, y=lat)) + 
+        geom_polygon(aes(group=group, fill=coef),
+                     color = "black",
+                     linewidth = 0.1) + 
+        expand_limits(x = depto_map$long, y = depto_map$lat) + 
+        coord_quickmap() +
+        scale_fill_viridis_c(na.value = "white") +
+        labs(fill=var_name, x="", y="", title=dep_var) +
+        theme_bw() +
+        theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              axis.text = element_blank(),
+              line = element_blank()
+        )
+    }else{
+      gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) + 
+        geom_polygon(aes(group=group, fill=coef),
+                     color = "black",
+                     linewidth = 0.1) + 
+        expand_limits(x = depto_map$long, y = depto_map$lat) + 
+        coord_quickmap() +
+        scale_fill_gradientn(colors = c("blue","skyblue","grey40", "yellow","red"),
+                             values = scales::rescale(c(-1, -.Machine$double.eps, 0 , .Machine$double.eps, max_coef/abs(min_coef))),
+                             na.value = "white") +
+        labs(fill=var_name, x="", y="", title=dep_var) +
+        theme_bw() +
+        theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              axis.text = element_blank(),
+              line = element_blank()
+        )
+    }
+    
+    ggsave(paste0("Colombia Data/local GWR PML result predicted prices/coef maps/",
+                  dep_var, "/local GWR lasso coef by drop ", var_name,
+                  # " alpha=", alpha,
+                  " ", dep_var, " ", criteria, " all var drop ", n_drop, " (08-11-2025).png"),
+           gwr_coef_map, scale=1)
   }
 }
 
-write.csv(lasso_gwr_coefs_n_drop_10,
-          paste0("Colombia Data/local GWR PML result predicted prices/local GWR LASSO coefs hyd_destination log_seizure_coca_bw_F1 all var drop 10 (08-01-2025).csv"),
-          row.names = F)
-
-dep_var <- "hyd_destination"
-coef_table <- lasso_gwr_coefs_n_drop_10
-for (i in c(2, 4:length(coef_table))) {
-  var_name <- names(coef_table)[i]
-  gwr_coefs_i <- data.frame(id=coef_table$id,
-                            coef=coef_table[[var_name]],
-                            rounded_coef=coef_table[[var_name]] %>% round(3))
-  min_coef <- min(gwr_coefs_i$coef, na.rm=T)
-  max_coef <- max(gwr_coefs_i$coef, na.rm=T)
-  coef_map_coords_bw <- map_df %>% 
-    left_join(gwr_coefs_i, by="id")
-  # gwr_coefs_i$coef <- ifelse(gwr_coefs_i$p_value > alpha, NA, gwr_coefs_i$coef)
-  coef_map_coords <- map_df %>% 
-    left_join(gwr_coefs_i, by="id")
-  
-  if (i == 2) {
-    gwr_coef_map <- ggplot(coef_map_coords_bw, aes(x=long, y=lat)) + 
-      geom_polygon(aes(group=group, fill=coef),
-                   color = "black",
-                   linewidth = 0.1) + 
-      expand_limits(x = depto_map$long, y = depto_map$lat) + 
-      coord_quickmap() +
-      scale_fill_viridis_c(na.value = "white") +
-      labs(fill=var_name, x="", y="", title=dep_var) +
-      theme_bw() +
-      theme(panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            panel.border = element_blank(),
-            axis.text = element_blank(),
-            line = element_blank()
-      )
-  }else{
-    gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) + 
-      geom_polygon(aes(group=group, fill=coef),
-                   color = "black",
-                   linewidth = 0.1) + 
-      expand_limits(x = depto_map$long, y = depto_map$lat) + 
-      coord_quickmap() +
-      scale_fill_gradientn(colors = c("blue","skyblue","grey40", "yellow","red"),
-                           values = scales::rescale(c(-1, -.Machine$double.eps, 0 , .Machine$double.eps, max_coef/abs(min_coef))),
-                           na.value = "white") +
-      labs(fill=var_name, x="", y="", title=dep_var) +
-      theme_bw() +
-      theme(panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            panel.border = element_blank(),
-            axis.text = element_blank(),
-            line = element_blank()
-      )
-  }
-  
-  ggsave(paste0("Colombia Data/local GWR PML result predicted prices/coef maps/hyd_destination LASSO/local GWR LASSO coef by drop ", var_name,
-                # " alpha=", alpha,
-                " hyd_destination log_seizure_coca_bw_F1 all var drop 10 (08-01-2025).png"),
-         gwr_coef_map, scale=1)
-}
+indep_vars_ <- names(gwr_data$norm)[-(1:3)]
+lasso_best_bw_tbl_var_drop  <- tibble(id = lasso_F1_score_hyd_dest_var_drop_log_seizure$id,
+                                      lasso_log_seizure_coca_bw_F1 = lasso_F1_score_hyd_dest_var_drop_log_seizure[,-1] %>%
+                                        apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist)
+local_gwr_lasso_coef_map_by_F1(local_GWR_coefs_lasso_hyd_dest_var_drop, lasso_best_bw_tbl_var_drop, criteria="lasso_log_seizure_coca_bw_F1", dep_var = "hyd_destination",
+                               indep_vars = indep_vars_, n_drop=10)
