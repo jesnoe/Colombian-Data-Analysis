@@ -830,11 +830,41 @@ CM_var_drop_10$byClass
 
 global_reg <- glm(y~.-id-municipio, gwr_data$norm, family=binomial)
 global_PML <- logistf(y~.-id-municipio, gwr_data$norm)
+PML_GWR_pred_10$y_global_PML <- ifelse(global_PML$predict < 0.5, 0, 1) %>% as.factor
 
 CM_global_reg <- confusionMatrix(ifelse(global_reg$fitted.values < 0.5, 0, 1) %>% as.factor, global_reg$model$y, positive = "1")
 CM_global_PML <- confusionMatrix(ifelse(global_PML$predict < 0.5, 0, 1) %>% as.factor, global_PML$model$y, positive = "1")
 CM_global_reg$byClass
 CM_global_PML$byClass
+
+empty_map <- ggplot(depto_map, aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group),
+               color = "black",
+               fill="white",
+               linewidth = 0.1) + 
+  expand_limits(x = depto_map$long, y = depto_map$lat) + 
+  coord_quickmap() +
+  labs(fill="", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  )
+
+GWR_y_tbl_centroid <- left_join(municipio_centroid, PML_GWR_pred_10 %>% select(id, y, y_PML_var_drop, y_global_PML), by="id")
+
+empty_map + 
+  geom_point(data = GWR_y_tbl_centroid %>% filter(y == 1),
+             aes(x=long, y=lat, color = "true y"), size=1) +
+  geom_point(data = GWR_y_tbl_centroid %>% filter(y == 0 & y_PML_var_drop == 1),
+             aes(x=long, y=lat, color = "predicted y with PML GWR"), size=1) +
+  scale_color_manual(
+    name = "hyd destinations",
+    values = c("true y"="black", "predicted y with PML GWR"="red"),
+  )
+
 
 ### LASSO coef map for comparison with PML GWR var_drop n_drop=10
 # local_GWR_coefs_lasso_hyd_dest_var_drop

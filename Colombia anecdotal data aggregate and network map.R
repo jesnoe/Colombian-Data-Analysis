@@ -164,6 +164,24 @@ empty_map <- ggplot(map_df, aes(x=long, y=lat)) +
         line = element_blank()
         )
 
+var_map_coords <- map_df %>% left_join(gwr_data$norm %>% select(id, seizures), by="id")
+gwr_var_map <- ggplot(var_map_coords, aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group, fill=seizures),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = depto_map$long, y = depto_map$lat) + 
+  coord_quickmap() +
+  scale_fill_viridis_c(na.value = "white") +
+  labs(fill="log seizures", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank())
+
+# ggsave(paste0("Colombia Data/Figs/log seizures map.png"), gwr_var_map, scale=1)
+
 base_to_base <- read.csv("Colombia Data/Anecdotal base to base with coordinates.csv") %>% as_tibble
 base_to_base_map <- empty_map
 base_to_base_map <- base_to_base_map +
