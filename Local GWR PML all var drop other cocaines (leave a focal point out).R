@@ -222,7 +222,7 @@ regression_data_each_year_price_pred <- function(dep_var, year_) {
 }
 
 
-neighbor_id <- function(id_i, bw_i, scale_11_, coord_unique_, local_gwr_dist_, gwr_data_=gwr_data) {
+neighbor_id <- function(id_i, bw_i, scale_11_, coord_unique_, local_gwr_dist_, gwr_data_) {
   if (scale_11_) gwr_data_id <- gwr_data_$scale_11
   else gwr_data_id <- gwr_data_$norm
   
@@ -248,7 +248,7 @@ local_GWR_PML <- function(type.measure_="default", cv_aic_min_mat, sig_level_=0.
       bw_name <- paste0("bw_", bw_ij)
       local_GWR_coefs_PML_result[[paste0("id_", id_i)]][[bw_name]] <- NA
       
-      neighbor_ij <- neighbor_id(id_i, bw_ij, scale_11_, coord_unique, local_gwr_dist) %>% 
+      neighbor_ij <- neighbor_id(id_i, bw_ij, scale_11_, coord_unique, local_gwr_dist, gwr_data_=gwr_PML_data_) %>% 
         filter(id != id_i) #### leave a focal point out
       n_0_1 <- neighbor_ij$y %>% table
       
@@ -397,62 +397,44 @@ regression_data_years <- read.csv("Colombia Data/regression data all municipios 
   regression_data_aggr$coca_area_log_scale <- scale(log(regression_data_aggr$coca_area+1))[,1]
   }
 
-gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
-gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
-gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
-gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
-cv_aic_min_mat_[,-1] <- NA
-cv_aic_min_mat_ <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price cv min dev (04-09-2025).csv") %>% as_tibble
-bwd_range <- seq(0.5, 3, by=0.1)
+local_GWR_PML_y <- function(dep_var_, seed_model) {
+  gwr_data <- ever_regression_data_years_price_pred(dep_var_)
+  gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+  gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+  gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
+  cv_aic_min_mat_[,-1] <- NA
+  cv_aic_min_mat_ <- read.csv("Colombia Data/local GWR forward result predicted prices/local GWR forward hyd_dest predicted price cv min dev (04-09-2025).csv") %>% as_tibble
+  bwd_range <- seq(0.5, 3, by=0.1)
+  
+  min_seizure_scaled <- min(gwr_data$norm$seizures) %>% round(3)
+  min_coca_area_scaled <- min(gwr_data$norm$coca_area) %>% round(3)
+  coord_unique <- gwr_data$coord
+  local_gwr_dist <- gwr_data$dist %>% as.matrix
+  
+  set.seed(seed_model)
+  local_GWR_coefs_PML_list <- local_GWR_PML(dep_var = dep_var_, cv_aic_min_mat=cv_aic_min_mat_, gwr_PML_data_ = gwr_data, method_="var drop", sig_level_ = 0.1, n_drop = 10)
+  
+  local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo <- local_GWR_coefs_PML_list$PML
+  write.csv(local_GWR_coefs_PML_list$cv_aic_min_mat,
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out aic all var drop log seizure coca scaled n_drop=10 (09-08-2025).csv", dep_var_), row.names = F)
+  save("local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo",
+       file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 (09-08-2025).RData", dep_var_))
+  rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo); rm(local_GWR_coefs_PML_list)
+}
 
-min_seizure_scaled <- min(gwr_data$norm$seizures) %>% round(3)
-min_coca_area_scaled <- min(gwr_data$norm$coca_area) %>% round(3)
-coord_unique <- gwr_data$coord
-local_gwr_dist <- gwr_data$dist %>% as.matrix
-# nonzero_seizure <- cv_aic_min_mat_
-# nonzero_coca_area <- cv_aic_min_mat_ 
-# for (i in 1:nrow(cv_aic_min_mat_)) {
-#   id_i <- cv_aic_min_mat_$id[i]
-#   for (bw_ij in bwd_range) {
-#     col_name_ij <- paste0("bw_", bw_ij)
-#     neighbor_ij <- neighbor_id(id_i, bw_ij, scale_11_=F, coord_unique, local_gwr_dist)
-#     nonzero_seizure[[col_name_ij]][i] <- sum(round(neighbor_ij$seizures, 3) > min_seizure_scaled)
-#     nonzero_coca_area[[col_name_ij]][i] <- sum(round(neighbor_ij$coca_area, 3) > min_coca_area_scaled)
-#   }
-# }
-# nonzero_seizure
-# nonzero_coca_area
 
-# penalized MLE
-# type.measure_="default"; cv_aic_min_mat=cv_aic_min_mat_; sig_level_=0.1; interact_=F; scale_11_=F; weight_=NULL; dep_var="hyd_destination"; gwr_PML_data_=gwr_data; method_="model drop"; n_drop <- 5
 
-# Local GWR PML with log(seizures), log(coca_area) scaled data
-
-# set.seed(100)
-# start.time <- Sys.time()
-# local_GWR_coefs_PML_hyd_dest_list <- local_GWR_PML(dep_var = "hyd_destination", cv_aic_min_mat=cv_aic_min_mat_, gwr_PML_data_ = gwr_data, method_="model drop", sig_level_ = 0.1, n_drop = 5)
-# end.time <- Sys.time()
-# end.time - start.time # 56.52385 mins for hyd_destination model drop
-
-# local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled <- local_GWR_coefs_PML_hyd_dest_list$PML
-# write.csv(local_GWR_coefs_PML_hyd_dest_list$cv_aic_min_mat, "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price model drop log seizure coca scaled (06-20-2025).csv", row.names = F)
-# save("local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled", file = "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price model drop log seizure coca scaled (06-20-2025).RData")
-# rm(local_GWR_coefs_PML_hyd_dest_model_drop_log_seizure_scaled); rm(local_GWR_coefs_PML_hyd_dest_list)
-
-set.seed(5640)
-start.time <- Sys.time()
-local_GWR_coefs_PML_hyd_dest_list <- local_GWR_PML(dep_var = "hyd_destination", cv_aic_min_mat=cv_aic_min_mat_, gwr_PML_data_ = gwr_data, method_="var drop", sig_level_ = 0.1, n_drop = 10)
-end.time <- Sys.time()
-end.time - start.time # 27.18786 mins for hyd_destination var drop
-
-local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled <- local_GWR_coefs_PML_hyd_dest_list$PML
-write.csv(local_GWR_coefs_PML_hyd_dest_list$cv_aic_min_mat, "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest leave-one-out aic all var drop log seizure coca scaled n_drop=10 (08-20-2025).csv", row.names = F)
-save("local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled", file = "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest leave-one-out all var drop log seizure coca scaled n_drop=10 (08-20-2025).RData")
-rm(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled); rm(local_GWR_coefs_PML_hyd_dest_list)
+# set.seed(1000)
+# seed_i <- sample(1:1000000, 1)
+# local_GWR_PML_y("base_source", 700630) # 700630
+# seed_i <- sample(1:1000000, 1)
+# local_GWR_PML_y("base_destination", 49056) # 49056
+# seed_i <- sample(1:1000000, 1)
+# local_GWR_PML_y("hyd_source", 424271) # 424271
 
 
 # coef map by F1 scores
-local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_, criteria, dep_var, indep_vars, alpha=0.1, n_drop) {
+local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_, criteria, dep_var, indep_vars, alpha=0.1, n_drop, date_) {
   indep_vars <- c("Intercept", indep_vars)
   coef_table <- tibble(id = PML_best_bw_tbl_$id, bw=PML_best_bw_tbl_[[criteria]])
   pval_table <- coef_table
@@ -475,14 +457,9 @@ local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_,
   pval_table <- bind_cols(pval_table, pval_mat)
   names(coef_table)[-(1:2)] <- indep_vars
   names(pval_table)[-(1:2)] <- indep_vars
-  # if (!is.null(weight_)) interact_ <- " weight"
   write.csv(coef_table,
-            paste0("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs ", dep_var, " leave-one-out ", criteria, " all var drop ", n_drop, " (08-20-2025).csv"),
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s leave-one-out %s all var drop %i (%s).csv", dep_var, criteria, n_drop, date_),
             row.names = F)
-  # write.csv(pval_table,
-  #           paste0("Colombia Data/local GWR PML result predicted prices/local GWR PML p-values ", dep_var, " ", criteria, " all var model drop ", n_drop, " (06-17-2025).csv"),
-  #           # paste0("Colombia Data/local GWR PML result predicted prices/local GWR PML p-values alpha=", alpha, " ", dep_var, " ", criteria, " var drop (06-05-2025).csv"),
-  #           row.names = F)
   
   
   for (i in c(2, 4:length(coef_table))) {
@@ -535,10 +512,7 @@ local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_,
         )
     }
     
-    ggsave(paste0("Colombia Data/local GWR PML result predicted prices/coef maps/",
-                  dep_var, "/local GWR PML coef by drop ", var_name,
-                  # " alpha=", alpha,
-                  " ", dep_var, " ", criteria, " all var drop ", n_drop, " (08-20-2025).png"),
+    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s/local GWR PML coef by drop %s %s %s all var drop %i (%s).png", dep_var, var_name, dep_var, criteria, n_drop, date_),
            gwr_coef_map, scale=1)
   }
 }
@@ -565,25 +539,196 @@ PML_F1_score <- function(PML_model_list, cv_aic_min_mat) {
   return(F1_mat)
 }
 
-# local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled
-load("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest leave-one-out all var drop log seizure coca scaled n_drop=10 (08-20-2025).RData")
-PML_gwr_aic_var_drop_log_seizure_coca <- read_csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest leave-one-out aic all var drop log seizure coca scaled n_drop=10 (08-20-2025).csv") %>% as_tibble
+PML_F1_score_y <- function(dep_var_) {
+  # local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo
+  load(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 (09-08-2025).RData", dep_var_))
+  PML_gwr_aic_var_drop_log_seizure_coca <- 
+    read_csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out aic all var drop log seizure coca scaled n_drop=10 (09-08-2025).csv", dep_var_)) %>% as_tibble
+  
+  PML_F1_score_var_drop_log_seizure <- PML_F1_score(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo, PML_gwr_aic_var_drop_log_seizure_coca)
+  write.csv(PML_F1_score_var_drop_log_seizure,
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 (09-08-2025).csv", dep_var_),
+            row.names = F)
+  rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo)
+}
 
-PML_F1_score_hyd_dest_var_drop_log_seizure <- PML_F1_score(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled, PML_gwr_aic_var_drop_log_seizure_coca)
-write.csv(PML_F1_score_hyd_dest_var_drop_log_seizure,
-          "Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest leave-one-out F1 all var drop log seizure scaled n_drop=10 (08-20-2025).csv", row.names = F)
+# PML_F1_score_y("hyd_source")
+# PML_F1_score_y("base_source")
+# PML_F1_score_y("base_destination")
 
 ## coef map by F1 var drop 
 n_drop_ <- 10
 bwd_range <- seq(0.5, 3, by=0.1)
-indep_vars_ <- names(gwr_data$norm)[-(1:3)]
 depto_map <- suppressMessages(fortify(departamentos)) %>% 
   mutate(id=as.numeric(id)) %>% 
   filter(id != 88) %>% 
   left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
 
-PML_best_bw_tbl_var_drop  <- tibble(id = PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo$id,
-                                    PML_log_seizure_coca_bw_F1 = PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist)
+local_gwr_PML_coef_map_by_F1_y <- function(dep_var_) {
+  gwr_data <- ever_regression_data_years_price_pred(dep_var_)
+  gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+  gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+  gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
+  indep_vars_ <- names(gwr_data$norm)[-(1:3)]
+  PML_F1_score_var_drop_log_seizure_10_loo <- 
+    read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 (09-08-2025).csv", dep_var_)) %>% as_tibble
+  # local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo
+  load(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 (09-08-2025).RData", dep_var_))
+  
+  PML_best_bw_tbl_var_drop  <- tibble(id = PML_F1_score_var_drop_log_seizure_10_loo$id,
+                                      PML_log_seizure_coca_bw_F1 = PML_F1_score_var_drop_log_seizure_10_loo[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist)
+  
+  local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo, PML_best_bw_tbl_var_drop, criteria="PML_log_seizure_coca_bw_F1", dep_var = dep_var_,
+                               indep_vars = indep_vars_, n_drop=10, date_="09-08-2025")
+  rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo)
+}
 
-local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled_loo, PML_best_bw_tbl_var_drop, criteria="PML_log_seizure_coca_bw_F1", dep_var = "hyd_destination",
-                             indep_vars = indep_vars_, n_drop=10)
+# local_gwr_PML_coef_map_by_F1_y("hyd_source")
+# local_gwr_PML_coef_map_by_F1_y("base_source")
+# local_gwr_PML_coef_map_by_F1_y("base_destination")
+
+# read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out aic all var drop log seizure coca scaled n_drop=10 (09-08-2025).csv", "hyd_source")) %>% as_tibble
+# read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out aic all var drop log seizure coca scaled n_drop=10 (09-08-2025).csv", "base_source")) %>% as_tibble
+# read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out aic all var drop log seizure coca scaled n_drop=10 (09-08-2025).csv", "base_destination")) %>% as_tibble
+
+# read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 (09-08-2025).csv", "hyd_source")) %>% as_tibble
+# read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 (09-08-2025).csv", "base_source")) %>% as_tibble
+# read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 (09-08-2025).csv", "base_destination")) %>% as_tibble
+
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_source <- 
+  read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (09-08-2025).csv", "hyd_source")) %>% as_tibble
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_source <- 
+  read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (09-08-2025).csv", "base_source")) %>% as_tibble
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_dest <- 
+  read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (09-08-2025).csv", "base_destination")) %>% as_tibble
+
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_source %>% select(-(id:Intercept)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "coefs") %>% 
+  ggplot() + ylim(-60, 100) +
+  geom_boxplot(aes(x=variable, y=coefs)) -> PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_coefs_box
+ggsave("Colombia Data/local GWR PML result predicted prices/coef maps/local GWR PML hyd_source leave-one-out all var drop log seizure coca scaled n_drop=10 (09-08-2025).png",
+       PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_coefs_box, units="cm", width = 20, height = 40)
+
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_source %>% select(-(id:Intercept)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "coefs") %>% 
+  ggplot() + ylim(-60, 100) +
+  geom_boxplot(aes(x=variable, y=coefs)) -> PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_coefs_box
+ggsave("Colombia Data/local GWR PML result predicted prices/coef maps/local GWR PML base_source leave-one-out all var drop log seizure coca scaled n_drop=10 (09-08-2025).png",
+       PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_coefs_box, units="cm", width = 20, height = 40)
+
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_dest %>% select(-(id:Intercept)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "coefs") %>% 
+  ggplot() + ylim(-60, 100) +
+  geom_boxplot(aes(x=variable, y=coefs)) -> PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_coefs_box
+ggsave("Colombia Data/local GWR PML result predicted prices/coef maps/local GWR PML base_destination leave-one-out all var drop log seizure coca scaled n_drop=10 (09-08-2025).png",
+       PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_coefs_box, units="cm", width = 20, height = 40)
+
+
+### prediction comparison
+
+PML_GWR_pred_loo <- function(var_drop_coef, var_drop_F1, var_drop_GWR, PML_gwr_data) {
+  PML_best_F1 <- var_drop_coef %>% select(id, bw) %>% rename(bw_var_drop = bw)
+  PML_best_F1$var_drop_F1 <- var_drop_F1[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, max(x, na.rm=T)))) %>% unlist
+  coord_unique <- PML_gwr_data$coord %>% select(id, long, lat) %>% unique
+  local_gwr_dist <- PML_gwr_data$dist
+    
+  PML_gwr_pi_hat_var_drop <- c()
+  for (i in 1:nrow(var_drop_coef)) {
+    id_i <- var_drop_coef$id[i]
+    bw_i <- var_drop_coef$bw[i]
+    neighbor_i <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist, PML_gwr_data)
+    if (is.na(bw_i)) {PML_gwr_pi_hat_var_drop <- c(PML_gwr_pi_hat_var_drop, 0)}
+    else {
+      model_i <- var_drop_GWR[[i]][[paste0("bw_", bw_i)]]
+      model_vars_i <- (model_i$coefficients %>% names)[-1]
+      var_names_i <- names(neighbor_i)[names(neighbor_i) %in% model_vars_i]
+      data_pred_i <- neighbor_i %>% filter(id == id_i) %>% select(all_of(var_names_i)) %>% relocate(model_vars_i)
+      pi_hat_i <- predict(model_i, data_pred_i, type="response")
+      PML_gwr_pi_hat_var_drop <- c(PML_gwr_pi_hat_var_drop, pi_hat_i)
+    }
+  }
+  
+  gwr_PML_pi_hat <- tibble(id = var_drop_coef$id,
+                           PML_gwr_pi_hat_var_drop_loo = PML_gwr_pi_hat_var_drop)
+  
+  gwr_PML_data_norm <- PML_best_F1 %>% 
+    left_join(gwr_data$norm %>% select(id, y), by = "id") %>% 
+    left_join(gwr_PML_pi_hat, by = "id") %>% 
+    mutate(y_PML_var_drop_loo = ifelse(PML_gwr_pi_hat_var_drop_loo < 0.5, 0, 1)) %>% 
+    relocate(id, y, y_PML_var_drop_loo)
+  
+  return(gwr_PML_data_norm)
+}
+
+PML_GWR_pred_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML predictions leave-one-out n_drop=10.csv") %>% as_tibble
+PML_GWR_pred_10_loo_hyd_source <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_source predictions leave-one-out n_drop=10.csv") %>% as_tibble
+PML_GWR_pred_10_loo_base_source <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML base_source predictions leave-one-out n_drop=10.csv") %>% as_tibble
+PML_GWR_pred_10_loo_base_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML base_destination predictions leave-one-out n_drop=10.csv") %>% as_tibble
+
+CM_var_drop_10_loo_hyd_dest <- confusionMatrix(PML_GWR_pred_10_loo_hyd_dest$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_hyd_dest$y %>% as.factor, positive = "1")
+CM_var_drop_10_loo_hyd_source <- confusionMatrix(PML_GWR_pred_10_loo_hyd_source$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_hyd_source$y %>% as.factor, positive = "1")
+CM_var_drop_10_loo_base_dest <- confusionMatrix(PML_GWR_pred_10_loo_base_dest$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_base_dest$y %>% as.factor, positive = "1")
+CM_var_drop_10_loo_base_source <- confusionMatrix(PML_GWR_pred_10_loo_base_source$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_base_source$y %>% as.factor, positive = "1")
+
+CM_var_drop_10_loo_hyd_dest
+CM_var_drop_10_loo_hyd_source
+CM_var_drop_10_loo_base_dest
+CM_var_drop_10_loo_base_source
+
+CM_var_drop_10_loo_hyd_dest$byClass
+CM_var_drop_10_loo_hyd_source$byClass
+CM_var_drop_10_loo_base_dest$byClass
+CM_var_drop_10_loo_base_source$byClass
+
+# local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo
+# {
+#   load("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_source leave-one-out all var drop log seizure coca scaled n_drop=10 (09-08-2025).RData")
+#   local_GWR_coefs_PML_hyd_source_var_drop_log_seizure_scaled_loo <- local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo
+#   rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo)
+#   PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_source leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (09-08-2025).csv") %>% as_tibble
+#   PML_F1_score_hyd_source_var_drop_log_seizure_10_loo <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_source leave-one-out F1 all var drop log seizure scaled n_drop=10 (09-08-2025).csv") %>% as_tibble
+#   gwr_data <- ever_regression_data_years_price_pred("hyd_source")
+#   gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+#   gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+#   gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
+#   
+#   PML_GWR_pred_10_loo_hyd_source <-  PML_GWR_pred_loo(var_drop_coef=PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_source,
+#                                                       var_drop_F1=PML_F1_score_hyd_source_var_drop_log_seizure_10_loo,
+#                                                       var_drop_GWR=local_GWR_coefs_PML_hyd_source_var_drop_log_seizure_scaled_loo,
+#                                                       PML_gwr_data=gwr_data)
+#   write.csv(PML_GWR_pred_10_loo_hyd_source, "Colombia Data/local GWR PML result predicted prices/GWR PML hyd_source predictions leave-one-out n_drop=10.csv", row.names=F)
+# }
+# {
+#   load("Colombia Data/local GWR PML result predicted prices/local GWR PML base_source leave-one-out all var drop log seizure coca scaled n_drop=10 (09-08-2025).RData")
+#   local_GWR_coefs_PML_base_source_var_drop_log_seizure_scaled_loo <- local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo
+#   rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo)
+#   PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs base_source leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (09-08-2025).csv") %>% as_tibble
+#   PML_F1_score_base_source_var_drop_log_seizure_10_loo <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML base_source leave-one-out F1 all var drop log seizure scaled n_drop=10 (09-08-2025).csv") %>% as_tibble
+#   gwr_data <- ever_regression_data_years_price_pred("base_source")
+#   gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+#   gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+#   gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
+#   
+#   PML_GWR_pred_10_loo_hyd_source <-  PML_GWR_pred_loo(var_drop_coef=PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_source,
+#                                                       var_drop_F1=PML_F1_score_base_source_var_drop_log_seizure_10_loo,
+#                                                       var_drop_GWR=local_GWR_coefs_PML_base_source_var_drop_log_seizure_scaled_loo,
+#                                                       PML_gwr_data=gwr_data)
+#   write.csv(PML_GWR_pred_10_loo_hyd_source, "Colombia Data/local GWR PML result predicted prices/GWR PML base_source predictions leave-one-out n_drop=10.csv", row.names=F)
+# }
+# {
+#   load("Colombia Data/local GWR PML result predicted prices/local GWR PML base_destination leave-one-out all var drop log seizure coca scaled n_drop=10 (09-08-2025).RData")
+#   local_GWR_coefs_PML_base_dest_var_drop_log_seizure_scaled_loo <- local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo
+#   rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo)
+#   PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs base_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (09-08-2025).csv") %>% as_tibble
+#   PML_F1_score_base_dest_var_drop_log_seizure_10_loo <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML base_destination leave-one-out F1 all var drop log seizure scaled n_drop=10 (09-08-2025).csv") %>% as_tibble
+#   gwr_data <- ever_regression_data_years_price_pred("base_destination")
+#   gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+#   gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+#   gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
+#   
+#   PML_GWR_pred_10_loo_hyd_source <-  PML_GWR_pred_loo(var_drop_coef=PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_dest,
+#                                                       var_drop_F1=PML_F1_score_base_dest_var_drop_log_seizure_10_loo,
+#                                                       var_drop_GWR=local_GWR_coefs_PML_base_dest_var_drop_log_seizure_scaled_loo,
+#                                                       PML_gwr_data=gwr_data)
+#   write.csv(PML_GWR_pred_10_loo_hyd_source, "Colombia Data/local GWR PML result predicted prices/GWR PML base_destination predictions leave-one-out n_drop=10.csv", row.names=F)
+# }

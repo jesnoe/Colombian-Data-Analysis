@@ -237,7 +237,6 @@ neighbor_id <- function(id_i, bw_i, scale_11_, coord_unique_, local_gwr_dist_, g
 cv_aic_min_mat_ <- read.csv("Colombia Data/local GWR lasso hyd_dest cv min dev (03-07-2025).csv") %>% as_tibble
 local_GWR_coefs_bw_lasso <- read.csv("Colombia Data/local GWR lasso coefs rescaled (12-03-2024).csv") %>% as_tibble
 local_gwr_lasso_coefs_hyd_destination <- read.csv("Colombia Data/local GWR lasso result/local GWR lasso coefs hyd_destination (03-11-2025).csv") %>% as_tibble %>% arrange(id)
-# load("Colombia Data/local GWR lasso result predicted prices/local GWR lasso hyd_dest predicted price (03-28-2025).RData")
 
 regression_data_years <- read.csv("Colombia Data/regression data all municipios ever lab (02-05-2025).csv") %>% as_tibble %>% 
   mutate(coca_area = ifelse(coca_distance > 0, 0, coca_area))
@@ -320,9 +319,43 @@ PML_gwr_coefs_F1_var_drop_log_seizure_coca_10 <- read.csv("Colombia Data/local G
 PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (08-20-2025).csv") %>% as_tibble
 PML_F1_score_hyd_dest_var_drop_log_seizure_10 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest predicted price F1 all var drop log seizure scaled n_drop=10 (07-07-2025).csv") %>% as_tibble
 PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest leave-one-out F1 all var drop log seizure scaled n_drop=10 (08-20-2025).csv") %>% as_tibble
-PML_GWR_pred_10_loo <-  PML_GWR_pred_loo(var_drop_coef=PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo,
-                                         var_drop_F1=PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo,
-                                         var_drop_GWR=local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled_loo)
+sum(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10 != PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo, na.rm = T)
+
+PML_GWR_pred_loo <- function(var_drop_coef, var_drop_F1, var_drop_GWR) {
+  PML_best_F1 <- var_drop_coef %>% select(id, bw) %>% rename(bw_var_drop = bw)
+  PML_best_F1$var_drop_F1 <- var_drop_F1[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, max(x, na.rm=T)))) %>% unlist
+  
+  PML_gwr_pi_hat_var_drop <- c()
+  for (i in 1:nrow(var_drop_coef)) {
+    id_i <- var_drop_coef$id[i]
+    bw_i <- var_drop_coef$bw[i]
+    neighbor_i <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
+    if (is.na(bw_i)) {PML_gwr_pi_hat_var_drop <- c(PML_gwr_pi_hat_var_drop, 0)}
+    else {
+      model_i <- var_drop_GWR[[i]][[paste0("bw_", bw_i)]]
+      model_vars_i <- (model_i$coefficients %>% names)[-1]
+      var_names_i <- names(neighbor_i)[names(neighbor_i) %in% model_vars_i]
+      data_pred_i <- neighbor_i %>% filter(id == id_i) %>% select(all_of(var_names_i)) %>% relocate(model_vars_i)
+      pi_hat_i <- predict(model_i, data_pred_i, type="response")
+      PML_gwr_pi_hat_var_drop <- c(PML_gwr_pi_hat_var_drop, pi_hat_i)
+    }
+  }
+  
+  gwr_PML_pi_hat <- tibble(id = var_drop_coef$id,
+                           PML_gwr_pi_hat_var_drop_loo = PML_gwr_pi_hat_var_drop)
+  
+  gwr_PML_data_norm <- PML_best_F1 %>% 
+    left_join(gwr_data$norm %>% select(id, y), by = "id") %>% 
+    left_join(gwr_PML_pi_hat, by = "id") %>% 
+    mutate(y_PML_var_drop_loo = ifelse(PML_gwr_pi_hat_var_drop_loo < 0.5, 0, 1)) %>% 
+    relocate(id, y, y_PML_var_drop_loo)
+  
+  return(gwr_PML_data_norm)
+}
+
+# PML_GWR_pred_10_loo <-  PML_GWR_pred_loo(var_drop_coef=PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo,
+#                                          var_drop_F1=PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo,
+#                                          var_drop_GWR=local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled_loo)
 # write.csv(PML_GWR_pred_10_loo, "Colombia Data/local GWR PML result predicted prices/GWR PML predictions leave-one-out n_drop=10.csv", row.names=F)
 PML_GWR_pred_10 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML predictions n_drop=10.csv") %>% as_tibble
 PML_GWR_pred_10_loo <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML predictions leave-one-out n_drop=10.csv") %>% as_tibble
@@ -333,39 +366,37 @@ sum(PML_GWR_pred_10$PML_gwr_pi_hat_var_drop != PML_GWR_pred_10_loo$PML_gwr_pi_ha
 
 
 CM_var_drop_10 <- confusionMatrix(PML_GWR_pred_10$y_PML_var_drop %>% as.factor, PML_GWR_pred_10$y %>% as.factor, positive = "1")
+CM_var_drop_10
 CM_var_drop_10$byClass
 
 CM_var_drop_10_loo <- confusionMatrix(PML_GWR_pred_10_loo$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo$y %>% as.factor, positive = "1")
+CM_var_drop_10_loo
 CM_var_drop_10_loo$byClass
 
 global_PML <- logistf(y~.-id-municipio, gwr_data$norm)
 PML_GWR_pred_10$y_global_PML <- ifelse(global_PML$predict < 0.5, 0, 1) %>% as.factor
 CM_global_PML <- confusionMatrix(ifelse(global_PML$predict < 0.5, 0, 1) %>% as.factor, global_PML$model$y, positive = "1")
+CM_global_PML
 CM_global_PML$byClass
 
 sum(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10 != PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo, na.rm = T)
 
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10 %>% select(-(id:Intercept)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "coefs") %>% 
+  ggplot() + ylim(-60, 100) +
+  geom_boxplot(aes(x=variable, y=coefs)) -> PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_coefs_box
+ggsave("Colombia Data/local GWR PML result predicted prices/coef maps/local GWR PML hyd_dest all var drop log seizure coca scaled n_drop=10 (08-20-2025).png",
+       PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_coefs_box, units="cm", width = 20, height = 40)
+
 PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo %>% select(-(id:Intercept)) %>%
   pivot_longer(everything(), names_to = "variable", values_to = "coefs") %>% 
-  ggplot() +
-  geom_boxplot(aes(x=variable, y=coefs)) -> coefs_box
+  ggplot() + ylim(-60, 100) +
+  geom_boxplot(aes(x=variable, y=coefs)) -> PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_coefs_box
 ggsave("Colombia Data/local GWR PML result predicted prices/coef maps/local GWR PML hyd_dest leave-one-out all var drop log seizure coca scaled n_drop=10 (08-20-2025).png",
-       coefs_box, units="cm", width = 20, height = 40)
-
-# LOO False Positive Investigation
-PML_GWR_pred_10_loo_y_diff <- PML_GWR_pred_10 %>% filter(y_PML_var_drop != y_PML_var_drop_loo) %>% select(id, bw_var_drop, y, y_PML_var_drop, y_PML_var_drop_loo, PML_gwr_pi_hat_var_drop, PML_gwr_pi_hat_var_drop_loo)
-PML_gwr_coefs_F1_var_drop_log_seizure_coca_10 %>% filter(id %in% PML_GWR_pred_10_loo_y_diff$id)
-PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo %>% filter(id %in% PML_GWR_pred_10_loo_y_diff$id)
-
-PML_GWR_pred_10_loo_FP <- PML_GWR_pred_10 %>% filter(y == 0, y_PML_var_drop_loo == 1) %>% select(id, y, y_PML_var_drop, y_PML_var_drop_loo, PML_gwr_pi_hat_var_drop, PML_gwr_pi_hat_var_drop_loo)
-PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo %>% filter(id %in% PML_GWR_pred_10_loo_FP$id) %>% arrange(id) %>% print(n=nrow(PML_GWR_pred_10_loo_FP))
-gwr_data$norm %>% select(-municipio, -y) %>% filter(id %in% PML_GWR_pred_10_loo_FP$id) %>% arrange(id) %>% print(n=nrow(PML_GWR_pred_10_loo_FP))
-
-PML_GWR_pred_10[which(PML_GWR_pred_10$bw_var_drop != PML_GWR_pred_10_loo$bw_var_drop),]
-PML_GWR_pred_10_loo[which(PML_GWR_pred_10$bw_var_drop != PML_GWR_pred_10_loo$bw_var_drop),]
+       PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_coefs_box, units="cm", width = 20, height = 40)
 
 
-id_i <- 25086; bw_i <- 0.5
+id_i <- 5002; bw_i <- 0.6
 data_id <- neighbor_id(id_i, bw_i, scale_11_=F, coord_unique, local_gwr_dist)
 model_i <- local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled_loo[[paste0("id_", id_i)]][[paste0("bw_", bw_i)]]
 model_vars_i <- (model_i$coefficients %>% names)[-1]
@@ -379,5 +410,48 @@ predict(model_i, data_pred_i, type="response")
 predict(local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled[[paste0("id_", id_i)]][[paste0("bw_", bw_i)]], data_pred_i, type="response")
 local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled[[paste0("id_", id_i)]][[paste0("bw_", bw_i)]]$predict[which(data_id$id == id_i)]
 
-PML_F1_score_hyd_dest_var_drop_log_seizure_10 %>% filter(id == id_i)
-PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo %>% filter(id == id_i)
+
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_diff <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10 %>% select(id)
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_diff$abs_coef_diff <- 
+  apply(abs((PML_gwr_coefs_F1_var_drop_log_seizure_coca_10 %>% select(-id, -bw)) - (PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo %>% select(-id, -bw))), 1, function(x) sum(x, na.rm = T))
+PML_GWR_pred_10 <- left_join(PML_GWR_pred_10, PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_diff, by="id")
+PML_GWR_pred_10_y_coef_diff <- PML_GWR_pred_10 %>% select(id, y, y_PML_var_drop, y_PML_var_drop_loo, PML_gwr_pi_hat_var_drop, PML_gwr_pi_hat_var_drop_loo, abs_coef_diff)
+PML_GWR_pred_10_y_coef_diff$pi_hat_dist_from_0.5 <- abs(PML_GWR_pred_10_y_coef_diff$PML_gwr_pi_hat_var_drop - 0.5)
+PML_GWR_pred_10_y_coef_diff$pi_hat_dist_from_0.5_loo <- abs(PML_GWR_pred_10_y_coef_diff$PML_gwr_pi_hat_var_drop_loo - 0.5)
+
+PML_GWR_pred_10_y_coef_diff %>% filter(y_PML_var_drop == y_PML_var_drop_loo) %>% pull(abs_coef_diff) %>% hist
+PML_GWR_pred_10_y_coef_diff %>% filter(y_PML_var_drop != y_PML_var_drop_loo) %>% pull(abs_coef_diff) %>% hist
+
+PML_GWR_pred_10_y_coef_diff %>% filter(y_PML_var_drop == y_PML_var_drop_loo) %>% pull(pi_hat_dist_from_0.5) %>% hist
+PML_GWR_pred_10_y_coef_diff %>% filter(y_PML_var_drop != y_PML_var_drop_loo) %>% pull(pi_hat_dist_from_0.5) %>% hist
+## most opposite predictions were made with pi_hat closer to 0.5
+
+PML_GWR_pred_10_y_coef_diff %>% filter(abs_coef_diff > 60)
+PML_GWR_pred_10_y_coef_diff %>% filter(y_PML_var_drop != y_PML_var_drop_loo) %>% arrange(abs_coef_diff)
+
+PML_GWR_pred_10_y_coef_diff %>% filter(y_PML_var_drop == y_PML_var_drop_loo)
+PML_GWR_pred_10_y_coef_diff %>% filter(y_PML_var_drop != y_PML_var_drop_loo)
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo
+
+
+PML_GWR_pred_10_loo_y_diff <- PML_GWR_pred_10 %>% filter(y_PML_var_drop != y_PML_var_drop_loo) %>% select(id, bw_var_drop, y, y_PML_var_drop, y_PML_var_drop_loo, PML_gwr_pi_hat_var_drop, PML_gwr_pi_hat_var_drop_loo)
+
+PML_GWR_pred_10_loo_FP <- PML_GWR_pred_10 %>% filter(y == 0, y_PML_var_drop_loo == 1) %>% select(id, y, y_PML_var_drop, y_PML_var_drop_loo, PML_gwr_pi_hat_var_drop, PML_gwr_pi_hat_var_drop_loo) %>% 
+  left_join(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_diff, by = "id")
+PML_GWR_pred_10_loo_FP$pi_hat_dist_from_0.5_loo <- PML_GWR_pred_10_loo_FP$PML_gwr_pi_hat_var_drop_loo - 0.5
+high_potential_id <- PML_GWR_pred_10_loo_FP %>% filter(PML_gwr_pi_hat_var_drop_loo > 0.8) %>% pull(id)
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo %>% filter(id %in% high_potential_id) %>% print(n=length(high_potential_id))
+gwr_data$norm %>% filter(id %in% high_potential_id) %>% print(n=length(high_potential_id))
+
+
+## False Positive Investigation with focal point data results
+PML_GWR_pred_10_FP <- PML_GWR_pred_10 %>% filter(y == 0 & y_PML_var_drop == 1) %>% select(id, y, y_PML_var_drop, y_PML_var_drop_loo, PML_gwr_pi_hat_var_drop, PML_gwr_pi_hat_var_drop_loo) %>% 
+  left_join(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_diff, by = "id")
+PML_GWR_pred_10_FP$pi_hat_dist_from_0.5 <- PML_GWR_pred_10_FP$PML_gwr_pi_hat_var_drop - 0.5
+
+PML_GWR_pred_10_y_coef_diff %>% filter(y == 0 & y_PML_var_drop == 1) %>% pull(pi_hat_dist_from_0.5) %>% hist(main="False Positive Cases", xlab="|pi_hat - 0.5|")
+PML_GWR_pred_10_y_coef_diff %>% filter(y == 1 & y_PML_var_drop == 1) %>% pull(pi_hat_dist_from_0.5) %>% hist(main="True Positive Cases", xlab="|pi_hat - 0.5|")
+PML_GWR_pred_10_y_coef_diff %>% filter(y == 1 & y_PML_var_drop == 0) %>% pull(pi_hat_dist_from_0.5) %>% hist(main="False Negative Cases", xlab="|pi_hat - 0.5|")
+PML_GWR_pred_10_y_coef_diff %>% filter(y == 0 & y_PML_var_drop == 0) %>% pull(pi_hat_dist_from_0.5) %>% hist(main="True Negative Cases", xlab="|pi_hat - 0.5|")
+PML_GWR_pred_10_y_coef_diff %>% filter(!(y == 0 & y_PML_var_drop == 1)) %>% pull(pi_hat_dist_from_0.5) %>% hist(main="", xlab="|pi_hat - 0.5|")

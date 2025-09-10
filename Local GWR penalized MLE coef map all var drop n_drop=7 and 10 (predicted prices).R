@@ -759,7 +759,7 @@ PML_GWR_pred <- function(model_drop_coef, model_drop_F1, model_drop_GWR, var_dro
       model_i <- model_drop_GWR[[i]][[paste0("bw_", bw_i)]]
       model_vars_i <- (model_i$coefficients %>% names)[-1]
       var_names_i <- names(neighbor_i)[names(neighbor_i) %in% model_vars_i]
-      data_pred_i <- neighbor_i %>% filter(id == id_i) %>% select(var_names_i) %>% relocate(model_vars_i)
+      data_pred_i <- neighbor_i %>% filter(id == id_i) %>% select(all_of(var_names_i)) %>% relocate(model_vars_i)
       pi_hat_i <- predict(model_i, data_pred_i, type="response")
       PML_gwr_pi_hat_model_drop <- c(PML_gwr_pi_hat_model_drop, pi_hat_i)
     }
@@ -771,7 +771,7 @@ PML_GWR_pred <- function(model_drop_coef, model_drop_F1, model_drop_GWR, var_dro
       model_i <- var_drop_GWR[[i]][[paste0("bw_", bw_i)]]
       model_vars_i <- (model_i$coefficients %>% names)[-1]
       var_names_i <- names(neighbor_i)[names(neighbor_i) %in% model_vars_i]
-      data_pred_i <- neighbor_i %>% filter(id == id_i) %>% select(var_names_i) %>% relocate(model_vars_i)
+      data_pred_i <- neighbor_i %>% filter(id == id_i) %>% select(all_of(var_names_i)) %>% relocate(model_vars_i)
       pi_hat_i <- predict(model_i, data_pred_i, type="response")
       PML_gwr_pi_hat_var_drop <- c(PML_gwr_pi_hat_var_drop, pi_hat_i)
     }
