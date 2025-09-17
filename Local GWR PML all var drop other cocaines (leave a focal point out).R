@@ -397,7 +397,7 @@ regression_data_years <- read.csv("Colombia Data/regression data all municipios 
   regression_data_aggr$coca_area_log_scale <- scale(log(regression_data_aggr$coca_area+1))[,1]
   }
 
-local_GWR_PML_y <- function(dep_var_, seed_model) {
+local_GWR_PML_y <- function(dep_var_, seed_model, weight_in=NULL) {
   gwr_data <- ever_regression_data_years_price_pred(dep_var_)
   gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
   gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
@@ -412,7 +412,7 @@ local_GWR_PML_y <- function(dep_var_, seed_model) {
   local_gwr_dist <- gwr_data$dist %>% as.matrix
   
   set.seed(seed_model)
-  local_GWR_coefs_PML_list <- local_GWR_PML(dep_var = dep_var_, cv_aic_min_mat=cv_aic_min_mat_, gwr_PML_data_ = gwr_data, method_="var drop", sig_level_ = 0.1, n_drop = 10)
+  local_GWR_coefs_PML_list <- local_GWR_PML(dep_var = dep_var_, cv_aic_min_mat=cv_aic_min_mat_, gwr_PML_data_ = gwr_data, method_="var drop", sig_level_ = 0.1, n_drop = 10, weight_ = weight_in)
   
   local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo <- local_GWR_coefs_PML_list$PML
   write.csv(local_GWR_coefs_PML_list$cv_aic_min_mat,
