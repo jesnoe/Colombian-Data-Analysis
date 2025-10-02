@@ -841,8 +841,8 @@ global_reg <- glm(y~.-id-municipio, gwr_data$norm, family=binomial)
 global_PML <- logistf(y~.-id-municipio, gwr_data$norm)
 PML_GWR_pred_10$y_global_PML <- ifelse(global_PML$predict < 0.5, 0, 1) %>% as.factor
 
-CM_global_reg <- confusionMatrix(ifelse(global_reg$fitted.values < 0.5, 0, 1) %>% as.factor, global_reg$model$y, positive = "1")
-CM_global_PML <- confusionMatrix(ifelse(global_PML$predict < 0.5, 0, 1) %>% as.factor, global_PML$model$y, positive = "1")
+CM_global_reg <- confusionMatrix(ifelse(global_reg$fitted.values < 0.5, 0, 1) %>% as.factor, global_reg$model$y %>% as.factor, positive = "1")
+CM_global_PML <- confusionMatrix(ifelse(global_PML$predict < 0.5, 0, 1) %>% as.factor, global_PML$model$y %>% as.factor, positive = "1")
 CM_global_reg$byClass
 CM_global_PML$byClass
 

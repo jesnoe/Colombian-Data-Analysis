@@ -433,7 +433,16 @@ local_GWR_PML_y <- function(dep_var_, seed_model, weight_in=NULL) {
   rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_9_1); rm(local_GWR_coefs_PML_list)
 }
 
-
+gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
+gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
+# write.csv(gwr_data$norm, "Colombia Data/hyd gwr data.csv", row.names = F)
+gwr_data <- ever_regression_data_years_price_pred("base_source")
+gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
+# write.csv(gwr_data$norm, "Colombia Data/base gwr data.csv", row.names = F)
 
 # set.seed(1000)
 # seed_i <- sample(1:1000000, 1)
@@ -734,6 +743,54 @@ CM_var_drop_10_loo_hyd_source$byClass
 CM_var_drop_10_loo_base_dest$byClass
 CM_var_drop_10_loo_base_source$byClass
 
+gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
+gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest
+
+check_most_influential_var <- function(check_id) {
+  coef_id <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% filter(id == check_id)
+  data_id <- gwr_data$norm %>% filter(id == check_id)
+  print(t(coef_id[,-(1:3)]) * t(data_id[,-(1:3)]))
+  print(municipio_centroid %>% filter(id==check_id))
+}
+
+PML_GWR_pred_10_loo_hyd_dest %>% filter(y == 0 & y_PML_var_drop_loo == 1) %>% arrange(desc(PML_gwr_pi_hat_var_drop_loo))
+check_most_influential_var(27001) # population
+check_most_influential_var(50287) # airport
+check_most_influential_var(23419) # seizure, police
+
+map_df %>% ggplot(aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=id == 50287),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = map_df$long, y = map_df$lat) +
+  coord_quickmap() +
+  labs(fill="", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  )
+
+map_df %>% ggplot(aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=id == 23419),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = map_df$long, y = map_df$lat) +
+  coord_quickmap() +
+  labs(fill="", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  )
+
 # local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3
 # {
 #   load("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_source leave-one-out all var drop log seizure coca scaled n_drop=10 weight 7-3 (09-08-2025).RData")
@@ -856,7 +913,7 @@ local_gwr_PML_coef_map_by_F1_same_col <- function(coef_table, dep_var, indep_var
                    linewidth = 0.1) + 
       expand_limits(x = depto_map$long, y = depto_map$lat) + 
       coord_quickmap() +
-      scale_fill_gradientn(colors = c("blue","deepskyblue3","skyblue","black","yellow","red","purple"),
+      scale_fill_gradientn(colors = c("blue","deepskyblue3","skyblue","grey30","yellow","red","purple"),
                            values = scales::rescale(c(min_coef, lower_bound, -0.1, 0 , 0.1, upper_bound, max_coef), from = c(min_coef, max_coef)),
                            # values = scales::rescale(c(-1, -abs(lower_bound/min_coef), -.Machine$double.eps, 0 , .Machine$double.eps, upper_bound/max_coef, 1)),
                            limits = c(min_coef, max_coef),
@@ -896,8 +953,8 @@ all_coefs_stat_tbl <- tibble(var_name = names(all_coefs)[-(1:3)],
                              max_coef = all_coefs %>% select(-(id:Intercept)) %>% apply(2, function(x) max(x, na.rm = T)),
                              lower_bound = c(-10, -5, -22, -4, -15, -25, -10, -25, -35, -6, -8, -6),
                              upper_bound = c( 10,  5,  22,  4,  15,  40,  10,  25,  35,  6,  8,  5))
-
 indep_vars_ <- names(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_source)[-(1:3)]
+
 local_gwr_PML_coef_map_by_F1_same_col(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest, dep_var="hyd_destination",
                                       indep_vars=indep_vars_, n_drop=10, date_="09-16=2025", all_coefs_stat=all_coefs_stat_tbl, weight=F)
 
@@ -921,99 +978,160 @@ GWR_y_tbl_centroid_hyd_source_7_3 <- left_join(municipio_centroid, PML_GWR_pred_
 GWR_y_tbl_centroid_base_source_7_3 <- left_join(municipio_centroid, PML_GWR_pred_10_loo_base_source_7_3 %>% select(id, y, y_PML_var_drop_loo), by="id")
 GWR_y_tbl_centroid_base_dest_7_3 <- left_join(municipio_centroid, PML_GWR_pred_10_loo_base_dest_7_3 %>% select(id, y, y_PML_var_drop_loo), by="id")
 
-data_map <- function(GWR_y_tbl_centroid, dep_var, n_drop) {
-  empty_map <- ggplot(map_df, aes(x=long, y=lat)) + 
-    geom_polygon(aes(group=group),
+data_map <- function(PML_GWR_pred, dep_var, n_drop) {
+  
+  GWR_y_tbl_map_df_FP <- left_join(map_df,
+                                   PML_GWR_pred %>%
+                                     mutate(pred = ifelse(y == 1, "y=1",
+                                                          ifelse(y == 0 & y_PML_var_drop_loo == 1, "FP", " ")) %>% 
+                                              as.factor) %>% 
+                                     select(id, pred),
+                                   by="id")
+  
+  GWR_y_tbl_map_df_TP <- left_join(map_df,
+                                   PML_GWR_pred %>%
+                                     mutate(pred = ifelse(y == 1 & y_PML_var_drop_loo == 0, "y=1",
+                                                          ifelse(y == 1 & y_PML_var_drop_loo == 1, "TP", " ")) %>% 
+                                              as.factor) %>% 
+                                     select(id, pred),
+                                   by="id")
+  
+  GWR_y_tbl_map_df_FP %>% ggplot(aes(x=long, y=lat)) +
+    geom_polygon(aes(group=group, fill=pred),
                  color = "black",
-                 fill="white",
-                 linewidth = 0.1) + 
-    expand_limits(x = map_df$long, y = map_df$lat) + 
+                 linewidth = 0.1) +
+    expand_limits(x = GWR_y_tbl_map_df_FP$long, y = GWR_y_tbl_map_df_FP$lat) +
     coord_quickmap() +
     labs(fill="", x="", y="", title="") +
+    scale_fill_manual(
+      name = dep_var,
+      values = c("y=1"="deepskyblue3", "FP"="red", " "="white"),
+    ) +
     theme_bw() +
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
           panel.border = element_blank(),
           axis.text = element_blank(),
           line = element_blank()
-    )
-  
-  empty_map + 
-    geom_point(data = GWR_y_tbl_centroid %>% filter(y == 1),
-               aes(x=long, y=lat, color = "true y"), size=0.2) +
-    geom_point(data = GWR_y_tbl_centroid %>% filter(y == 0 & y_PML_var_drop_loo == 1),
-               aes(x=long, y=lat, color = "FP with PML GWR"), size=0.2) +
-    scale_color_manual(
-      name = dep_var,
-      values = c("true y"="blue", "FP with PML GWR"="red"),
     ) -> FP_map
   
-  empty_map + 
-    geom_point(data = GWR_y_tbl_centroid %>% filter(y == 1),
-               aes(x=long, y=lat, color = "true y"), size=0.2) +
-    geom_point(data = GWR_y_tbl_centroid %>% filter(y == 1 & y_PML_var_drop_loo == 1),
-               aes(x=long, y=lat, color = "TP with PML GWR"), size=0.2) +
-    scale_color_manual(
+  GWR_y_tbl_map_df_TP %>% ggplot(aes(x=long, y=lat)) +
+    geom_polygon(aes(group=group, fill=pred),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = GWR_y_tbl_map_df_TP$long, y = GWR_y_tbl_map_df_TP$lat) +
+    coord_quickmap() +
+    labs(fill="", x="", y="", title="") +
+    scale_fill_manual(
       name = dep_var,
-      values = c("true y"="blue", "TP with PML GWR"="red"),
+      values = c("y=1"="deepskyblue3", "TP"="red", " "="white"),
+    ) +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
     ) -> TP_map
+  
   
   ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/prediction maps/local GWR PML FP map %s leave-one-out n_drop %i weight 7-3.png", dep_var, n_drop), FP_map, scale=1)
   ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/prediction maps/local GWR PML TP map %s leave-one-out n_drop %i weight 7-3.png", dep_var, n_drop), TP_map, scale=1)
   
-  gwr_data <- ever_regression_data_years_price_pred(dep_var)
-  gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
-  gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
-  gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
-  
-  for (i in c(4, 6, 12)) {
-    var_name_ <- names(gwr_data$norm)[i]
-    gwr_data_i <- data.frame(id=gwr_data$norm$id,
-                             obs=gwr_data$norm[[var_name_]])
-    data_map_coords <- map_df %>% 
-      left_join(gwr_data_i, by="id")
-    ggplot(data_map_coords, aes(x=long, y=lat)) + 
-      geom_polygon(aes(group=group, fill=obs),
-                   color = "black",
-                   linewidth = 0.1) + 
-      expand_limits(x = depto_map$long, y = depto_map$lat) + 
-      coord_quickmap() +
-      scale_fill_viridis_c(na.value = "white") +
-      labs(fill=var_name_, x="", y="", title=dep_var) +
-      theme_bw() +
-      theme(panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            panel.border = element_blank(),
-            axis.text = element_blank(),
-            line = element_blank()
-      ) -> data_map_i
-    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/data maps/%s local GWR data %s n_drop %i.png", dep_var, var_name_, n_drop),
-           data_map_i, scale=1)
-  }
+  # gwr_data <- ever_regression_data_years_price_pred(dep_var)
+  # gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+  # gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+  # gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
+  # 
+  # for (i in c(4, 6, 12)) {
+  #   var_name_ <- names(gwr_data$norm)[i]
+  #   gwr_data_i <- data.frame(id=gwr_data$norm$id,
+  #                            obs=gwr_data$norm[[var_name_]])
+  #   data_map_coords <- map_df %>% 
+  #     left_join(gwr_data_i, by="id")
+  #   ggplot(data_map_coords, aes(x=long, y=lat)) + 
+  #     geom_polygon(aes(group=group, fill=obs),
+  #                  color = "black",
+  #                  linewidth = 0.1) + 
+  #     expand_limits(x = depto_map$long, y = depto_map$lat) + 
+  #     coord_quickmap() +
+  #     scale_fill_viridis_c(na.value = "white") +
+  #     labs(fill=var_name_, x="", y="", title=dep_var) +
+  #     theme_bw() +
+  #     theme(panel.grid.major = element_blank(),
+  #           panel.grid.minor = element_blank(),
+  #           panel.border = element_blank(),
+  #           axis.text = element_blank(),
+  #           line = element_blank()
+  #     ) -> data_map_i
+  #   ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/data maps/%s local GWR data %s n_drop %i.png", dep_var, var_name_, n_drop),
+  #          data_map_i, scale=1)
+  # }
 }
 
-data_map(GWR_y_tbl_centroid_hyd_source_7_3, "hyd_source", 10)
-data_map(GWR_y_tbl_centroid_base_source_7_3, "base_source", 10)
-data_map(GWR_y_tbl_centroid_base_dest_7_3, "base_destination", 10)
+data_map(PML_GWR_pred_10_loo_hyd_dest, "hyd_destination", 10)
+data_map(PML_GWR_pred_10_loo_hyd_source_7_3, "hyd_source", 10)
+data_map(PML_GWR_pred_10_loo_base_source_7_3, "base_source", 10)
+data_map(PML_GWR_pred_10_loo_base_dest_7_3, "base_destination", 10)
 
-# GWR_y_tbl_centroid <- GWR_y_tbl_centroid_hyd_dest
-# empty_map <- ggplot(map_df, aes(x=long, y=lat)) + 
-#   geom_polygon(aes(group=group),
-#                color = "black",
-#                fill="white",
-#                linewidth = 0.1) + 
-#   expand_limits(x = map_df$long, y = map_df$lat) + 
-#   coord_quickmap() +
-#   labs(fill="", x="", y="", title="") +
-#   theme_bw() +
-#   theme(panel.grid.major = element_blank(),
-#         panel.grid.minor = element_blank(),
-#         panel.border = element_blank(),
-#         axis.text = element_blank(),
-#         line = element_blank()
-#   )
-# 
-# empty_map + 
+GWR_y_tbl_centroid <- GWR_y_tbl_centroid_hyd_dest
+GWR_y_tbl_map_df <- left_join(map_df,
+                              PML_GWR_pred_10_loo_hyd_dest %>%
+                                mutate(y = ifelse(y == 1, "y=1",
+                                                                 ifelse(y == 0 & y_PML_var_drop_loo == 1, "FP", " ")) %>% 
+                                         as.factor) %>% 
+                                select(id, y),
+                              by="id")
+
+GWR_y_tbl_map_df %>% ggplot(aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=y),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = GWR_y_tbl_map_df$long, y = GWR_y_tbl_map_df$lat) +
+  coord_quickmap() +
+  labs(fill="", x="", y="", title="") +
+  scale_fill_manual(
+    name = "",
+    values = c("y=1"="deepskyblue3", "FP"="red", " "="white"),
+  ) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  )
+ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/prediction maps/local GWR PML FP map hyd_destination n_drop %i weight 7-3.png", 10), scale=1)
+
+gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
+gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
+gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
+gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
+
+var_name_ <- "police"
+gwr_data_i <- data.frame(id=gwr_data$norm$id,
+                         obs=gwr_data$norm[[var_name_]] %>% as.factor)
+data_map_coords <- map_df %>%
+  left_join(gwr_data_i, by="id")
+ggplot(data_map_coords, aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=obs),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = depto_map$long, y = depto_map$lat) +
+  coord_quickmap() +
+  scale_fill_viridis_d(na.value = "white") +
+  labs(fill=var_name_, x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  ) -> data_map_i
+ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/data maps/local GWR data %s n_drop %i.png", var_name_, 10),
+       data_map_i, scale=1)
+
+# empty_map +
 #   geom_point(data = GWR_y_tbl_centroid %>% filter(y == 1),
 #              aes(x=long, y=lat, color = "true y"), size=0.2) +
 #   geom_point(data = GWR_y_tbl_centroid %>% filter(y == 0 & y_PML_var_drop_loo == 1),
@@ -1023,7 +1141,7 @@ data_map(GWR_y_tbl_centroid_base_dest_7_3, "base_destination", 10)
 #     values = c("true y"="blue", "FP with PML GWR"="red"),
 #   ) -> FP_map
 # 
-# empty_map + 
+# empty_map +
 #   geom_point(data = GWR_y_tbl_centroid %>% filter(y == 1),
 #              aes(x=long, y=lat, color = "true y"), size=0.2) +
 #   geom_point(data = GWR_y_tbl_centroid %>% filter(y == 1 & y_PML_var_drop_loo == 1),
