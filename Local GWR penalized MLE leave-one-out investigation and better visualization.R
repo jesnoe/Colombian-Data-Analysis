@@ -298,6 +298,7 @@ regression_data_years <- read.csv("Colombia Data/regression data all municipios 
   }
 
 gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
+# write.csv(gwr_data$dist, "Colombia Data/gwr data dist.csv", row.names = F)
 gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
 gwr_data$norm$coca_area <- regression_data_aggr$coca_area_log_scale
 gwr_data$norm$lab_prob <- scale(log(1+gwr_data$norm$lab_prob))[,1]
