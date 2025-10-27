@@ -241,8 +241,10 @@ id_i <- 44090 # opposite influence of seizures compared to Santa Marta, Magdalen
 id_i <- 27001
 id_i <- 50287
 id_i <- 25851
+id_i <- 50350
+neighbors %>% select(price_avg:lab_prob) %>% pivot_longer(price_avg:lab_prob, names_to = "variable", values_to = "obs.") %>% ggplot() + geom_boxplot(aes(x=variable, y=obs.))
 
-local_GWR_data_neighbors <- function(id_i, n_neighbors) {
+local_GWR_data_neighbors <- function(id_i, n_neighbors, within_range_weight=1, within_range_drop) {
   j <- which(hyd_gwr_data$id == id_i)
   k <- which(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$id == id_i)
   bw_i <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$bw[k]
@@ -252,11 +254,23 @@ local_GWR_data_neighbors <- function(id_i, n_neighbors) {
   
   local_GWR_i <- local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled[[paste0("id_", id_i)]][[paste0("bw_", bw_i)]]
   model_vars_i <- (local_GWR_i$coefficients %>% names)[-1]
-  hyd_gwr_data_dist <- dist(hyd_gwr_data %>% select(all_of(model_vars_i))) %>% as.matrix
+  # hyd_gwr_data_dist <- dist(hyd_gwr_data %>% select(all_of(model_vars_i))) %>% as.matrix
   ### variables have different scale (normalized, logged, and binary): how can I measure the deviation fairly?
-  abs(neighbors %>% select(all_of(model_vars_i)) %>% apply(2, function(x) min(x)) - (hyd_gwr_data_i %>% select(all_of(model_vars_i)) %>% t %>% as.vector))
-  abs(neighbors %>% select(all_of(model_vars_i)) %>% apply(2, function(x) max(x)) - (hyd_gwr_data_i %>% select(all_of(model_vars_i)) %>% t %>% as.vector))
-  hyd_gwr_data_dist <- distances(hyd_gwr_data %>% select(-(id:y))) %>% as.matrix
+  model_vars_i_continous <- model_vars_i[-which(model_vars_i %in% c("airport", "armed_group", "ferry", "police", "military"))]
+  hyd_gwr_data_i_min <- neighbors %>% select(all_of(model_vars_i_continous)) %>% apply(2, function(x) min(x))
+  hyd_gwr_data_i_max <- neighbors %>% select(all_of(model_vars_i_continous)) %>% apply(2, function(x) max(x))
+  hyd_gwr_data_i_range <- hyd_gwr_data_i_max - hyd_gwr_data_i_min
+  hyd_gwr_data_i_continous <- hyd_gwr_data_i %>% select(all_of(model_vars_i_continous))
+  hyd_gwr_data_i_vec <- hyd_gwr_data_i_continous %>% t %>% as.vector
+  data_distance_weights <- bind_rows(hyd_gwr_data_i_continous, hyd_gwr_data_i_min, hyd_gwr_data_i_max, hyd_gwr_data_i_range) %>% 
+    apply(2, function(x) ifelse(x[1] < x[2], 1+(x[2] - x[1])/x[4],
+                                ifelse(x[1] > x[3], 1+(x[1] - x[3])/x[4], within_range_weight))) ### make within_range_weight as parameter? or as a function of out-of-range weights?
+  outlier_vars <- names(data_distance_weights)[which(data_distance_weights > 1)]
+  outlier_vars_weight <- data_distance_weights[which(names(data_distance_weights) %in% outlier_vars)]
+  
+  if (within_range_drop) {
+    hyd_gwr_data_dist <- distances(hyd_gwr_data %>% select(all_of(outlier_vars)) %>% as.data.frame, weights = outlier_vars_weight) %>% as.matrix
+    }else{hyd_gwr_data_dist <- distances(hyd_gwr_data %>% select(all_of(model_vars_i_continous)) %>% as.data.frame, weights = data_distance_weights) %>% as.matrix}
   
   data_neighbors_id <- hyd_gwr_data$id[order(hyd_gwr_data_dist[j,] %>% t)[2:(n_neighbors+1)]]
   data_neighbors <- hyd_gwr_data %>% filter(id %in% data_neighbors_id)
@@ -283,7 +297,27 @@ local_GWR_i
 model_i
 pi_hat_i
 
-local_GWR_data_neighbors(27001, 5)
+local_GWR_data_neighbors(27001, 5, within_range_drop = F)
+local_GWR_data_neighbors(50287, 5, within_range_drop = F)
+local_GWR_data_neighbors(25851, 5, within_range_drop = F)
+local_GWR_data_neighbors(44090, 5, within_range_drop = F)
+
+local_GWR_data_neighbors(27001, 1, within_range_drop = F)
+local_GWR_data_neighbors(50287, 1, within_range_drop = F)
+local_GWR_data_neighbors(25851, 1, within_range_drop = F)
+local_GWR_data_neighbors(44090, 1, within_range_drop = F)
+
+
+local_GWR_data_neighbors(27001, 1, within_range_drop = T)
+local_GWR_data_neighbors(50287, 1, within_range_drop = T)
+local_GWR_data_neighbors(25851, 1, within_range_drop = T)
+local_GWR_data_neighbors(44090, 1, within_range_drop = T)
+
+local_GWR_data_neighbors(27001, 1, within_range_weight = 0.1, within_range_drop = F)
+local_GWR_data_neighbors(50287, 1, within_range_weight = 0.5, within_range_drop = F)
+local_GWR_data_neighbors(25851, 1, within_range_weight = 0.5, within_range_drop = F)
+local_GWR_data_neighbors(44090, 1, within_range_weight = 0.5, within_range_drop = F)
+
 local_GWR_data_neighbors(27001, 1)
 local_GWR_data_neighbors(27001, 2)
 local_GWR_data_neighbors(27001, 3)
@@ -333,3 +367,70 @@ influence
 
 id_i <- 27001 # population coef decreased, but still influential
 id_i <- 44090 # population is no longer dominantly influential
+
+
+influence_tbl_FP
+indep_vars <- names(hyd_gwr_data)[-(1:3)]
+indep_vars_df <- data.frame(var_name=indep_vars)
+coef_table <- tibble(id = influence_tbl_FP$id)
+coef_mat <- matrix(NA, nrow(coef_table), length(indep_vars))
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP <- influence_tbl_FP
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_bw <- c()
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_pi_hat <- c()
+within_range_weight <- 1
+n_neighbors <- 5
+binary_vars <- c("airport", "armed_group", "ferry", "police", "military")
+### FP data neighbors local GWR
+for (i in 1:nrow(influence_tbl_FP)) {
+  id_i <- influence_tbl_FP$id[i]
+  j <- which(hyd_gwr_data$id == id_i)
+  k <- which(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$id == id_i)
+  bw_i <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$bw[k]
+  PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_bw <- c(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_bw, bw_i)
+  
+  neighbors <- hyd_gwr_data[which(gwr_data_dist[j,] <= bw_i),] %>% filter(id != id_i)
+  hyd_gwr_data_i <- hyd_gwr_data %>% filter(id == id_i)
+  
+  local_GWR_i <- local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled[[paste0("id_", id_i)]][[paste0("bw_", bw_i)]]
+  model_vars_i <- (local_GWR_i$coefficients %>% names)[-1]
+  
+  if (sum(model_vars_i %in% binary_vars) > 0) {
+    model_vars_i_continous <- model_vars_i[-which(model_vars_i %in% binary_vars)]
+  }else{
+    model_vars_i_continous <- model_vars_i
+  }
+  
+  hyd_gwr_data_i_min <- neighbors %>% select(all_of(model_vars_i_continous)) %>% apply(2, function(x) min(x))
+  hyd_gwr_data_i_max <- neighbors %>% select(all_of(model_vars_i_continous)) %>% apply(2, function(x) max(x))
+  hyd_gwr_data_i_range <- hyd_gwr_data_i_max - hyd_gwr_data_i_min
+  hyd_gwr_data_i_continous <- hyd_gwr_data_i %>% select(all_of(model_vars_i_continous))
+  hyd_gwr_data_i_vec <- hyd_gwr_data_i_continous %>% t %>% as.vector
+  data_distance_weights <- bind_rows(hyd_gwr_data_i_continous, hyd_gwr_data_i_min, hyd_gwr_data_i_max, hyd_gwr_data_i_range) %>% 
+    apply(2, function(x) ifelse(x[1] < x[2], 1+(x[2] - x[1])/x[4],
+                                ifelse(x[1] > x[3], 1+(x[1] - x[3])/x[4], within_range_weight)))
+  hyd_gwr_data_dist <- distances(hyd_gwr_data %>% select(all_of(model_vars_i_continous)) %>% as.data.frame, weights = data_distance_weights) %>% as.matrix
+  
+  data_neighbors_id <- hyd_gwr_data$id[order(hyd_gwr_data_dist[j,] %>% t)[2:(n_neighbors+1)]]
+  data_neighbors <- hyd_gwr_data %>% filter(id %in% data_neighbors_id)
+  neighbors_i <- bind_rows(neighbors, data_neighbors)
+  var_names_i <- names(neighbors_i)[names(neighbors_i) %in% model_vars_i]
+  
+  data_neighbor_model_i <- logistf(y~., neighbors_i %>% select(y, all_of(var_names_i)), alpha = 0.1)
+  
+  data_pred_i <- hyd_gwr_data %>% filter(id == id_i) %>% select(y, all_of(var_names_i)) %>% relocate(y, model_vars_i)
+  pi_hat_i <- predict(data_neighbor_model_i, data_pred_i, type="response")
+  PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_pi_hat <- c(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_pi_hat, pi_hat_i)
+  
+  data_neighbors_index <- which(hyd_gwr_data$id %in% data_neighbors_id)
+  
+  coef_i <- coef(data_neighbor_model_i)
+  coef_i_df <- data.frame(var_name=c("Intercept", names(coef_i)[-1]), coef=coef_i)
+  coef_i_df <- left_join(indep_vars_df, coef_i_df, by="var_name")
+  coef_mat[i,] <- coef_i_df$coef
+}
+coef_table <- bind_cols(coef_table, coef_mat)
+names(coef_table)[-1] <- indep_vars
+# coef_table$bw <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_bw
+coef_table$data_neighbors_pi_hat <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_pi_hat
+influence_tbl_FP %>% select(id:pi_hat) %>% left_join(coef_table, by="id") %>% relocate(id:pi_hat, data_neighbors_pi_hat)
+influence_tbl_FP %>% select(id:pi_hat) %>% left_join(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% select(-bw, -Intercept), by="id")
