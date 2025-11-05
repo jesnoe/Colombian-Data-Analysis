@@ -545,6 +545,8 @@ neighbor_id <- hyd_gwr_data[which(gwr_data_dist[j,] <= 0.5),] %>% pull(id)
 data_neighbors_list$id_15183 %>% filter(id %in% neighbor_id) # 0
 local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_15183$bw_0.5
 local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_15183$bw_0.5$model
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.5$model %>% summary
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.5$model %>% apply(2, sd)
 
 local_GWR_data_neighbors(27361, 5, within_range_drop = F)
 data_summary_list$id_27361; binary_variable_summary_list$id_27361
