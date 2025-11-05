@@ -18,6 +18,7 @@ library(regclass)
 library(logistf)
 library(distances)
 {
+binary_vars <- c("y", "airport", "armed_group", "ferry", "police", "military")
 municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
 municipios_capital$id <- as.numeric(municipios_capital$id)
 municipios_capital$municipio <- stri_trans_general(municipios_capital$municipio, "Latin-ASCII")
@@ -256,7 +257,11 @@ local_GWR_data_neighbors <- function(id_i, n_neighbors, within_range_weight=1, w
   model_vars_i <- (local_GWR_i$coefficients %>% names)[-1]
   # hyd_gwr_data_dist <- dist(hyd_gwr_data %>% select(all_of(model_vars_i))) %>% as.matrix
   ### variables have different scale (normalized, logged, and binary): how can I measure the deviation fairly?
-  model_vars_i_continous <- model_vars_i[-which(model_vars_i %in% c("airport", "armed_group", "ferry", "police", "military"))]
+  if (sum(model_vars_i %in% binary_vars) > 0) {
+    model_vars_i_continous <- model_vars_i[-which(model_vars_i %in% binary_vars)]
+  }else{
+    model_vars_i_continous <- model_vars_i
+  }
   hyd_gwr_data_i_min <- neighbors %>% select(all_of(model_vars_i_continous)) %>% apply(2, function(x) min(x))
   hyd_gwr_data_i_max <- neighbors %>% select(all_of(model_vars_i_continous)) %>% apply(2, function(x) max(x))
   hyd_gwr_data_i_range <- hyd_gwr_data_i_max - hyd_gwr_data_i_min
@@ -379,7 +384,7 @@ PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_bw <- c()
 PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_pi_hat <- c()
 within_range_weight <- 1
 n_neighbors <- 5
-binary_vars <- c("airport", "armed_group", "ferry", "police", "military")
+data_neighbors_list <- list()
 ### FP data neighbors local GWR
 for (i in 1:nrow(influence_tbl_FP)) {
   id_i <- influence_tbl_FP$id[i]
@@ -414,6 +419,7 @@ for (i in 1:nrow(influence_tbl_FP)) {
   data_neighbors <- hyd_gwr_data %>% filter(id %in% data_neighbors_id)
   neighbors_i <- bind_rows(neighbors, data_neighbors)
   var_names_i <- names(neighbors_i)[names(neighbors_i) %in% model_vars_i]
+  data_neighbors_list[[paste0("id_", id_i)]] <- data_neighbors
   
   data_neighbor_model_i <- logistf(y~., neighbors_i %>% select(y, all_of(var_names_i)), alpha = 0.1)
   
@@ -434,3 +440,208 @@ names(coef_table)[-1] <- indep_vars
 coef_table$data_neighbors_pi_hat <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_pi_hat
 influence_tbl_FP %>% select(id:pi_hat) %>% left_join(coef_table, by="id") %>% relocate(id:pi_hat, data_neighbors_pi_hat)
 influence_tbl_FP %>% select(id:pi_hat) %>% left_join(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% select(-bw, -Intercept), by="id")
+
+
+  # maximum relative data distance (calculated for each variable)
+data_distance_avg <- c()
+data_distance_max <- c()
+data_distance_max_var <- c()
+data_summary_list <- list()
+binary_variable_summary_list <- list()
+for (i in 1:nrow(influence_tbl)) {
+  id_i <- influence_tbl$id[i]
+  j <- which(hyd_gwr_data$id == id_i)
+  k <- which(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$id == id_i)
+  bw_i <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$bw[k]
+  
+  if (is.na(bw_i)) {
+    data_distance_avg <- c(data_distance_avg, NA)
+    data_distance_max <- c(data_distance_max, NA)
+    data_distance_max_var <- c(data_distance_max_var, NA)
+    data_summary_list[[paste0("id_", id_i)]] <- NA
+    binary_variable_summary_list[[paste0("id_", id_i)]] <- NA
+    next
+  }
+  
+  neighbors <- hyd_gwr_data[which(gwr_data_dist[j,] <= bw_i),] %>% filter(id != id_i)
+  hyd_gwr_data_i <- hyd_gwr_data %>% filter(id == id_i)
+  
+  local_GWR_i <- local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled[[paste0("id_", id_i)]][[paste0("bw_", bw_i)]]
+  model_vars_i <- (local_GWR_i$coefficients %>% names)[-1]
+  
+  if (sum(model_vars_i %in% binary_vars) > 0) {
+    model_vars_i_continous <- model_vars_i[-which(model_vars_i %in% binary_vars)]
+  }else{
+    model_vars_i_continous <- model_vars_i
+  }
+  binary_variable_summary_list[[paste0("id_", id_i)]] <- neighbors %>% select(y, all_of(model_vars_i)) %>% select(any_of(binary_vars)) %>% apply(2, function(x) mean(x))
+  
+  hyd_gwr_data_i_min <- neighbors %>% select(all_of(model_vars_i_continous)) %>% apply(2, function(x) min(x))
+  hyd_gwr_data_i_max <- neighbors %>% select(all_of(model_vars_i_continous)) %>% apply(2, function(x) max(x))
+  hyd_gwr_data_i_range <- hyd_gwr_data_i_max - hyd_gwr_data_i_min
+  hyd_gwr_data_i_continous <- hyd_gwr_data_i %>% select(all_of(model_vars_i_continous))
+  hyd_gwr_data_i_vec <- hyd_gwr_data_i_continous %>% t %>% as.vector
+  data_summary <- bind_rows(hyd_gwr_data_i_continous, hyd_gwr_data_i_min, hyd_gwr_data_i_max, hyd_gwr_data_i_range)
+  data_distance_weights <- data_summary %>%
+    apply(2, function(x) ifelse(x[1] < x[2], 1+(x[2] - x[1])/x[4],
+                                ifelse(x[1] > x[3], 1+(x[1] - x[3])/x[4], 1)))
+  data_summary <- bind_rows(data_summary, data_distance_weights) %>% mutate(value = c("obs.", "min", "max", "range", "weight")) %>% relocate(value)
+  data_distance_weights %>% t %>% as.vector
+  var_names_i <- names(data_distance_weights)
+  data_summary_list[[paste0("id_", id_i)]] <- data_summary
+  
+  data_distance_avg <- c(data_distance_avg, mean(data_distance_weights))
+  data_distance_max <- c(data_distance_max, max(data_distance_weights))
+  data_distance_max_var <- c(data_distance_max_var, var_names_i[which.max(data_distance_weights)])
+}
+
+local_GWR_coefs_without_data_neighbors <- influence_tbl %>% select(id:pi_hat) %>% left_join(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% select(-bw, -Intercept), by="id") %>% 
+  mutate(avg_data_dist_weight = data_distance_avg,
+         max_data_dist_weight = data_distance_max,
+         variable = data_distance_max_var) %>% relocate(id:pi_hat, avg_data_dist_weight, max_data_dist_weight, variable)
+local_GWR_coefs_without_data_neighbors
+local_GWR_coefs_without_data_neighbors_FP <- local_GWR_coefs_without_data_neighbors %>% filter(prediction == "FP") %>% arrange(desc(pi_hat))
+
+local_GWR_coefs_without_data_neighbors_FP %>% select(id:variable, population, lab_prob)
+local_GWR_coefs_without_data_neighbors_FP %>% select(id:variable, population, lab_prob) %>% arrange(desc(avg_data_dist_weight))
+local_GWR_coefs_without_data_neighbors_FP %>% select(id:variable, population, lab_prob) %>% arrange(desc(abs(population)))
+local_GWR_coefs_without_data_neighbors_FP %>% select(id:variable, population, lab_prob) %>% arrange(desc(abs(lab_prob)))
+
+high_coef_id_population <- local_GWR_coefs_without_data_neighbors_FP %>% arrange(desc(abs(population))) %>% head %>% pull(id)
+for (i in 1:length(high_coef_id_population)) {
+  id_i <- high_coef_id_population[i]
+  k <- which(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$id == id_i)
+  bw_i <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$bw[k]
+  print(paste("id", id_i))
+  print(data_summary_list[[paste0("id_", id_i)]])
+  print(binary_variable_summary_list[[paste0("id_", id_i)]])
+  print(paste("n_neighbors:", local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled[[paste0("id_", id_i)]][[paste0("bw_", bw_i)]]$model %>% nrow))
+}
+data_summary_list$id_15183
+binary_variable_summary_list$id_15183
+
+PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest leave-one-out F1 all var drop log seizure scaled n_drop=10 (08-20-2025).csv") %>% as_tibble
+
+bind_rows(PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo %>% filter(id == high_coef_id_population[1]),
+          PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo %>% filter(id == high_coef_id_population[2]),
+          PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo %>% filter(id == high_coef_id_population[3]),
+          PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo %>% filter(id == high_coef_id_population[4]),
+          PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo %>% filter(id == high_coef_id_population[5]),
+          PML_F1_score_hyd_dest_var_drop_log_seizure_10_loo %>% filter(id == high_coef_id_population[6]))
+bind_rows(coef_table %>% filter(id == high_coef_id_population[1]) %>% select(id, population, lab_prob),
+          coef_table %>% filter(id == high_coef_id_population[2]) %>% select(id, population, lab_prob),
+          coef_table %>% filter(id == high_coef_id_population[3]) %>% select(id, population, lab_prob),
+          coef_table %>% filter(id == high_coef_id_population[4]) %>% select(id, population, lab_prob),
+          coef_table %>% filter(id == high_coef_id_population[5]) %>% select(id, population, lab_prob),
+          coef_table %>% filter(id == high_coef_id_population[6]) %>% select(id, population, lab_prob))
+
+
+local_GWR_data_neighbors(15183, 5, within_range_drop = F)
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% filter(id == 15183)
+data_summary_list$id_15183; binary_variable_summary_list$id_15183
+data_neighbors_list$id_15183
+j <- which(hyd_gwr_data$id == 15183)
+neighbor_id <- hyd_gwr_data[which(gwr_data_dist[j,] <= 0.5),] %>% pull(id)
+data_neighbors_list$id_15183 %>% filter(id %in% neighbor_id) # 0
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_15183$bw_0.5
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_15183$bw_0.5$model
+
+local_GWR_data_neighbors(27361, 5, within_range_drop = F)
+data_summary_list$id_27361; binary_variable_summary_list$id_27361
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% filter(id == 27361)
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_27361$bw_0.8
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_27361$bw_0.8$model
+
+local_GWR_data_neighbors(25851, 5, within_range_drop = F)
+data_summary_list$id_25851; binary_variable_summary_list$id_25851
+data_neighbors_list$id_25851
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% filter(id == 25851)
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.5
+
+j <- which(hyd_gwr_data$id == 25851)
+neighbor_id <- hyd_gwr_data[which(gwr_data_dist[j,] <= 0.5),] %>% pull(id)
+data_neighbors_list$id_25851 %>% filter(id %in% neighbor_id) # 2
+
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.5$model %>% as_tibble
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.6$model %>% as_tibble
+
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.5$model %>% summary
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.6$model %>% summary
+
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.5$model %>% apply(2, sd)
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.6$model %>% apply(2, sd)
+
+map_df %>% ggplot(aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group, fill=id %in% high_coef_id_population),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  coord_quickmap() +
+  scale_fill_manual(values = c("FALSE" = "white", "TRUE" = "red")) +
+  labs(fill="", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank())
+
+map_df %>% ggplot(aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group, fill=id == high_coef_id_population[1]),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  coord_quickmap() +
+  scale_fill_manual(values = c("FALSE" = "white", "TRUE" = "red")) +
+  labs(fill="", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank())
+
+map_df %>% ggplot(aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group, fill=id %in% high_coef_id_population[1:3]),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  coord_quickmap() +
+  scale_fill_manual(values = c("FALSE" = "white", "TRUE" = "red")) +
+  labs(fill="", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank())
+
+map_df %>% ggplot(aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group, fill=id == 15183),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  coord_quickmap() +
+  scale_fill_manual(values = c("FALSE" = "white", "TRUE" = "red")) +
+  labs(fill="", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank())
+
+map_df %>% ggplot(aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group, fill=id == 25851),
+               color = "black",
+               linewidth = 0.1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  coord_quickmap() +
+  scale_fill_manual(values = c("FALSE" = "white", "TRUE" = "red")) +
+  labs(fill="", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank())
