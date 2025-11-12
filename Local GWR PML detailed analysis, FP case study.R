@@ -647,3 +647,184 @@ map_df %>% ggplot(aes(x=long, y=lat)) +
         panel.border = element_blank(),
         axis.text = element_blank(),
         line = element_blank())
+
+# absolute population check
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.5 %>% summary
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.6 %>% summary
+
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.5$model %>% as_tibble %>% arrange(y) %>% print(n=100)
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.6$model %>% as_tibble %>% arrange(y) %>% print(n=100)
+regression_data_years <- read.csv("Colombia Data/regression data all municipios ever lab (02-05-2025).csv") %>% as_tibble %>% 
+  mutate(coca_area = ifelse(coca_distance > 0, 0, coca_area))
+
+population <- regression_data_years %>% select(id, population) %>% unique %>% rename(population_abs = population)
+
+id_i <- 25851
+j <- which(hyd_gwr_data$id == id_i)
+k <- which(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$id == id_i)
+bw_i <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$bw[k]
+bw_i
+
+neighbors_25851_bw0.5 <- hyd_gwr_data[which(gwr_data_dist[j,] <= 0.5),] %>% filter(id != id_i) %>% left_join(population, by="id")
+neighbors_25851_bw0.6 <- hyd_gwr_data[which(gwr_data_dist[j,] <= 0.6),] %>% filter(id != id_i) %>% left_join(population, by="id")
+
+neighbors_25851_bw0.5 %>% ggplot(aes(y=population_abs)) + geom_boxplot()
+neighbors_25851_bw0.6 %>% ggplot(aes(y=population_abs)) + geom_boxplot()
+
+pi_hat_0.5 <- local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.5$predict
+pi_hat_0.6 <- local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.6$predict
+neighbors_25851_bw0.5[pi_hat_0.5>=0.5,]
+neighbors_25851_bw0.6[pi_hat_0.6>=0.6,]
+neighbors_25851_bw0.5 %>% filter(population_abs > 50000)
+neighbors_25851_bw0.6 %>% filter(population_abs > 50000)
+
+neighbors_25851_bw0.5 %>% select(seizures, river_length, road_length, population, airport, lab_prob, police, population_abs)
+neighbors_25851_bw0.6 %>% select(seizures, river_length, road_length, population, airport, lab_prob, police, population_abs) 
+boxplot(neighbors_25851_bw0.5$population_abs)
+
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.5
+local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled$id_25851$bw_0.6
+
+local_GWR_data_neighbors(25851, 5, within_range_weight = 1, within_range_drop = F)
+local_GWR_data_neighbors(15183, 5, within_range_weight = 1, within_range_drop = F)
+
+### data neighbors with dependent variable?
+neighbors <- hyd_gwr_data[which(gwr_data_dist[j,] <= bw_i),] %>% filter(id != id_i)
+hyd_gwr_data_i <- hyd_gwr_data %>% filter(id == id_i)
+
+local_GWR_i <- local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled[[paste0("id_", id_i)]][[paste0("bw_", bw_i)]]
+model_vars_i <- (local_GWR_i$coefficients %>% names)[-1]
+
+if (sum(model_vars_i %in% binary_vars) > 0) {
+  model_vars_i_continous <- model_vars_i[-which(model_vars_i %in% binary_vars)]
+}else{
+  model_vars_i_continous <- model_vars_i
+}
+
+hyd_gwr_data_i_min <- neighbors %>% select(all_of(model_vars_i_continous)) %>% apply(2, function(x) min(x))
+hyd_gwr_data_i_max <- neighbors %>% select(all_of(model_vars_i_continous)) %>% apply(2, function(x) max(x))
+hyd_gwr_data_i_range <- hyd_gwr_data_i_max - hyd_gwr_data_i_min
+hyd_gwr_data_i_continous <- hyd_gwr_data_i %>% select(all_of(model_vars_i_continous))
+hyd_gwr_data_i_vec <- hyd_gwr_data_i_continous %>% t %>% as.vector
+data_summary <- bind_rows(hyd_gwr_data_i_continous, hyd_gwr_data_i_min, hyd_gwr_data_i_max, hyd_gwr_data_i_range)
+data_distance_weights <- data_summary %>%
+  apply(2, function(x) ifelse(x[1] < x[2], 1+(x[2] - x[1])/x[4],
+                              ifelse(x[1] > x[3], 1+(x[1] - x[3])/x[4], 1)))
+data_summary <- bind_rows(data_summary, data_distance_weights) %>% mutate(value = c("obs.", "min", "max", "range", "weight")) %>% relocate(value)
+data_distance_weights %>% t %>% as.vector
+hyd_gwr_data_dist <- distances(hyd_gwr_data %>% select(y, all_of(model_vars_i_continous)) %>% as.data.frame, weights = c(1,data_distance_weights)) %>% as.matrix
+
+data_neighbors_id <- hyd_gwr_data$id[order(hyd_gwr_data_dist[j,] %>% t)[2:(n_neighbors+1)]]
+data_neighbors <- hyd_gwr_data %>% filter(id %in% data_neighbors_id)
+neighbors_i <- bind_rows(neighbors, data_neighbors)
+var_names_i <- names(neighbors_i)[names(neighbors_i) %in% model_vars_i]
+data_neighbors_list[[paste0("id_", id_i)]] <- data_neighbors
+
+data_neighbor_model_i <- logistf(y~., neighbors_i %>% select(y, all_of(var_names_i)), alpha = 0.1)
+
+data_pred_i <- hyd_gwr_data %>% filter(id == id_i) %>% select(y, all_of(var_names_i)) %>% relocate(y, model_vars_i)
+pi_hat_i <- predict(data_neighbor_model_i, data_pred_i, type="response")
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_pi_hat <- c(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest_FP_pi_hat, pi_hat_i)
+
+data_neighbors_index <- which(hyd_gwr_data$id %in% data_neighbors_id)
+
+coef_i <- coef(data_neighbor_model_i)coef_i <- coef(data_neighbor_model_i)
+###
+
+# MGWR for id=25851
+bwd_range <- seq(0.5, 3, by=0.1)
+indep_vars <- names(hyd_gwr_data)[-(1:3)]
+indep_vars_df <- data.frame(var_name=indep_vars)
+local_MGWR_PML_coefs_df <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest[1, -2]
+local_MGWR_PML_coefs_list <- list()
+local_MGWR_PML_pi_hat <- c()
+# id_i <- 25851
+i <- 1
+for (id_i in PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$id) {
+  j <- which(hyd_gwr_data$id == id_i)
+  k <- which(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$id == id_i)
+  PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest[k,]
+  coef_mat <- matrix(NA, 12, length(bwd_range))
+  F1_mat <- matrix(NA, 12, length(bwd_range))
+  colnames(coef_mat) <- paste0("bw_", bwd_range)
+  colnames(F1_mat) <- paste0("bw_", bwd_range)
+  bw_idx <- 1
+  n_drop <- 10
+  for (bw_j in bwd_range) {
+    neighbors_id <- hyd_gwr_data[which(gwr_data_dist[j,] <= bw_j),] %>% filter(id != id_i)
+    n_0_1 <- neighbors_id$y %>% table
+    if (sum(n_0_1 < 8) > 0 | length(n_0_1) < 2) {
+      bw_idx <- bw_idx + 1
+      next
+    }
+    
+    local_GWR_PML_i <- local_GWR_coefs_PML_hyd_dest_var_drop_log_seizure_scaled[[paste0("id_", id_i)]][[paste0("bw_", bw_j)]]
+    # if (any(is.na(local_GWR_PML_i))) beta_0 <- 0
+    # else beta_0 <- local_GWR_PML_i$coefficients[1]
+    beta_0 <- 0
+    n_unique_vals <- neighbors_id %>% select(-id) %>% apply(2, function(x) length(table(x)))
+    for (p in 1:12) {
+      var_p <- indep_vars[p]
+      if (var_p %in% binary_vars) {
+        if (neighbors_id[[var_p]] %>% table %>% min < n_drop | n_unique_vals[[var_p]] < 2) next
+      }else{
+        if (n_unique_vals[var_p] < n_drop) next
+      }
+      
+      local_GWR_PML_jp <- logistf(y~., neighbors_id %>% select(y, all_of(var_p)), alpha=0.1)
+      local_GWR_PML_jp_pred <- ifelse(local_GWR_PML_jp$predict < 0.5, 0, 1) %>% factor(levels = c("0", "1"))
+      local_GWR_PML_jp_CM <- confusionMatrix(local_GWR_PML_jp_pred, neighbors_id$y %>% factor(levels = c("0", "1")), positive = "1")
+      local_GWR_PML_jp_F1 <- local_GWR_PML_jp_CM$byClass["F1"]
+      if (is.nan(local_GWR_PML_jp_F1)) next
+      F1_mat[p,bw_idx] <- local_GWR_PML_jp_F1 
+      coef_mat[p,bw_idx] <- local_GWR_PML_jp$coefficients[2]
+    }
+    bw_idx <- bw_idx + 1
+  }
+  local_MGWR_PML_coefs <- bind_cols(indep_vars_df, coef_mat) %>% as_tibble
+  local_MGWR_PML_F1 <- bind_cols(indep_vars_df, F1_mat) %>% as_tibble
+  local_MGWR_PML_bw <- bwd_range[local_MGWR_PML_F1[,-1] %>% apply(1, function(x) ifelse(NaN %in% x, NA, which(x == max(x, na.rm=T))))]
+  
+  if (sum(is.na(local_MGWR_PML_bw)) == 12) {
+    local_MGWR_PML_coefs_list[[paste0("id_", id_i)]] <- NA
+    local_MGWR_PML_pi_hat <- c(local_MGWR_PML_pi_hat, NA)
+    next
+  }
+  
+  local_MGWR_PML_coefs_best_vec <- c()
+  for (p in 1:12) {
+    bw_p <- local_MGWR_PML_bw[p]
+    if (is.na(bw_p)) {
+      local_MGWR_PML_coefs_best_vec <- c(local_MGWR_PML_coefs_best_vec, NA)
+      next
+    }
+    local_MGWR_PML_coefs_best_vec <- c(local_MGWR_PML_coefs_best_vec, local_MGWR_PML_coefs[,-1][[paste0("bw_", bw_p)]][p])
+  }
+  local_MGWR_PML_coefs_best <- bind_cols(indep_vars_df, bw=local_MGWR_PML_bw, coef = local_MGWR_PML_coefs_best_vec)
+  local_MGWR_PML_coefs_df_i <- matrix(c(id_i, beta_0, local_MGWR_PML_coefs_best$coef), nrow=1)
+  colnames(local_MGWR_PML_coefs_df_i) <- names(local_MGWR_PML_coefs_df)
+  local_MGWR_PML_coefs_df <- bind_rows(local_MGWR_PML_coefs_df, local_MGWR_PML_coefs_df_i %>% as_tibble)
+  local_MGWR_PML_coefs_list[[paste0("id_", id_i)]] <- local_MGWR_PML_coefs_best
+  hyd_gwr_data_i <- hyd_gwr_data %>% filter(id == id_i)
+  bX <- beta_0 + sum((hyd_gwr_data_i[,-(1:3)] %>% as.matrix %>% as.vector) * local_MGWR_PML_coefs_best$coef, na.rm = T)
+  pi_hat <- 1/(1+exp(-bX))
+  local_MGWR_PML_pi_hat <- c(local_MGWR_PML_pi_hat, pi_hat)
+  
+  if (i %% 10 == 0) print(paste0(i, "th complete"))
+  i <- i + 1
+}
+# missing_id <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% filter(!(id %in% local_MGWR_PML_coefs_df$id)) %>% pull(id) # delete
+# missing_index <- which(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$id %in% missing_id) # delete
+# local_MGWR_PML_coefs_df <- left_join(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% select(id), local_MGWR_PML_coefs_df, by="id") # delete
+# local_MGWR_PML_coefs_df <- local_MGWR_PML_coefs_df[-1,]
+# local_MGWR_PML_pi_hat <- local_MGWR_PML_pi_hat/(1+local_MGWR_PML_pi_hat) # delete
+temp <- local_MGWR_PML_pi_hat # delete
+local_MGWR_PML_pi_hat <- left_join(local_MGWR_PML_coefs_df, # delete
+                                   tibble(id = local_MGWR_PML_coefs_df %>% filter(!(id %in% missing_id)) %>% pull(id), pi_hat = local_MGWR_PML_pi_hat), by="id") %>% pull(pi_hat)
+local_MGWR_PML_coefs_list$id_5002
+local_MGWR_PML_pi_hat_df <- tibble(id=PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest$id,
+                                   pi_hat=local_MGWR_PML_pi_hat) %>% left_join(hyd_gwr_data %>% select(id, y) %>% mutate(y = y %>% factor(levels = c("0", "1"))))
+local_MGWR_PML_pi_hat_df$pred <- ifelse(local_MGWR_PML_pi_hat_df$pi_hat < 0.5, 0, 1) %>% factor(levels = c("0", "1"))
+confusionMatrix(local_MGWR_PML_pi_hat_df$pred, local_MGWR_PML_pi_hat_df$y %>% factor(levels = c("0", "1")), positive = "1")
+CM_var_drop_10_loo_hyd_dest
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest[k,]
