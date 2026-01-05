@@ -204,6 +204,7 @@ price_annual <- price %>%
   ) %>% 
   filter(!is.na(id))
 price_annual
+price_annual[price_annual$year < 2017,-(1:2)] %>% apply(2, function(x) sum(is.na(x)))
 
 price_med <- price %>% 
   group_by(id, year) %>% 
@@ -572,3 +573,103 @@ lab_probs_comparison <- left_join(lab_probs_old, lab_probs, by=c("id", "year")) 
 summary(lab_probs_comparison$PPI_lab_prob.x - lab_probs_comparison$PPI_lab_prob.y)
 sum(abs(lab_probs_comparison$PPI_lab_prob.x - lab_probs_comparison$PPI_lab_prob.y) > 0.1) # 53 out of 1623
 sum(abs(lab_probs_comparison$hyd_lab_prob.x - lab_probs_comparison$hyd_lab_prob.y) > 0.1) # 23 out of 1623
+
+
+### reg data for more recent years
+{
+  airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
+  ferry <- read.csv("Colombia Data/ferry terminals.csv") %>% as_tibble
+  police <- read.csv("Colombia Data/polices.csv") %>% as_tibble
+  military <- read.csv("Colombia Data/military.csv") %>% as_tibble
+  airports <- left_join(ferry, airports, by="id")
+  airports$n_police <- police$n_polices
+  airports$n_military <- military$n_military
+  
+  airports <- airports %>%
+    mutate(airport=ifelse(n_airports > 0, 1, 0),
+           ferry=ifelse(n_ferry > 0, 1, 0),
+           police=ifelse(n_police > 0, 1, 0),
+           military=ifelse(n_military > 0, 1, 0)) %>% 
+  select(id, airport:military)
+}
+{
+  ex_year <- 2020
+  # anecdotal_year <- anecdotal_annual %>%
+  #   filter(YEAR == ex_year)
+  labs_2steps_year <- labs_reg_data %>% 
+    filter(year == ex_year) %>% 
+    select(-MUNICIPIO, -DEPARTAMENTO, -n_armed_groups, -n_rivers, -n_big_rivers, -n_roads) %>% 
+    mutate(n_PPI_labs=ifelse(is.na(n_PPI_labs), 0, n_PPI_labs),
+           n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs),
+           coca_area=ifelse(is.na(coca_area), 0, coca_area),
+           erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
+           erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
+           coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
+           base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
+           hyd_seizures=ifelse(is.na(hyd_seizures), 0, hyd_seizures)) %>% 
+    relocate(id, year, n_PPI_labs, n_hyd_labs) %>% 
+    left_join(armed_groups[[paste0("y", ex_year)]] %>% select(-(municipio:depto)), by="id")
+  labs_2steps_year[is.na(labs_2steps_year)] <- 0
+  
+  
+  data_year <- labs_2steps_year %>% left_join(population %>% select(id, population), by="id")
+  data_year$base_source_all <- ifelse(data_year$id %in% (base_to_base %>% pull(source_id) %>% unique), 1, 0) %>% as.factor
+  data_year$base_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id)), 1, 0) %>% as.factor
+  data_year$base_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(destination_id)), 1, 0) %>% as.factor
+  data_year$hyd_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
+  data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
+  data_year$general_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(source_id)), 1, 0) %>% as.factor
+  data_year$general_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "GENERAL") %>% pull(destination_id)), 1, 0) %>% as.factor
+  data_year$armed_group <- ifelse(data_year$n_armed_groups > 0, 1, 0)
+  data_year$PPI_lab <- ifelse(data_year$n_PPI_labs > 0, 1, 0)
+  data_year$hyd_lab <- ifelse(data_year$n_hyd_labs > 0, 1, 0)
+  data_year$hyd_avg <- ifelse(data_year$hyd_price_distance > 0, NA, data_year$hyd_avg)
+  data_year$base_avg <- ifelse(data_year$base_price_distance > 0, NA, data_year$base_avg)
+  
+  labs_2steps_2020 <- data_year %>% select(id:hyd_seizures, armed_group, population, base_source_all:general_destination, PPI_lab, hyd_lab) %>% left_join(airports, by="id")
+}
+
+## add probability that PPI/hyd labs exist
+municipios_sf <- st_as_sf(municipios) %>% mutate(id = id %>% as.numeric) %>% filter(!(id %in% c(88001, 88564)))
+municipios_sf$area_km2 <- st_area(municipios_sf) %>% units::set_units("km^2") %>% as.numeric
+
+labs_2steps_2020 <- labs_2steps_2020 %>% select(id, base_avg, hyd_avg, base_seizures, hyd_seizures, PPI_lab, hyd_lab, river_length, road_length, armed_group, population, airport:military) %>% 
+  mutate(base_avg=scale(base_avg)[,1],
+         hyd_avg=scale(hyd_avg)[,1],
+         population=scale(population)[,1],
+         base_seizures = scale(log(1+base_seizures))[,1],
+         hyd_seizures = scale(log(1+hyd_seizures))[,1])
+
+
+labs_2steps_2020_reg <- labs_2steps_2020 %>% 
+  left_join(municipios_sf %>% as_tibble %>% select(id, area_km2), by="id") %>% 
+  mutate(river_length = scale(river_length / area_km2)[,1],
+         road_length = scale(road_length / area_km2)[,1]) %>% 
+  select(-area_km2)
+
+  # prices are excluded to compute lab_prob due to small number of obs.
+PPI_lab_glm_2020 <- glm(PPI_lab~., family="binomial", data=labs_2steps_2020_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, hyd_lab))
+summary(PPI_lab_glm_2020)
+
+hyd_lab_glm_2020 <- glm(hyd_lab~., family="binomial", data=labs_2steps_2020_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, PPI_lab))
+summary(hyd_lab_glm_2020)
+
+regression_data_2020 <- labs_2steps_2020_reg %>% 
+  mutate(PPI_lab_prob=PPI_lab_glm_2020$fitted.values,
+         hyd_lab_prob=hyd_lab_glm_2020$fitted.values) %>% 
+  select(-PPI_lab, -hyd_lab) %>% relocate(id, PPI_lab_prob, hyd_lab_prob)
+
+hyd_avg_lm <- lm(hyd_avg~., regression_data_2020 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
+summary(hyd_avg_lm)
+hyd_avg_pred <- predict(hyd_avg_lm, regression_data_2020 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
+regression_data_2020$hyd_avg <- ifelse(is.na(regression_data_2020$hyd_avg), hyd_avg_pred, regression_data_2020$hyd_avg)
+
+base_avg_lm <- lm(base_avg~., regression_data_2020 %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
+summary(base_avg_lm)
+base_avg_pred <- predict(base_avg_lm, regression_data_2020 %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
+regression_data_2020$base_avg <- ifelse(is.na(regression_data_2020$base_avg), base_avg_pred, regression_data_2020$base_avg)
+
+# write.csv(regression_data_2020,
+#           "Colombia Data/regression data all municipios lab_prob 2020.csv", row.names = F)
+
+regression_data_2020 <- read.csv("Colombia Data/regression data all municipios lab_prob 2020.csv") %>% as_tibble

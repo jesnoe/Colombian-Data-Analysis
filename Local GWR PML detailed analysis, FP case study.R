@@ -85,6 +85,16 @@ CM_var_drop_10_loo_hyd_dest <- confusionMatrix(PML_GWR_pred_10_loo_hyd_dest$y_PM
 CM_var_drop_10_loo_hyd_source_7_3 <- confusionMatrix(PML_GWR_pred_10_loo_hyd_source_7_3$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_hyd_source_7_3$y %>% as.factor, positive = "1")
 CM_var_drop_10_loo_base_source_7_3 <- confusionMatrix(PML_GWR_pred_10_loo_base_source_7_3$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_base_source_7_3$y %>% as.factor, positive = "1")
 CM_var_drop_10_loo_base_dest_7_3 <- confusionMatrix(PML_GWR_pred_10_loo_base_dest_7_3$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_base_dest_7_3$y %>% as.factor, positive = "1")
+
+global_reg_pred_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/global regression hyd_destination predictions.csv") %>% as_tibble
+global_reg_pred_hyd_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/global regression hyd_source predictions weight 7-3.csv") %>% as_tibble
+global_reg_pred_base_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/global regression base_source predictions weight 7-3.csv") %>% as_tibble
+global_reg_pred_base_dest_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/global regression base_destination predictions weight 7-3.csv") %>% as_tibble
+
+CM_global_reg_hyd_dest <- confusionMatrix(global_reg_pred_hyd_dest$y_globbal_reg_pred %>% as.factor, global_reg_pred_hyd_dest$y %>% as.factor, positive = "1")
+CM_global_reg_hyd_source_7_3 <- confusionMatrix(global_reg_pred_hyd_source_7_3$y_globbal_reg_pred %>% as.factor, global_reg_pred_hyd_source_7_3$y %>% as.factor, positive = "1")
+CM_global_reg_base_dest_7_3 <- confusionMatrix(global_reg_pred_base_dest_7_3$y_globbal_reg_pred %>% as.factor, global_reg_pred_base_dest_7_3$y %>% as.factor, positive = "1")
+CM_global_reg_base_source_7_3 <- confusionMatrix(global_reg_pred_base_source_7_3$y_globbal_reg_pred %>% as.factor, global_reg_pred_base_source_7_3$y %>% as.factor, positive = "1")
 }
 # CM_var_drop_10_loo_hyd_dest
 # CM_var_drop_10_loo_hyd_source
@@ -92,18 +102,30 @@ CM_var_drop_10_loo_base_dest_7_3 <- confusionMatrix(PML_GWR_pred_10_loo_base_des
 # CM_var_drop_10_loo_base_source
 
 CM_var_drop_10_loo_hyd_dest
+CM_var_drop_10_loo_hyd_dest$byClass
+CM_global_reg_hyd_dest
+CM_global_reg_hyd_dest$byClass
+
 CM_var_drop_10_loo_hyd_source_7_3
+CM_var_drop_10_loo_hyd_source_7_3$byClass
+CM_global_reg_hyd_source_7_3
+CM_global_reg_hyd_source_7_3$byClass
+
 CM_var_drop_10_loo_base_dest_7_3
+CM_var_drop_10_loo_base_dest_7_3$byClass
+CM_global_reg_base_dest_7_3
+CM_global_reg_base_dest_7_3$byClass
+
 CM_var_drop_10_loo_base_source_7_3
+CM_var_drop_10_loo_base_source_7_3$byClass
+CM_global_reg_base_source_7_3
+CM_global_reg_base_source_7_3$byClass
+
 
 CM_var_drop_10_loo_hyd_source_9_1
 CM_var_drop_10_loo_base_dest_9_1
 CM_var_drop_10_loo_base_source_9_1
 
-CM_var_drop_10_loo_hyd_dest$byClass
-CM_var_drop_10_loo_hyd_source$byClass
-CM_var_drop_10_loo_base_dest$byClass
-CM_var_drop_10_loo_base_source$byClass
 
 # gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
 # gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
