@@ -629,6 +629,14 @@ sum(abs(lab_probs_comparison$hyd_lab_prob.x - lab_probs_comparison$hyd_lab_prob.
   labs_2steps_2020 <- data_year %>% select(id:hyd_seizures, armed_group, population, base_source_all:general_destination, PPI_lab, hyd_lab) %>% left_join(airports, by="id")
 }
 
+labs_2steps_2020 %>% select(id, base_avg, hyd_avg, base_seizures, hyd_seizures, PPI_lab, hyd_lab, river_length, road_length, armed_group, population, airport:military) %>%
+  left_join(municipios_sf %>% as_tibble %>% select(id, area_km2), by="id") %>% 
+  mutate(population=scale(population)[,1],
+         river_length = scale(river_length / area_km2)[,1],
+         road_length = scale(road_length / area_km2)[,1]) %>% 
+  select(-area_km2) %>% 
+  write.csv("Colombia Data/regression data all municipios raw prices and seizures 2020.csv", row.names = F)
+
 ## add probability that PPI/hyd labs exist
 municipios_sf <- st_as_sf(municipios) %>% mutate(id = id %>% as.numeric) %>% filter(!(id %in% c(88001, 88564)))
 municipios_sf$area_km2 <- st_area(municipios_sf) %>% units::set_units("km^2") %>% as.numeric
