@@ -64,10 +64,10 @@ hyd_gwr_data <- read.csv("Colombia Data/hyd gwr data.csv") %>% as_tibble
 gwr_data_dist <- read.csv("Colombia Data/gwr data dist.csv") %>% as_tibble
 influence_tbl <- read.csv("Colombia Data/influence_tbl.csv") %>% as_tibble
 
-PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (08-20-2025).csv") %>% as_tibble
-PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_source leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (09-08-2025).csv") %>% as_tibble
-PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs base_source leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (09-08-2025).csv") %>% as_tibble 
-PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs base_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (09-08-2025).csv") %>% as_tibble 
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (12-09-2025).csv") %>% as_tibble
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_source leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (12-09-2025).csv") %>% as_tibble
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs base_source leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (12-09-2025).csv") %>% as_tibble 
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs base_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (12-09-2025).csv") %>% as_tibble 
 
 # PML_GWR_pred_10_loo_hyd_source <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_source predictions leave-one-out n_drop=10.csv") %>% as_tibble
 PML_GWR_pred_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10.csv") %>% as_tibble
@@ -103,21 +103,19 @@ CM_global_reg_base_source_7_3 <- confusionMatrix(global_reg_pred_base_source_7_3
 
 CM_var_drop_10_loo_hyd_dest
 CM_var_drop_10_loo_hyd_dest$byClass
-CM_global_reg_hyd_dest
-CM_global_reg_hyd_dest$byClass
-
 CM_var_drop_10_loo_hyd_source_7_3
 CM_var_drop_10_loo_hyd_source_7_3$byClass
-CM_global_reg_hyd_source_7_3
-CM_global_reg_hyd_source_7_3$byClass
-
 CM_var_drop_10_loo_base_dest_7_3
 CM_var_drop_10_loo_base_dest_7_3$byClass
-CM_global_reg_base_dest_7_3
-CM_global_reg_base_dest_7_3$byClass
-
 CM_var_drop_10_loo_base_source_7_3
 CM_var_drop_10_loo_base_source_7_3$byClass
+
+CM_global_reg_hyd_dest
+CM_global_reg_hyd_dest$byClass
+CM_global_reg_hyd_source_7_3
+CM_global_reg_hyd_source_7_3$byClass
+CM_global_reg_base_dest_7_3
+CM_global_reg_base_dest_7_3$byClass
 CM_global_reg_base_source_7_3
 CM_global_reg_base_source_7_3$byClass
 
@@ -144,7 +142,7 @@ check_most_influential_var <- function(check_id, PML_gwr_coefs, gwr_data_norm) {
 
 PML_GWR_pred_10_loo_hyd_dest %>% filter(y == 0 & y_PML_var_drop_loo == 1) %>% arrange(desc(PML_gwr_pi_hat_var_drop_loo)) %>% pull(PML_gwr_pi_hat_var_drop_loo)
 PML_GWR_pred_10_loo_hyd_dest_FP <- PML_GWR_pred_10_loo_hyd_dest %>% filter(y == 0 & y_PML_var_drop_loo == 1) %>% arrange(desc(PML_gwr_pi_hat_var_drop_loo))
-PML_GWR_pred_10_loo_hyd_dest_FP %>% print(n=20)
+PML_GWR_pred_10_loo_hyd_dest_FP %>% left_join(municipio_centroid %>% select(id, municipio, depto), by="id") %>% print(n=20)
 check_most_influential_var(27001, PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest, hyd_gwr_data) # population
 check_most_influential_var(50287, PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest, hyd_gwr_data) # lab_prob, seizures, police
 check_most_influential_var(23419, PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest, hyd_gwr_data) # seizure, police
