@@ -727,7 +727,9 @@ global_reg_pred <- function(dep_var_, weight_1=NULL, weight_0=NULL) {
   }
   
   global_reg <- glm(y~.-id-municipio, gwr_data$norm, family=binomial, weights = weights_)
-  global_reg_pred_tbl <- tibble(y=global_reg$model$y %>% as.factor, y_globbal_reg_pred = ifelse(global_reg$fitted.values < 0.5, 0, 1) %>% as.factor)
+  global_reg_pred_tbl <- tibble(y=global_reg$model$y %>% as.factor,
+                                y_globbal_reg_pred = ifelse(global_reg$fitted.values < 0.5, 0, 1) %>% as.factor,
+                                pi_hat = global_reg$fitted.values)
   return(global_reg_pred_tbl)
 }
 
@@ -872,20 +874,26 @@ prediction_map(PML_GWR_pred_10_loo_hyd_source, "hyd_source", 10)
 prediction_map(PML_GWR_pred_10_loo_base_source, "base_source", 10)
 prediction_map(PML_GWR_pred_10_loo_base_dest, "base_destination", 10)
 
-## 2018, 2020 prediction
+## 2017, 2018, 2020 prediction
 depto_SE <- c("Vichada", "Guainia", "Guaviare", "Vaupes", "Amazonas")
 id_SE <- municipios_capital %>% filter(depto %in% depto_SE) %>% pull(id)
 
+regression_data_2017 <- read.csv("Colombia Data/regression data all municipios lab_prob 2017.csv") %>% as_tibble
 regression_data_2018 <- read.csv("Colombia Data/regression data all municipios lab_prob 2018.csv") %>% as_tibble
 regression_data_2020 <- read.csv("Colombia Data/regression data all municipios lab_prob 2020.csv") %>% as_tibble
 regression_data_2020_raw <- read.csv("Colombia Data/regression data all municipios raw prices and seizures 2020.csv") %>% as_tibble
 PML_gwr_coefs_F1_var_drop_hyd_dest_no_coca <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 no coca_area.csv") %>% as_tibble
 PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (12-09-2025).csv") %>% as_tibble
+# PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2016 data combined (01-27-2026).csv") %>% as_tibble
+# PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 2016 data (01-27-2026).csv") %>% as_tibble
 # hyd_dest_coef_bordering_Venezulla <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% filter(id %in% id_bordering_Venezulla)
 
+PML_gwr_coefs_hyd_dest <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest
 
-PML_gwr_coefs_hyd_dest <- PML_gwr_coefs_F1_var_drop_hyd_dest_no_coca %>% select(-coca_area)
-# PML_gwr_coefs_hyd_dest <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% select(-coca_area)
+regression_data_2017_pred <- regression_data_2017 %>% filter(id %in% PML_gwr_coefs_hyd_dest$id) %>% 
+  select(-(base_source:hyd_source), -PPI_lab_prob, -base_avg, -base_seizures) %>%
+  rename(price_avg=hyd_avg, lab_prob=hyd_lab_prob, seizures=hyd_seizures) %>% 
+  relocate(id, hyd_destination, names(PML_gwr_coefs_hyd_dest)[-(1:3)])
 regression_data_2018_pred <- regression_data_2018 %>% filter(id %in% PML_gwr_coefs_hyd_dest$id) %>% 
   select(-PPI_lab_prob, -base_avg, -base_seizures) %>%
   rename(price_avg=hyd_avg, lab_prob=hyd_lab_prob, seizures=hyd_seizures) %>% 
@@ -897,17 +905,30 @@ regression_data_2020_pred <- regression_data_2020 %>% filter(id %in% PML_gwr_coe
 
 PML_gwr_coefs_hyd_dest_mat <- PML_gwr_coefs_hyd_dest[,-(1:3)] %>% as.matrix
 PML_gwr_coefs_hyd_dest_mat[is.na(PML_gwr_coefs_hyd_dest_mat)] <- 0
-regression_data_2018_pred_mat <- regression_data_2018_pred[,-1] %>% t
-regression_data_2020_pred_mat <- regression_data_2020_pred[,-1] %>% t
+regression_data_2017_pred_mat <- regression_data_2017_pred[,-(1:2)]
+regression_data_2018_pred_mat <- regression_data_2018_pred[,-1]
+regression_data_2020_pred_mat <- regression_data_2020_pred[,-1]
 
-bX_2018 <- PML_gwr_coefs_hyd_dest$Intercept + diag(PML_gwr_coefs_hyd_dest_mat %*% regression_data_2018_pred_mat)
-bX_2020 <- PML_gwr_coefs_hyd_dest$Intercept + diag(PML_gwr_coefs_hyd_dest_mat %*% regression_data_2020_pred_mat)
-pi_hat_2018 <- 1/(1+exp(bX_2018))
-pi_hat_2020 <- 1/(1+exp(bX_2020))
+bX_2017 <- PML_gwr_coefs_hyd_dest$Intercept + apply(PML_gwr_coefs_hyd_dest_mat * regression_data_2017_pred_mat, 1, sum)
+bX_2018 <- PML_gwr_coefs_hyd_dest$Intercept + apply(PML_gwr_coefs_hyd_dest_mat * regression_data_2018_pred_mat, 1, sum)
+bX_2020 <- PML_gwr_coefs_hyd_dest$Intercept + apply(PML_gwr_coefs_hyd_dest_mat * regression_data_2020_pred_mat, 1, sum)
+pi_hat_2017 <- 1/(1+exp(-bX_2017))
+pi_hat_2018 <- 1/(1+exp(-bX_2018))
+pi_hat_2020 <- 1/(1+exp(-bX_2020))
+PML_gwr_coefs_hyd_dest$pi_hat_2017 <- pi_hat_2017
 PML_gwr_coefs_hyd_dest$pi_hat_2018 <- pi_hat_2018
 PML_gwr_coefs_hyd_dest$pi_hat_2020 <- pi_hat_2020
+PML_gwr_coefs_hyd_dest$pred_2017 <- ifelse(PML_gwr_coefs_hyd_dest$pi_hat_2017 < 0.5, 0, 1) %>% as.factor
+PML_gwr_coefs_hyd_dest$y <- regression_data_2017_pred$hyd_destination
 PML_gwr_coefs_hyd_dest$pred_2018 <- ifelse(PML_gwr_coefs_hyd_dest$pi_hat_2018 < 0.5, 0, 1) %>% as.factor
 PML_gwr_coefs_hyd_dest$pred_2020 <- ifelse(PML_gwr_coefs_hyd_dest$pi_hat_2020 < 0.5, 0, 1) %>% as.factor
+
+# write.csv(PML_gwr_coefs_hyd_dest %>% select(id, y, pred_2017, pi_hat_2017), "Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 (2017).csv", row.names = F)
+# write.csv(PML_gwr_coefs_hyd_dest %>% select(id, y, pred_2017, pi_hat_2017), "Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 with 2016 data only (2017).csv", row.names = F)
+# write.csv(PML_gwr_coefs_hyd_dest %>% select(id, y, pred_2017, pi_hat_2017), "Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 with 2016 data combined (2017).csv", row.names = F)
+# write.csv(PML_gwr_coefs_hyd_dest %>% select(id, y, pred_2017, pi_hat_2017), "Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 with weight 7-3 2016 data (2017).csv", row.names = F)
+PML_gwr_coefs_hyd_dest
+regression_data_2017_pred
 
   # check predicted data in the SE of Colombia
 SE_predicted_id <- PML_gwr_coefs_hyd_dest %>% filter(id %in% id_SE & pred_2020 == 1) %>% pull(id)
@@ -930,7 +951,141 @@ influence_2016 <- influential_var(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_
 influence_2020 <- influential_var(PML_gwr_coefs_F1_var_drop_hyd_dest_no_coca, regression_data_2020_pred_SE)
 names(influence_2020)[(influence_2020 - influence_2016) %>% apply(1, function(x) which.max(x[-1])) + 1] %>% table
 
+influence_2017 <- influential_var(PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest, regression_data_2017_pred[,-2])
+FN_id_2017 <- PML_gwr_coefs_hyd_dest %>% filter(y == 1 & pred_2017 == 0) %>% pull(id)
+FP_id_2017 <- PML_gwr_coefs_hyd_dest %>% filter(y == 0 & pred_2017 == 1) %>% pull(id)
+influence_2017 %>% filter(id %in% FN_id_2017)
+influence_2017 %>% filter(id %in% FP_id_2017)
+
+pred_map_2017 <- left_join(map_df, PML_gwr_coefs_hyd_dest %>% select(id, pred_2017, y) %>% mutate(y = as.factor(y)), by="id")
 pred_map <- left_join(map_df, PML_gwr_coefs_hyd_dest %>% select(id, pred_2018, pred_2020), by="id")
+
+hyd_dest_data <- ever_regression_data_years("hyd_destination")
+hyd_source_data <- ever_regression_data_years("hyd_source")
+base_dest_data <- ever_regression_data_years("base_destination")
+base_source_data <- ever_regression_data_years("base_source")
+
+y_data <- regression_data_years %>% 
+  group_by(id) %>% 
+  summarize(hyd_destination = ifelse(sum(hyd_destination) > 0, "1", "0"),
+            hyd_source = ifelse(sum(hyd_source) > 0, "1", "0"),
+            base_destination = ifelse(sum(base_destination) > 0, "1", "0"),
+            base_source = ifelse(sum(base_source) > 0, "1", "0"))
+y_data_map <- left_join(map_df, y_data, by="id")
+
+y_data_map %>% ggplot(aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=hyd_destination),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = y_data_map$long, y = y_data_map$lat) +
+  coord_quickmap() +
+  labs(fill="", x="", y="") +
+  scale_fill_manual(
+    values = c("1"="red", "0"="white"),
+    na.value = "white"
+  ) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  ) -> hyd_dest_map_2013_2016
+
+y_data_map %>% ggplot(aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=hyd_source),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = y_data_map$long, y = y_data_map$lat) +
+  coord_quickmap() +
+  labs(fill="", x="", y="") +
+  scale_fill_manual(
+    values = c("1"="red", "0"="white"),
+    na.value = "white"
+  ) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  ) -> hyd_source_map_2013_2016
+
+y_data_map %>% ggplot(aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=base_destination),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = y_data_map$long, y = y_data_map$lat) +
+  coord_quickmap() +
+  labs(fill="", x="", y="") +
+  scale_fill_manual(
+    values = c("1"="red", "0"="white"),
+    na.value = "white"
+  ) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  ) -> base_dest_map_2013_2016
+
+y_data_map %>% ggplot(aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=base_source),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = y_data_map$long, y = y_data_map$lat) +
+  coord_quickmap() +
+  labs(fill="", x="", y="") +
+  scale_fill_manual(
+    values = c("1"="red", "0"="white"),
+    na.value = "white"
+  ) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  ) -> base_source_map_2013_2016
+
+pred_map_2017 %>% ggplot(aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=y),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = pred_map_2017$long, y = pred_map_2017$lat) +
+  coord_quickmap() +
+  labs(fill="", x="", y="", title="hyd_dest y 2017") +
+  scale_fill_manual(
+    values = c("1"="red"),
+    na.value = "white"
+  ) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  ) -> hyd_dest_map_2017
+
+pred_map_2017 %>% ggplot(aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=pred_2017),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = pred_map_2017$long, y = pred_map_2017$lat) +
+  coord_quickmap() +
+  labs(fill="", x="", y="", title="hyd_dest prediction 2017") +
+  scale_fill_manual(
+    values = c("1"="red"),
+    na.value = "white"
+  ) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank()
+  ) -> pred_map_2017
 
 pred_map %>% ggplot(aes(x=long, y=lat)) +
   geom_polygon(aes(group=group, fill=pred_2018),
@@ -970,6 +1125,12 @@ pred_map %>% ggplot(aes(x=long, y=lat)) +
         line = element_blank()
   ) -> pred_map_2020
 
+# ggsave("Colombia Data/Figs/hyd destination map (2013-2016).png", hyd_dest_map_2013_2016, scale=1)
+# ggsave("Colombia Data/Figs/hyd source map (2013-2016).png", hyd_source_map_2013_2016, scale=1)
+# ggsave("Colombia Data/Figs/base destination map (2013-2016).png", base_dest_map_2013_2016, scale=1)
+# ggsave("Colombia Data/Figs/base source map (2013-2016).png", base_source_map_2013_2016, scale=1)
+# ggsave("Colombia Data/Figs/hyd destination map (2017).png", hyd_dest_map_2017, scale=1)
+# ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/prediction maps/local GWR PML 2017 prediction map %s leave-one-out n_drop %i.png", "hyd_destination", 10), pred_map_2017, scale=1)
 # ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/prediction maps/local GWR PML 2018 prediction map %s leave-one-out n_drop %i.png", "hyd_destination", 10), pred_map_2018, scale=1)
 # ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/prediction maps/local GWR PML 2020 prediction map %s leave-one-out n_drop %i.png", "hyd_destination", 10), pred_map_2020, scale=1)
 
@@ -1240,8 +1401,8 @@ for (i in 4:15) {
                    linewidth = 0.1) +
       expand_limits(x = depto_map$long, y = depto_map$lat) +
       coord_quickmap() +
-      scale_fill_viridis_d(na.value = "white") +
-      labs(fill=var_name_, x="", y="", title=dep_var) +
+      scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
+      labs(fill=var_name_, x="", y="") +
       theme_bw() +
       theme(panel.grid.major = element_blank(),
             panel.grid.minor = element_blank(),
@@ -1257,7 +1418,7 @@ for (i in 4:15) {
       expand_limits(x = depto_map$long, y = depto_map$lat) +
       coord_quickmap() +
       scale_fill_viridis_c(na.value = "white") +
-      labs(fill=var_name_, x="", y="", title=dep_var) +
+      labs(fill=var_name_, x="", y="") +
       theme_bw() +
       theme(panel.grid.major = element_blank(),
             panel.grid.minor = element_blank(),

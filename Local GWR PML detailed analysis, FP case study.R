@@ -71,6 +71,10 @@ PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_dest <- read.csv("Colombi
 
 # PML_GWR_pred_10_loo_hyd_source <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_source predictions leave-one-out n_drop=10.csv") %>% as_tibble
 PML_GWR_pred_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10.csv") %>% as_tibble
+PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 (2017).csv") %>% as_tibble
+# PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 with 2016 data only (2017).csv")
+# PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 with 2016 data combined (2017).csv")
+# PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 with weight 7-3 2016 data (2017).csv")
 # PML_GWR_pred_10_loo_base_source <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML base_source predictions leave-one-out n_drop=10.csv") %>% as_tibble
 # PML_GWR_pred_10_loo_base_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML base_destination predictions leave-one-out n_drop=10.csv") %>% as_tibble
 PML_GWR_pred_10_loo_hyd_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_source predictions leave-one-out n_drop=10 weight 7-3.csv") %>% as_tibble
@@ -78,6 +82,7 @@ PML_GWR_pred_10_loo_base_source_7_3 <- read.csv("Colombia Data/local GWR PML res
 PML_GWR_pred_10_loo_base_dest_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML base_destination predictions leave-one-out n_drop=10 weight 7-3.csv") %>% as_tibble
 
 CM_var_drop_10_loo_hyd_dest <- confusionMatrix(PML_GWR_pred_10_loo_hyd_dest$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_hyd_dest$y %>% as.factor, positive = "1")
+CM_var_drop_10_loo_hyd_dest_2017 <- confusionMatrix(PML_GWR_pred_10_loo_hyd_dest_2017$pred_2017 %>% as.factor, PML_GWR_pred_10_loo_hyd_dest_2017$y %>% as.factor, positive = "1")
 # CM_var_drop_10_loo_hyd_source <- confusionMatrix(PML_GWR_pred_10_loo_hyd_source$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_hyd_source$y %>% as.factor, positive = "1")
 # CM_var_drop_10_loo_base_dest <- confusionMatrix(PML_GWR_pred_10_loo_base_dest$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_base_dest$y %>% as.factor, positive = "1")
 # CM_var_drop_10_loo_base_source <- confusionMatrix(PML_GWR_pred_10_loo_base_source$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_base_source$y %>% as.factor, positive = "1")
@@ -120,10 +125,89 @@ CM_global_reg_base_source_7_3
 CM_global_reg_base_source_7_3$byClass
 
 
+CM_var_drop_10_loo_hyd_dest_2017
+CM_var_drop_10_loo_hyd_dest_2017$byClass
+
 CM_var_drop_10_loo_hyd_source_9_1
 CM_var_drop_10_loo_base_dest_9_1
 CM_var_drop_10_loo_base_source_9_1
 
+ROC_var_drop_10_loo_hyd_dest <- roc(PML_GWR_pred_10_loo_hyd_dest$y %>% as.factor, PML_GWR_pred_10_loo_hyd_dest$PML_gwr_pi_hat_var_drop_loo)
+ROC_var_drop_10_loo_hyd_source_7_3 <- roc(PML_GWR_pred_10_loo_hyd_source_7_3$y %>% as.factor, PML_GWR_pred_10_loo_hyd_source_7_3$PML_gwr_pi_hat_var_drop_loo)
+ROC_var_drop_10_loo_base_dest_7_3 <- roc(PML_GWR_pred_10_loo_base_dest_7_3$y %>% as.factor, PML_GWR_pred_10_loo_base_dest_7_3$PML_gwr_pi_hat_var_drop_loo)
+ROC_var_drop_10_loo_base_source_7_3 <- roc(PML_GWR_pred_10_loo_base_source_7_3$y %>% as.factor, PML_GWR_pred_10_loo_base_source_7_3$PML_gwr_pi_hat_var_drop_loo)
+ROC_var_drop_10_loo_hyd_dest_2017 <- roc(PML_GWR_pred_10_loo_hyd_dest_2017$y %>% as.factor, PML_GWR_pred_10_loo_hyd_dest_2017$pi_hat_2017)
+
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curve GWR hyd destinations.png")
+plot(ROC_var_drop_10_loo_hyd_dest, main="hyd destinations - GWR"); text(0.1, 0, paste("AUC:", round(ROC_var_drop_10_loo_hyd_dest$auc, 2)))
+dev.off()
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curve GWR hyd source 7_3.png")
+plot(ROC_var_drop_10_loo_hyd_source_7_3, main="hyd sources - GWR"); text(0.1, 0, paste("AUC:", round(ROC_var_drop_10_loo_hyd_source_7_3$auc, 2)))
+dev.off()
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curve GWR base destinations 7_3.png")
+plot(ROC_var_drop_10_loo_base_dest_7_3, main="base destinations - GWR"); text(0.1, 0, paste("AUC:", round(ROC_var_drop_10_loo_base_dest_7_3$auc, 2)))
+dev.off()
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curve GWR base source 7_3.png")
+plot(ROC_var_drop_10_loo_base_source_7_3, main="base sources - GWR"); text(0.1, 0, paste("AUC:", round(ROC_var_drop_10_loo_base_source_7_3$auc, 2)))
+dev.off()
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curve GWR hyd destinations (2017).png")
+plot(ROC_var_drop_10_loo_hyd_dest_2017, main="hyd destinations (2017) - GWR"); text(0.1, 0, paste("AUC:", round(ROC_var_drop_10_loo_hyd_dest_2017$auc, 2)))
+dev.off()
+
+ROC_hyd_dest_tbl <- tibble(sensitivity=ROC_var_drop_10_loo_hyd_dest$sensitivities, specificity=ROC_var_drop_10_loo_hyd_dest$specificities, threshold=ROC_var_drop_10_loo_hyd_dest$thresholds) %>% 
+  mutate(TPR_FPR = sensitivity - (1-specificity))
+ROC_hyd_source_tbl <- tibble(sensitivity=ROC_var_drop_10_loo_hyd_source_7_3$sensitivities, specificity=ROC_var_drop_10_loo_hyd_source_7_3$specificities, threshold=ROC_var_drop_10_loo_hyd_source_7_3$thresholds) %>% 
+  mutate(TPR_FPR = sensitivity - (1-specificity))
+ROC_base_dest_tbl <- tibble(sensitivity=ROC_var_drop_10_loo_base_dest_7_3$sensitivities, specificity=ROC_var_drop_10_loo_base_dest_7_3$specificities, threshold=ROC_var_drop_10_loo_base_dest_7_3$thresholds) %>% 
+  mutate(TPR_FPR = sensitivity - (1-specificity))
+ROC_base_source_tbl <- tibble(sensitivity=ROC_var_drop_10_loo_base_source_7_3$sensitivities, specificity=ROC_var_drop_10_loo_base_source_7_3$specificities, threshold=ROC_var_drop_10_loo_base_source_7_3$thresholds) %>% 
+  mutate(TPR_FPR = sensitivity - (1-specificity))
+
+ROC_hyd_dest_tbl %>% arrange(desc(TPR_FPR))
+ROC_hyd_source_tbl %>% arrange(desc(TPR_FPR))
+ROC_base_dest_tbl %>% arrange(desc(TPR_FPR))
+ROC_base_source_tbl %>% arrange(desc(TPR_FPR))
+
+ROC_hyd_dest_tbl %>% filter(specificity > 0.6)
+ROC_hyd_source_tbl %>% filter(specificity > 0.6)
+ROC_base_dest_tbl %>% filter(specificity > 0.6)
+ROC_base_source_tbl %>% filter(specificity > 0.6)
+
+ROC_global_hyd_dest <- roc(global_reg_pred_hyd_dest$y %>% as.factor, global_reg_pred_hyd_dest$pi_hat)
+ROC_global_hyd_source_7_3 <- roc(global_reg_pred_hyd_source_7_3$y %>% as.factor, global_reg_pred_hyd_source_7_3$pi_hat)
+ROC_global_base_dest_7_3 <- roc(global_reg_pred_base_dest_7_3$y %>% as.factor, global_reg_pred_base_dest_7_3$pi_hat)
+ROC_global_base_source_7_3 <- roc(global_reg_pred_base_source_7_3$y %>% as.factor, global_reg_pred_base_source_7_3$pi_hat)
+
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curve global regression hyd destinations.png")
+plot(ROC_global_hyd_dest, main="hyd destinations - global regression"); text(0.1, 0, paste("AUC:", round(ROC_global_hyd_dest$auc, 2)))
+dev.off()
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curve global regression hyd source 7_3.png")
+plot(ROC_global_hyd_source_7_3, main="hyd sources - global regression"); text(0.1, 0, paste("AUC:", round(ROC_global_hyd_source_7_3$auc, 2)))
+dev.off()
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curve global regression base destinations 7_3.png")
+plot(ROC_global_base_dest_7_3, main="base destinations - global regression"); text(0.1, 0, paste("AUC:", round(ROC_global_base_dest_7_3$auc, 2)))
+dev.off()
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curve global regression base source 7_3.png")
+plot(ROC_global_base_source_7_3, main="base sources - global regression"); text(0.1, 0, paste("AUC:", round(ROC_global_base_source_7_3$auc, 2)))
+dev.off()
+
+PU_F1 <- function(CM) {
+  recall <- CM$byClass[["Recall"]]
+  result <- recall / (sum(CM$table[2,])/sum(CM$table))
+  return(result)
+}
+
+PU_F1(CM_var_drop_10_loo_hyd_dest)
+PU_F1(CM_var_drop_10_loo_hyd_source_7_3)
+PU_F1(CM_var_drop_10_loo_base_dest_7_3)
+PU_F1(CM_var_drop_10_loo_base_source_7_3)
+
+PU_F1(CM_global_reg_hyd_dest)
+PU_F1(CM_global_reg_hyd_source_7_3)
+PU_F1(CM_global_reg_base_dest_7_3)
+PU_F1(CM_global_reg_base_source_7_3)
+
+PU_F1(CM_var_drop_10_loo_hyd_dest_2017)
 
 # gwr_data <- ever_regression_data_years_price_pred("hyd_destination")
 # gwr_data$norm$seizures <- regression_data_aggr$seizures_log_scale
