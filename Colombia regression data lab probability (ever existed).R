@@ -37,148 +37,380 @@ library(sp)
   
   population <- read.csv("Colombia Data/Census population by municipios (2018).csv") %>% as_tibble
   population$log_population <- log(population$population)
+  labs_reg_data <- read.csv("Colombia Data/labs_reg_data all municipio (01-21-2026).csv") %>% as_tibble %>% 
+    mutate(coca_area = ifelse(is.na(coca_area), 0, coca_area),
+           paste_avg = ifelse(paste_price_distance > 0, NA, paste_avg),
+           base_avg = ifelse(base_price_distance > 0, NA, base_avg),
+           hyd_avg = ifelse(hyd_price_distance > 0, NA, hyd_avg))
   
-  armed_groups <- list()
-  years <- (2008:2020)[-c(2,8,12)]
-  for (year in years) {
-    armed_groups_year <- read_xlsx(paste0("Colombia Data/Colombia-Armed groups-Paramilitar ", year ,".xlsx")) %>% 
-      filter(!grepl("Archipiélago", DEPARTAMENTO)) %>% 
-      rename(municipio=MUNICIPIO, depto=DEPARTAMENTO) %>% 
-      mutate(municipio=str_to_upper(stri_trans_general(municipio, "Latin-ASCII"))) %>% 
-      filter(municipio != "RIO ORO") %>% 
-      select(-Pais, -REGION)
-    
-    armed_groups_year$municipio <- gsub("BELEN DE BAJIRA", "RIOSUCIO", armed_groups_year$municipio)
-    RIOSUCIO_index <- which(armed_groups_year$municipio == "RIOSUCIO" & armed_groups_year$depto == "Choco")
-    colsum_row <- c(as.vector(armed_groups_year[RIOSUCIO_index[2], 1:2]) %>% unlist, colSums(armed_groups_year[RIOSUCIO_index, -(1:2)], na.rm=T))
-    for (i in 3:ncol(armed_groups_year)) {
-      if (colsum_row[i] != "0") {
-        armed_groups_year[RIOSUCIO_index[2], i] <- as.numeric(colsum_row[i])
-      }
-    }
-    armed_groups_year <- armed_groups_year[-RIOSUCIO_index[1],]
-    
-    armed_groups_year$n_armed_groups <- apply(armed_groups_year, 1, function(x) sum(!is.na(x[3:ncol(armed_groups_year)])))
-    armed_groups_year <- armed_groups_year %>% 
-      left_join(municipios_capital %>% select(-id_depto), by=c("municipio", "depto")) %>% 
-      relocate(id, municipio, depto, n_armed_groups)
-    names(armed_groups_year) <- gsub("\r", " ", names(armed_groups_year), fixed=T)
-    names(armed_groups_year) <- gsub("\n", "", names(armed_groups_year), fixed=T)
-    names(armed_groups_year) <- gsub("/", "", names(armed_groups_year))
-    
-    armed_groups_year[is.na(armed_groups_year)] <- 0
-    
-    if ("Las Autodefensas Gaitanistas de Colombia (AGC)" %in% names(armed_groups_year) & "Clan del Golfo (Formerly Los Urabeños)" %in% names(armed_groups_year)) {
-      AGC_index <- which(names(armed_groups_year) == "Las Autodefensas Gaitanistas de Colombia (AGC)")
-      Golfo_index <- which(names(armed_groups_year) == "Clan del Golfo (Formerly Los Urabeños)")
-      armed_groups_year <- armed_groups_year %>% 
-        mutate(`Clan del Golfo (Formerly Los Urabeños)`=`Clan del Golfo (Formerly Los Urabeños)` + `Las Autodefensas Gaitanistas de Colombia (AGC)`) %>% 
-        mutate(`Clan del Golfo (Formerly Los Urabeños)`=ifelse(`Clan del Golfo (Formerly Los Urabeños)` > 0, 1, 0)) %>% 
-        select(-`Las Autodefensas Gaitanistas de Colombia (AGC)`)
-    }
-    
-    if ("La Oficina" %in% names(armed_groups_year)) {
-      sum_to_index <- which(names(armed_groups_year) == "La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA")
-      sum_from_index <- which(names(armed_groups_year) == "La Oficina")
-      armed_groups_year <- armed_groups_year %>% 
-        mutate(`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA`=`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA` + `La Oficina`) %>% 
-        mutate(`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA`=ifelse(`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA` > 0, 1, 0)) %>% 
-        select(-`La Oficina`)
-    }
-    
-    if ("Autodefensas" %in% substr(names(armed_groups_year), 1, 12)) {
-      sum_from_index <- which(substr(names(armed_groups_year), 1, 12) == "Autodefensas")
-      armed_groups_year$`Autodefensas Unidas de Colombia (AUC)` <- armed_groups_year[,sum_from_index] %>% apply(1, sum)
-      armed_groups_year <- armed_groups_year[, -sum_from_index] %>% 
-        mutate(`Autodefensas Unidas de Colombia (AUC)`=ifelse(`Autodefensas Unidas de Colombia (AUC)` > 0, 1, 0))
-    }
-    
-    armed_groups[[paste0("y", year)]] <- armed_groups_year
-  }
-  armed_groups$y2008
-  
-  n_armed_groups <- armed_groups$y2008 %>% select(id, n_armed_groups) %>% rename(X2008=n_armed_groups)
-  for (year in years[-1]) {
-    n_armed_groups <- full_join(n_armed_groups, armed_groups[[paste0("y", year)]] %>% select(id, n_armed_groups), by="id")
-    names(n_armed_groups)[ncol(n_armed_groups)] <- paste0("X", year)
-  }
-  n_armed_groups_long <- n_armed_groups %>% 
-    pivot_longer(-id, names_to="year", values_to="n_armed_groups") %>% 
-    mutate(year=substr(year,2,5) %>% as.integer)
-  
-  # cultivation <- read.csv("Colombia Data/Colombia Coca Cultivation 1999-2016 renamed (Ha).csv") %>% as_tibble
-  cultivation <- read_xlsx("Colombia Data/Colombia Coca Cultivation 1999-2023.xlsx")
-  cultivation <- cultivation %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
-  labs_hyd <- read.csv("Colombia Data/Colombia-Laboratories-1997-2022 renamed (COCAINE HYDROCHLORIDE).csv") %>% as_tibble
-  labs_hyd <- labs_hyd %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
-  labs_PPI <- read.csv("Colombia Data/Colombia-Laboratories-1997-2022 renamed (PRIMARY PRODUCTION INFRASTRUCTURE).csv") %>% as_tibble
-  labs_PPI <- labs_PPI %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
-  
-  eradication_aerial <- read_xlsx("Colombia Data/Colombia-Coca Eradication-1994-2021 Aerial (Ha).xlsx")
-  eradication_manual <- read_xlsx("Colombia Data/Colombia-Coca Eradication-1994-2021 Manual (Ha).xlsx")
-  eradication_aerial <- eradication_aerial %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
-  eradication_manual <- eradication_manual %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
-  
-  eradication_aerial_long <- eradication_aerial %>% 
-    pivot_longer(`1994`:`2015`, names_to="year", values_to="erad_aerial") %>% 
-    mutate(year=as.integer(year)) %>% 
-    filter(!is.na(erad_aerial))
-  
-  eradication_manual_long <- eradication_manual %>% 
-    pivot_longer(`1998`:`2022`, names_to="year", values_to="erad_manual") %>% 
-    mutate(year=as.integer(year)) %>% 
-    filter(!is.na(erad_manual))
-  
-  coca_seizures <- read_xlsx("Colombia Data/Colombia-Seizures-1999-2022 Coca leaves (kg).xlsx")
-  base_seizures <- read_xlsx("Colombia Data/Colombia-Seizures-1999-2022 Coca paste and base (kg).xlsx")
-  hyd_seizures <- read_xlsx("Colombia Data/Colombia-Seizures-1999-2022 Cocaine (kg).xlsx")
-  coca_seizures <- coca_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
-  base_seizures <- base_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
-  hyd_seizures <- hyd_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
-  
-  coca_seizures_long <- coca_seizures %>% 
-    pivot_longer(`1999`:`2022`, names_to="year", values_to="coca_seizures") %>% 
-    mutate(year=as.integer(year)) %>% 
-    filter(!is.na(coca_seizures))
-  base_seizures_long <- base_seizures %>% 
-    pivot_longer(`1999`:`2022`, names_to="year", values_to="base_seizures") %>% 
-    mutate(year=as.integer(year)) %>% 
-    filter(!is.na(base_seizures))
-  hyd_seizures_long <- hyd_seizures %>% 
-    pivot_longer(`1999`:`2022`, names_to="year", values_to="hyd_seizures") %>% 
-    mutate(year=as.integer(year)) %>% 
-    filter(!is.na(hyd_seizures))
-  
-  price_2013_2015 <- read.csv("Colombia Data/Colombia Price Data 2013-2015 edited.csv") %>% as_tibble
-  price_2016_2021 <- read.csv("Colombia Data/Colombia Price Data 2016-2021 edited.csv") %>% as_tibble
-  # eradication_aerial <- left_join(municipios_id, eradication_aerial, by="id")
-  # eradication_manual <- left_join(municipios_id, eradication_manual, by="id")
-  # coca_seizures <- left_join(municipios_id, coca_seizures, by="id")
-  
-  river_length_muni <- read.csv("Colombia Data/rivers.csv") %>% as_tibble
-  road_length_muni <- read.csv("Colombia Data/major roads without tertiary.csv") %>% as_tibble
-  
-  population <- read_xlsx("Colombia Data/Census population by municipios (2018).xlsx") %>% 
-    filter(!is.na(municipio)) %>% 
-    select(-type)
-  population <- population %>% 
-    mutate(id=substr(municipio, 1, 5) %>% as.numeric) %>%
-    select(id, population) %>% 
-    right_join(municipios_capital %>% mutate(id=as.numeric(id)), by="id") %>% 
-    select(id, id_depto, municipio, depto, population)
-  # write.csv(population, "Colombia Data/Census population by municipios (2018).csv")
   airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
+  ferry <- read.csv("Colombia Data/ferry terminals.csv") %>% as_tibble
+  police <- read.csv("Colombia Data/polices.csv") %>% as_tibble
+  military <- read.csv("Colombia Data/military.csv") %>% as_tibble
+  airports <- left_join(ferry, airports, by="id")
+  airports$n_police <- police$n_polices
+  airports$n_military <- military$n_military
   
-  price_2016_2021 %>% 
-    group_by(id) %>% 
-    summarise(n_seeds=sum(!is.na(seeds)),
-              n_leaves=sum(!is.na(leaves))) %>% 
-    arrange(desc(n_seeds), desc(n_leaves))
+  airports <- airports %>%
+    mutate(airport=ifelse(n_airports > 0, 1, 0),
+           ferry=ifelse(n_ferry > 0, 1, 0),
+           police=ifelse(n_police > 0, 1, 0),
+           military=ifelse(n_military > 0, 1, 0)) %>% 
+    select(id, airport:military)
   
-  price <- rbind(price_2013_2015, price_2016_2021 %>% select(-seeds, -leaves))
-  
-  price %>% select(month, year) %>% unique %>% nrow # 86 months (except for 2013 with "Jan to Apr", "May to Aug", "Sep to Dec")
+  municipios_sf <- st_as_sf(municipios) %>% mutate(id = id %>% as.numeric) %>% filter(!(id %in% c(88001, 88564)))
+  municipios_sf$area_km2 <- st_area(municipios_sf) %>% units::set_units("km^2") %>% as.numeric
 }
+
+# the number of municipios with zero coca cultivation
+labs_reg_data %>% filter(year == 2013 & (coca_area == 0)) %>% nrow # 917
+labs_reg_data %>% filter(year == 2014 & (coca_area == 0)) %>% nrow # 916
+labs_reg_data %>% filter(year == 2016 & (coca_area == 0)) %>% nrow # 937
+labs_reg_data %>% filter(year == 2017 & (coca_area == 0)) %>% nrow # 934
+
+# the number of municipios with hyd price data
+1120 - is.na(labs_reg_data %>% filter(year == 2013) %>% pull(hyd_avg)) %>% sum # 59
+1120 - is.na(labs_reg_data %>% filter(year == 2014) %>% pull(hyd_avg)) %>% sum # 48
+1120 - is.na(labs_reg_data %>% filter(year == 2016) %>% pull(hyd_avg)) %>% sum # 63
+1120 - is.na(labs_reg_data %>% filter(year == 2017) %>% pull(hyd_avg)) %>% sum # 73
+
+# the number of municipios with base price data
+1120 - is.na(labs_reg_data %>% filter(year == 2013) %>% pull(base_avg)) %>% sum # 59
+1120 - is.na(labs_reg_data %>% filter(year == 2014) %>% pull(base_avg)) %>% sum # 43
+1120 - is.na(labs_reg_data %>% filter(year == 2016) %>% pull(base_avg)) %>% sum # 28
+1120 - is.na(labs_reg_data %>% filter(year == 2017) %>% pull(base_avg)) %>% sum # 29
+
+create_reg_data_year <- function(anecdotal_annual, labs_reg_data, ex_year, is_CF, seizure_to_y) {
+  {
+    anecdotal_year <- anecdotal_annual %>%
+      filter(YEAR == ex_year)
+    labs_2steps_year <- labs_reg_data %>% 
+      filter(year == ex_year) %>% 
+      select(-MUNICIPIO, -DEPARTAMENTO, -n_rivers, -n_big_rivers, -n_roads) %>% 
+      mutate(coca_seizures=labs_reg_data %>% filter(year == ex_year - 1) %>% pull(coca_seizures), # seizures take the last year data
+             base_seizures=labs_reg_data %>% filter(year == ex_year - 1) %>% pull(base_seizures),
+             hyd_seizures=labs_reg_data %>% filter(year == ex_year - 1) %>% pull(hyd_seizures)) %>% 
+      mutate(n_PPI_labs=ifelse(is.na(n_PPI_labs), 0, n_PPI_labs),
+             n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs),
+             coca_area=ifelse(is.na(coca_area), 0, coca_area),
+             erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
+             erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
+             coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
+             base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
+             hyd_seizures=ifelse(is.na(hyd_seizures), 0, hyd_seizures)) %>% 
+      relocate(id, year, n_PPI_labs, n_hyd_labs)
+    labs_2steps_year[is.na(labs_2steps_year)] <- 0
+    
+    
+    data_year <- labs_2steps_year %>% left_join(population %>% select(id, population), by="id")
+    data_year$base_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id)), 1, 0) %>% as.factor
+    data_year$base_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(destination_id)), 1, 0) %>% as.factor
+    data_year$hyd_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
+    data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
+    
+    if (seizure_to_y) {
+      base_seizures_year <- !(labs_reg_data %>% filter(year == ex_year) %>% pull(base_seizures) %>% is.na)
+      hyd_seizures <- !(labs_reg_data %>% filter(year == ex_year) %>% pull(hyd_seizures) %>% is.na)
+      seizure_to_y_tbl <- data_year %>% select(id, base_source:hyd_destination) %>%
+        mutate(base_source = base_source %>% as.character %>% as.numeric,
+               base_destination = base_destination %>% as.character %>% as.numeric,
+               hyd_source = hyd_source %>% as.character %>% as.numeric,
+               hyd_destination = hyd_destination %>% as.character %>% as.numeric,
+               base_seizures = base_seizures_year,
+               hyd_seizures = hyd_seizures)
+      seizure_to_y_tbl <- seizure_to_y_tbl %>% 
+        mutate(base_source = (base_source | base_seizures) %>% as.numeric %>% as.factor,
+               base_destination = (base_destination | base_seizures) %>% as.numeric %>% as.factor,
+               hyd_source = (hyd_source | hyd_seizures) %>% as.numeric %>% as.factor,
+               hyd_destination = (hyd_destination | hyd_seizures) %>% as.numeric %>% as.factor)
+      data_year <- data_year %>% 
+        mutate(base_source = seizure_to_y_tbl$base_source,
+               base_destination = seizure_to_y_tbl$base_destination,
+               hyd_source = seizure_to_y_tbl$hyd_source,
+               hyd_destination = seizure_to_y_tbl$hyd_destination)
+    }
+    
+    data_year$armed_group <- ifelse(data_year$n_armed_groups > 0, 1, 0) %>% as.factor
+    data_year$PPI_lab <- ifelse(data_year$n_PPI_labs > 0, 1, 0) %>% as.factor
+    data_year$hyd_lab <- ifelse(data_year$n_hyd_labs > 0, 1, 0) %>% as.factor
+    data_year$hyd_avg <- ifelse(data_year$hyd_price_distance > 0, NA, data_year$hyd_avg)
+    data_year$base_avg <- ifelse(data_year$base_price_distance > 0, NA, data_year$base_avg)
+    
+    labs_2steps_year <- data_year %>% select(id:hyd_seizures, armed_group, population, PPI_lab, hyd_lab, base_source:hyd_destination) %>% left_join(airports, by="id") %>% relocate(id, year, base_source:hyd_destination)
+  }
+  
+  labs_2steps_year <- labs_2steps_year %>% select(id, base_avg, hyd_avg, coca_area, base_seizures, hyd_seizures, PPI_lab, hyd_lab, river_length, road_length, armed_group, population, airport:military) %>% 
+    mutate(coca_area = scale(log(1+coca_area))[,1],
+           base_avg=scale(base_avg)[,1],
+           hyd_avg=scale(hyd_avg)[,1],
+           population=scale(population)[,1],
+           base_seizures = scale(log(1+base_seizures))[,1],
+           hyd_seizures = scale(log(1+hyd_seizures))[,1])
+  
+  labs_2steps_year_reg <- labs_2steps_year %>% 
+    left_join(municipios_sf %>% as_tibble %>% select(id, area_km2), by="id") %>% 
+    mutate(river_length = scale(river_length / area_km2)[,1],
+           road_length = scale(road_length / area_km2)[,1]) %>% 
+    select(-area_km2)
+  
+  # prices are excluded to compute lab_prob due to small number of obs.
+  if (is_CF) {
+    PPI_lab_glm_year <- glm(PPI_lab~., family=binomial(link="probit"), data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, hyd_lab))
+    summary(PPI_lab_glm_year)
+    z_vals <- predict(PPI_lab_glm_year, type="link")
+    Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
+    Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
+    
+    PPI_lab_res <- numeric(nrow(labs_2steps_year_reg))
+    pos_index <- which(labs_2steps_year_reg$PPI_lab == "1")
+    neg_index <- which(labs_2steps_year_reg$PPI_lab == "0")
+    PPI_lab_res[pos_index] <- Inv_Mill_1[pos_index]
+    PPI_lab_res[neg_index] <- Inv_Mill_1[neg_index]
+    
+    res_tbl <- tibble(y = labs_2steps_year_reg$PPI_lab,
+                      y_pred = predict(PPI_lab_glm_year, type="response"),
+                      glm_res = PPI_lab_glm_year$residuals,
+                      inv_Mil_ratio = PPI_lab_res)
+    
+    hyd_lab_glm_year <- glm(hyd_lab~., family=binomial(link="probit"), data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, PPI_lab))
+    summary(hyd_lab_glm_year)
+    z_vals <- predict(hyd_lab_glm_year, type="link")
+    Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
+    Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
+    
+    hyd_lab_res <- numeric(nrow(labs_2steps_year_reg))
+    pos_index <- which(labs_2steps_year_reg$hyd_lab == "1")
+    neg_index <- which(labs_2steps_year_reg$hyd_lab == "0")
+    hyd_lab_res[pos_index] <- Inv_Mill_1[pos_index]
+    hyd_lab_res[neg_index] <- Inv_Mill_1[neg_index]
+    
+    regression_data_year <- labs_2steps_year_reg %>% 
+      mutate(PPI_lab_res=PPI_lab_res,
+             hyd_lab_res=hyd_lab_res) %>% 
+      relocate(id, PPI_lab, hyd_lab, PPI_lab_res, hyd_lab_res)
+    
+    hyd_avg_lm <- lm(hyd_avg~., regression_data_year %>% select(-id, -base_avg, -base_seizures, -PPI_lab_res, -hyd_lab_res))
+    summary(hyd_avg_lm)
+    hyd_avg_pred <- predict(hyd_avg_lm, regression_data_year %>% select(-id, -base_avg, -base_seizures, -PPI_lab_res, -hyd_lab_res))
+    regression_data_year$hyd_avg <- ifelse(is.na(regression_data_year$hyd_avg), hyd_avg_pred, regression_data_year$hyd_avg)
+    
+    base_avg_lm <- lm(base_avg~., regression_data_year %>% select(-id, -hyd_avg, -hyd_seizures, -PPI_lab_res, -hyd_lab_res))
+    summary(base_avg_lm)
+    base_avg_pred <- predict(base_avg_lm, regression_data_year %>% select(-id, -hyd_avg, -hyd_seizures, -PPI_lab_res, -hyd_lab_res))
+    regression_data_year$base_avg <- ifelse(is.na(regression_data_year$base_avg), base_avg_pred, regression_data_year$base_avg)
+    result <- regression_data_year %>% left_join(data_year %>% select(id, base_source:hyd_destination), by="id") %>% relocate(id, base_source:hyd_destination)
+  }else{
+    hyd_lab_glm_year <- glm(hyd_lab~., family=binomial, data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, -PPI_lab))
+    PPI_lab_glm_year <- glm(PPI_lab~., family=binomial, data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, -hyd_lab))
+      
+    regression_data_year <- labs_2steps_year_reg %>%
+      mutate(PPI_lab_prob=PPI_lab_glm_year$fitted.values,
+             hyd_lab_prob=hyd_lab_glm_year$fitted.values) %>%
+      select(-PPI_lab, -hyd_lab) %>% relocate(id, PPI_lab_prob, hyd_lab_prob)
+    
+    hyd_avg_lm <- lm(hyd_avg~., regression_data_year %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
+    summary(hyd_avg_lm)
+    hyd_avg_pred <- predict(hyd_avg_lm, regression_data_year %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
+    regression_data_year$hyd_avg <- ifelse(is.na(regression_data_year$hyd_avg), hyd_avg_pred, regression_data_year$hyd_avg)
+    
+    base_avg_lm <- lm(base_avg~., regression_data_year %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
+    summary(base_avg_lm)
+    base_avg_pred <- predict(base_avg_lm, regression_data_year %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
+    regression_data_year$base_avg <- ifelse(is.na(regression_data_year$base_avg), base_avg_pred, regression_data_year$base_avg)
+    result <- regression_data_year %>% left_join(data_year %>% select(id, base_source:hyd_destination), by="id") %>% relocate(id, base_source:hyd_destination)
+  }
+  
+  return(result)
+}
+
+# no price
+regression_data_CF_2013 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2013, is_CF=T, seizure_to_y=F)
+regression_data_CF_2014 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2014, is_CF=T, seizure_to_y=F)
+regression_data_CF_2016 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2016, is_CF=T, seizure_to_y=F)
+regression_data_CF_2017 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2017, is_CF=T, seizure_to_y=F)
+
+regression_data_lab_prob_2013 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2013, is_CF=F, seizure_to_y=F)
+regression_data_lab_prob_2014 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2014, is_CF=F, seizure_to_y=F)
+regression_data_lab_prob_2016 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2016, is_CF=F, seizure_to_y=F)
+regression_data_lab_prob_2017 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2017, is_CF=F, seizure_to_y=F)
+
+# write.csv(regression_data_CF_2013, "Colombia Data/regression data all municipios CF 2013.csv", row.names = F)
+# write.csv(regression_data_CF_2014, "Colombia Data/regression data all municipios CF 2014.csv", row.names = F)
+# write.csv(regression_data_CF_2016, "Colombia Data/regression data all municipios CF 2016.csv", row.names = F)
+# write.csv(regression_data_CF_2017, "Colombia Data/regression data all municipios CF 2017.csv", row.names = F)
+# 
+# write.csv(regression_data_lab_prob_2013, "Colombia Data/regression data all municipios lab_prob 2013.csv", row.names = F)
+# write.csv(regression_data_lab_prob_2014, "Colombia Data/regression data all municipios lab_prob 2014.csv", row.names = F)
+# write.csv(regression_data_lab_prob_2016, "Colombia Data/regression data all municipios lab_prob 2016.csv", row.names = F)
+# write.csv(regression_data_lab_prob_2017, "Colombia Data/regression data all municipios lab_prob 2017.csv", row.names = F)
+
+
+regression_data_CF_2013 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+regression_data_CF_2014 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+regression_data_CF_2016 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+regression_data_CF_2017 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+
+regression_data_lab_prob_2013 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+regression_data_lab_prob_2014 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+regression_data_lab_prob_2016 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+regression_data_lab_prob_2017 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+
+
+regression_data_CF_sty_2013 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2013, is_CF=T, seizure_to_y=T)
+regression_data_CF_sty_2014 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2014, is_CF=T, seizure_to_y=T)
+regression_data_CF_sty_2016 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2016, is_CF=T, seizure_to_y=T)
+regression_data_CF_sty_2017 <- create_reg_data_year(anecdotal_annual, labs_reg_data, 2017, is_CF=T, seizure_to_y=T)
+
+regression_data_CF_sty_2013 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+regression_data_CF_sty_2014 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+regression_data_CF_sty_2016 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+regression_data_CF_sty_2017 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
+# Too many y=1 if combine seizures and y...
+
+
+
+# {
+# armed_groups <- list()
+# years <- (2008:2020)[-c(2,8,12)]
+# for (year in years) {
+#   armed_groups_year <- read_xlsx(paste0("Colombia Data/Colombia-Armed groups-Paramilitar ", year ,".xlsx")) %>% 
+#     filter(!grepl("Archipiélago", DEPARTAMENTO)) %>% 
+#     rename(municipio=MUNICIPIO, depto=DEPARTAMENTO) %>% 
+#     mutate(municipio=str_to_upper(stri_trans_general(municipio, "Latin-ASCII"))) %>% 
+#     filter(municipio != "RIO ORO") %>% 
+#     select(-Pais, -REGION)
+#   
+#   armed_groups_year$municipio <- gsub("BELEN DE BAJIRA", "RIOSUCIO", armed_groups_year$municipio)
+#   RIOSUCIO_index <- which(armed_groups_year$municipio == "RIOSUCIO" & armed_groups_year$depto == "Choco")
+#   colsum_row <- c(as.vector(armed_groups_year[RIOSUCIO_index[2], 1:2]) %>% unlist, colSums(armed_groups_year[RIOSUCIO_index, -(1:2)], na.rm=T))
+#   for (i in 3:ncol(armed_groups_year)) {
+#     if (colsum_row[i] != "0") {
+#       armed_groups_year[RIOSUCIO_index[2], i] <- as.numeric(colsum_row[i])
+#     }
+#   }
+#   armed_groups_year <- armed_groups_year[-RIOSUCIO_index[1],]
+#   
+#   armed_groups_year$n_armed_groups <- apply(armed_groups_year, 1, function(x) sum(!is.na(x[3:ncol(armed_groups_year)])))
+#   armed_groups_year <- armed_groups_year %>% 
+#     left_join(municipios_capital %>% select(-id_depto), by=c("municipio", "depto")) %>% 
+#     relocate(id, municipio, depto, n_armed_groups)
+#   names(armed_groups_year) <- gsub("\r", " ", names(armed_groups_year), fixed=T)
+#   names(armed_groups_year) <- gsub("\n", "", names(armed_groups_year), fixed=T)
+#   names(armed_groups_year) <- gsub("/", "", names(armed_groups_year))
+#   
+#   armed_groups_year[is.na(armed_groups_year)] <- 0
+#   
+#   if ("Las Autodefensas Gaitanistas de Colombia (AGC)" %in% names(armed_groups_year) & "Clan del Golfo (Formerly Los Urabeños)" %in% names(armed_groups_year)) {
+#     AGC_index <- which(names(armed_groups_year) == "Las Autodefensas Gaitanistas de Colombia (AGC)")
+#     Golfo_index <- which(names(armed_groups_year) == "Clan del Golfo (Formerly Los Urabeños)")
+#     armed_groups_year <- armed_groups_year %>% 
+#       mutate(`Clan del Golfo (Formerly Los Urabeños)`=`Clan del Golfo (Formerly Los Urabeños)` + `Las Autodefensas Gaitanistas de Colombia (AGC)`) %>% 
+#       mutate(`Clan del Golfo (Formerly Los Urabeños)`=ifelse(`Clan del Golfo (Formerly Los Urabeños)` > 0, 1, 0)) %>% 
+#       select(-`Las Autodefensas Gaitanistas de Colombia (AGC)`)
+#   }
+#   
+#   if ("La Oficina" %in% names(armed_groups_year)) {
+#     sum_to_index <- which(names(armed_groups_year) == "La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA")
+#     sum_from_index <- which(names(armed_groups_year) == "La Oficina")
+#     armed_groups_year <- armed_groups_year %>% 
+#       mutate(`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA`=`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA` + `La Oficina`) %>% 
+#       mutate(`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA`=ifelse(`La Oficina de Envigado DEL VALLE DE ABURRÁ U OVA` > 0, 1, 0)) %>% 
+#       select(-`La Oficina`)
+#   }
+#   
+#   if ("Autodefensas" %in% substr(names(armed_groups_year), 1, 12)) {
+#     sum_from_index <- which(substr(names(armed_groups_year), 1, 12) == "Autodefensas")
+#     armed_groups_year$`Autodefensas Unidas de Colombia (AUC)` <- armed_groups_year[,sum_from_index] %>% apply(1, sum)
+#     armed_groups_year <- armed_groups_year[, -sum_from_index] %>% 
+#       mutate(`Autodefensas Unidas de Colombia (AUC)`=ifelse(`Autodefensas Unidas de Colombia (AUC)` > 0, 1, 0))
+#   }
+#   
+#   armed_groups[[paste0("y", year)]] <- armed_groups_year
+# }
+# armed_groups$y2008
+# 
+# n_armed_groups <- armed_groups$y2008 %>% select(id, n_armed_groups) %>% rename(X2008=n_armed_groups)
+# for (year in years[-1]) {
+#   n_armed_groups <- full_join(n_armed_groups, armed_groups[[paste0("y", year)]] %>% select(id, n_armed_groups), by="id")
+#   names(n_armed_groups)[ncol(n_armed_groups)] <- paste0("X", year)
+# }
+# n_armed_groups_long <- n_armed_groups %>% 
+#   pivot_longer(-id, names_to="year", values_to="n_armed_groups") %>% 
+#   mutate(year=substr(year,2,5) %>% as.integer)
+# 
+# # cultivation <- read.csv("Colombia Data/Colombia Coca Cultivation 1999-2016 renamed (Ha).csv") %>% as_tibble
+# cultivation <- read_xlsx("Colombia Data/Colombia Coca Cultivation 1999-2023.xlsx")
+# cultivation <- cultivation %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
+# labs_hyd <- read.csv("Colombia Data/Colombia-Laboratories-1997-2022 renamed (COCAINE HYDROCHLORIDE).csv") %>% as_tibble
+# labs_hyd <- labs_hyd %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
+# labs_PPI <- read.csv("Colombia Data/Colombia-Laboratories-1997-2022 renamed (PRIMARY PRODUCTION INFRASTRUCTURE).csv") %>% as_tibble
+# labs_PPI <- labs_PPI %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
+# 
+# eradication_aerial <- read_xlsx("Colombia Data/Colombia-Coca Eradication-1994-2021 Aerial (Ha).xlsx")
+# eradication_manual <- read_xlsx("Colombia Data/Colombia-Coca Eradication-1994-2021 Manual (Ha).xlsx")
+# eradication_aerial <- eradication_aerial %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
+# eradication_manual <- eradication_manual %>% rename(id="CODMPIO") %>% mutate(id=as.numeric(id))
+# 
+# eradication_aerial_long <- eradication_aerial %>% 
+#   pivot_longer(`1994`:`2015`, names_to="year", values_to="erad_aerial") %>% 
+#   mutate(year=as.integer(year)) %>% 
+#   filter(!is.na(erad_aerial))
+# 
+# eradication_manual_long <- eradication_manual %>% 
+#   pivot_longer(`1998`:`2022`, names_to="year", values_to="erad_manual") %>% 
+#   mutate(year=as.integer(year)) %>% 
+#   filter(!is.na(erad_manual))
+# 
+# coca_seizures <- read_xlsx("Colombia Data/Colombia-Seizures-1999-2022 Coca leaves (kg).xlsx")
+# base_seizures <- read_xlsx("Colombia Data/Colombia-Seizures-1999-2022 Coca paste and base (kg).xlsx")
+# hyd_seizures <- read_xlsx("Colombia Data/Colombia-Seizures-1999-2022 Cocaine (kg).xlsx")
+# coca_seizures <- coca_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
+# base_seizures <- base_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
+# hyd_seizures <- hyd_seizures %>% rename(id="CodMpio") %>% mutate(id=as.numeric(id))
+# 
+# coca_seizures_long <- coca_seizures %>% 
+#   pivot_longer(`1999`:`2022`, names_to="year", values_to="coca_seizures") %>% 
+#   mutate(year=as.integer(year)) %>% 
+#   filter(!is.na(coca_seizures))
+# base_seizures_long <- base_seizures %>% 
+#   pivot_longer(`1999`:`2022`, names_to="year", values_to="base_seizures") %>% 
+#   mutate(year=as.integer(year)) %>% 
+#   filter(!is.na(base_seizures))
+# hyd_seizures_long <- hyd_seizures %>% 
+#   pivot_longer(`1999`:`2022`, names_to="year", values_to="hyd_seizures") %>% 
+#   mutate(year=as.integer(year)) %>% 
+#   filter(!is.na(hyd_seizures))
+# 
+# price_2013_2015 <- read.csv("Colombia Data/Colombia Price Data 2013-2015 edited.csv") %>% as_tibble
+# price_2016_2021 <- read.csv("Colombia Data/Colombia Price Data 2016-2021 edited.csv") %>% as_tibble
+# # eradication_aerial <- left_join(municipios_id, eradication_aerial, by="id")
+# # eradication_manual <- left_join(municipios_id, eradication_manual, by="id")
+# # coca_seizures <- left_join(municipios_id, coca_seizures, by="id")
+# 
+# river_length_muni <- read.csv("Colombia Data/rivers.csv") %>% as_tibble
+# road_length_muni <- read.csv("Colombia Data/major roads without tertiary.csv") %>% as_tibble
+# 
+# population <- read_xlsx("Colombia Data/Census population by municipios (2018).xlsx") %>% 
+#   filter(!is.na(municipio)) %>% 
+#   select(-type)
+# population <- population %>% 
+#   mutate(id=substr(municipio, 1, 5) %>% as.numeric) %>%
+#   select(id, population) %>% 
+#   right_join(municipios_capital %>% mutate(id=as.numeric(id)), by="id") %>% 
+#   select(id, id_depto, municipio, depto, population)
+# # write.csv(population, "Colombia Data/Census population by municipios (2018).csv")
+# airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
+# 
+# price_2016_2021 %>% 
+#   group_by(id) %>% 
+#   summarise(n_seeds=sum(!is.na(seeds)),
+#             n_leaves=sum(!is.na(leaves))) %>% 
+#   arrange(desc(n_seeds), desc(n_leaves))
+# 
+# price <- rbind(price_2013_2015, price_2016_2021 %>% select(-seeds, -leaves))
+# 
+# price %>% select(month, year) %>% unique %>% nrow # 86 months (except for 2013 with "Jan to Apr", "May to Aug", "Sep to Dec")
+# }  
 
 ## price correlation
 price_annual <- price %>% 
@@ -394,7 +626,7 @@ labs_reg_data <- left_join(labs_PPI_reg_data,
                              select(id, year, n_hyd_labs), by=c("id", "year")) %>% 
   rename(n_PPI_labs=n_labs)
 # write.csv(labs_reg_data, "Colombia Data/labs_reg_data all municipio (01-21-2026).csv", row.names = F)
-labs_reg_data <- read.csv("Colombia Data/labs_reg_data all municipio (01-21-2026).csv") %>% as_tibble
+
 
 labs_2steps_years <- tibble()
 {
@@ -598,6 +830,9 @@ sum(abs(lab_probs_comparison$hyd_lab_prob.x - lab_probs_comparison$hyd_lab_prob.
   municipios_sf <- st_as_sf(municipios) %>% mutate(id = id %>% as.numeric) %>% filter(!(id %in% c(88001, 88564)))
   municipios_sf$area_km2 <- st_area(municipios_sf) %>% units::set_units("km^2") %>% as.numeric
 }
+
+
+
 ### regression data 2016 only (logistic regression for labs)
 {
   ex_year <- 2016
@@ -606,6 +841,9 @@ sum(abs(lab_probs_comparison$hyd_lab_prob.x - lab_probs_comparison$hyd_lab_prob.
   labs_2steps_year <- labs_reg_data %>% 
     filter(year == ex_year) %>% 
     select(-MUNICIPIO, -DEPARTAMENTO, -n_armed_groups, -n_rivers, -n_big_rivers, -n_roads) %>% 
+    mutate(coca_seizures=labs_reg_data %>% filter(year == ex_year - 1) %>% pull(coca_seizures),
+           base_seizures=labs_reg_data %>% filter(year == ex_year - 1) %>% pull(base_seizures),
+           hyd_seizures=labs_reg_data %>% filter(year == ex_year - 1) %>% pull(hyd_seizures)) %>% 
     mutate(n_PPI_labs=ifelse(is.na(n_PPI_labs), 0, n_PPI_labs),
            n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs),
            coca_area=ifelse(is.na(coca_area), 0, coca_area),
@@ -625,22 +863,14 @@ sum(abs(lab_probs_comparison$hyd_lab_prob.x - lab_probs_comparison$hyd_lab_prob.
   data_year$hyd_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
   data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
   
-  data_year$armed_group <- ifelse(data_year$n_armed_groups > 0, 1, 0)
-  data_year$PPI_lab <- ifelse(data_year$n_PPI_labs > 0, 1, 0)
-  data_year$hyd_lab <- ifelse(data_year$n_hyd_labs > 0, 1, 0)
+  data_year$armed_group <- ifelse(data_year$n_armed_groups > 0, 1, 0) %>% as.factor
+  data_year$PPI_lab <- ifelse(data_year$n_PPI_labs > 0, 1, 0) %>% as.factor
+  data_year$hyd_lab <- ifelse(data_year$n_hyd_labs > 0, 1, 0) %>% as.factor
   data_year$hyd_avg <- ifelse(data_year$hyd_price_distance > 0, NA, data_year$hyd_avg)
   data_year$base_avg <- ifelse(data_year$base_price_distance > 0, NA, data_year$base_avg)
   
   labs_2steps_2016 <- data_year %>% select(id:hyd_seizures, armed_group, population, PPI_lab, hyd_lab, base_source:hyd_destination) %>% left_join(airports, by="id") %>% relocate(id, year, base_source:hyd_destination)
 }
-
-# labs_2steps_2016 %>% select(id, base_avg, hyd_avg, coca_area, base_seizures, hyd_seizures, PPI_lab, hyd_lab, river_length, road_length, armed_group, population, airport:military) %>%
-#   left_join(municipios_sf %>% as_tibble %>% select(id, area_km2), by="id") %>% 
-#   mutate(population=scale(population)[,1],
-#          river_length = scale(river_length / area_km2)[,1],
-#          road_length = scale(road_length / area_km2)[,1]) %>% 
-#   select(-area_km2) %>% write.csv("Colombia Data/regression data all municipios raw prices and seizures 2016.csv", row.names = F)
-
 
 labs_2steps_2016 <- labs_2steps_2016 %>% select(id, base_avg, hyd_avg, coca_area, base_seizures, hyd_seizures, PPI_lab, hyd_lab, river_length, road_length, armed_group, population, airport:military) %>% 
   mutate(coca_area = scale(log(1+coca_area))[,1],
@@ -650,7 +880,6 @@ labs_2steps_2016 <- labs_2steps_2016 %>% select(id, base_avg, hyd_avg, coca_area
          base_seizures = scale(log(1+base_seizures))[,1],
          hyd_seizures = scale(log(1+hyd_seizures))[,1])
 
-
 labs_2steps_2016_reg <- labs_2steps_2016 %>% 
   left_join(municipios_sf %>% as_tibble %>% select(id, area_km2), by="id") %>% 
   mutate(river_length = scale(river_length / area_km2)[,1],
@@ -658,57 +887,74 @@ labs_2steps_2016_reg <- labs_2steps_2016 %>%
   select(-area_km2)
 
 # prices are excluded to compute lab_prob due to small number of obs.
-PPI_lab_glm_2016 <- glm(PPI_lab~., family=binomial(link="probit"), data=labs_2steps_2016_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, hyd_lab))
-summary(PPI_lab_glm_2016)
-z_vals <- predict(PPI_lab_glm_2016, type="link")
-Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
-Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
+if (is_CF) {
+  PPI_lab_glm_2016 <- glm(PPI_lab~., family=binomial(link="probit"), data=labs_2steps_2016_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, hyd_lab))
+  summary(PPI_lab_glm_2016)
+  z_vals <- predict(PPI_lab_glm_2016, type="link")
+  Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
+  Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
+  
+  PPI_lab_res <- numeric(nrow(labs_2steps_2016_reg))
+  pos_index <- which(labs_2steps_2016_reg$PPI_lab == "1")
+  neg_index <- which(labs_2steps_2016_reg$PPI_lab == "0")
+  PPI_lab_res[pos_index] <- Inv_Mill_1[pos_index]
+  PPI_lab_res[neg_index] <- Inv_Mill_1[neg_index]
+  
+  res_tbl <- tibble(y = labs_2steps_2016_reg$PPI_lab,
+                    y_pred = predict(PPI_lab_glm_2016, type="response"),
+                    glm_res = PPI_lab_glm_2016$residuals,
+                    inv_Mil_ratio = PPI_lab_res)
+  res_tbl %>% select(-glm_res) %>% print(n=20)
+  
+  hyd_lab_glm_2016 <- glm(hyd_lab~., family=binomial(link="probit"), data=labs_2steps_2016_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, PPI_lab))
+  summary(hyd_lab_glm_2016)
+  z_vals <- predict(hyd_lab_glm_2016, type="link")
+  Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
+  Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
+  
+  hyd_lab_res <- numeric(nrow(labs_2steps_2016_reg))
+  pos_index <- which(labs_2steps_2016_reg$hyd_lab == "1")
+  neg_index <- which(labs_2steps_2016_reg$hyd_lab == "0")
+  hyd_lab_res[pos_index] <- Inv_Mill_1[pos_index]
+  hyd_lab_res[neg_index] <- Inv_Mill_1[neg_index]
+  
+  regression_data_2016 <- labs_2steps_2016_reg %>% 
+    mutate(PPI_lab_res=PPI_lab_res,
+           hyd_lab_res=hyd_lab_res) %>% 
+    relocate(id, PPI_lab, hyd_lab, PPI_lab_res, hyd_lab_res)
+  
+  hyd_avg_lm <- lm(hyd_avg~., regression_data_2016 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_res, -hyd_lab_res))
+  summary(hyd_avg_lm)
+  hyd_avg_pred <- predict(hyd_avg_lm, regression_data_2016 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_res, -hyd_lab_res))
+  regression_data_2016$hyd_avg <- ifelse(is.na(regression_data_2016$hyd_avg), hyd_avg_pred, regression_data_2016$hyd_avg)
+  
+  base_avg_lm <- lm(base_avg~., regression_data_2016 %>% select(-id, -hyd_avg, -hyd_seizures, -PPI_lab_res, -hyd_lab_res))
+  summary(base_avg_lm)
+  base_avg_pred <- predict(base_avg_lm, regression_data_2016 %>% select(-id, -hyd_avg, -hyd_seizures, -PPI_lab_res, -hyd_lab_res))
+  regression_data_2016$base_avg <- ifelse(is.na(regression_data_2016$base_avg), base_avg_pred, regression_data_2016$base_avg)
+  result <- regression_data_2016 %>% left_join(data_year %>% select(id, base_source:hyd_destination), by="id") %>% relocate(id, base_source:hyd_destination)
+  write.csv(result, "Colombia Data/regression data all municipios CF 2016.csv", row.names = F)
+}else{
+  PPI_lab_glm_2016 <- glm(PPI_lab~., family=binomial, data=labs_2steps_2016_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, hyd_lab))
+  regression_data_2016 <- labs_2steps_2016_reg %>%
+    mutate(PPI_lab_prob=PPI_lab_glm_2016$fitted.values,
+           hyd_lab_prob=hyd_lab_glm_2016$fitted.values) %>%
+    select(-PPI_lab, -hyd_lab) %>% relocate(id, PPI_lab_prob, hyd_lab_prob)
+  
+  hyd_avg_lm <- lm(hyd_avg~., regression_data_2016 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
+  summary(hyd_avg_lm)
+  hyd_avg_pred <- predict(hyd_avg_lm, regression_data_2016 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
+  regression_data_2016$hyd_avg <- ifelse(is.na(regression_data_2016$hyd_avg), hyd_avg_pred, regression_data_2016$hyd_avg)
+  
+  base_avg_lm <- lm(base_avg~., regression_data_2016 %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
+  summary(base_avg_lm)
+  base_avg_pred <- predict(base_avg_lm, regression_data_2016 %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
+  regression_data_2016$base_avg <- ifelse(is.na(regression_data_2016$base_avg), base_avg_pred, regression_data_2016$base_avg)
+  result <- regression_data_2016 %>% left_join(data_year %>% select(id, base_source:hyd_destination), by="id") %>% relocate(id, base_source:hyd_destination)
+  write.csv(result, "Colombia Data/regression data all municipios lab_prob 2016.csv", row.names = F)
+}
 
-PPI_lab_res <- numeric(nrow(labs_2steps_2016_reg))
-pos_index <- which(labs_2steps_2016_reg$PPI_lab == "1")
-neg_index <- which(labs_2steps_2016_reg$PPI_lab == "0")
-PPI_lab_res[pos_index] <- Inv_Mill_1[pos_index]
-PPI_lab_res[neg_index] <- Inv_Mill_1[neg_index]
 
-res_tbl <- tibble(y = labs_2steps_2016_reg$PPI_lab,
-                  y_pred = predict(PPI_lab_glm_2016, type="response"),
-                  glm_res = PPI_lab_glm_2016$residuals,
-                  inv_Mil_ratio = PPI_lab_res)
-res_tbl %>% select(-glm_res) %>% print(n=20)
-
-hyd_lab_glm_2016 <- glm(hyd_lab~., family=binomial(link="probit"), data=labs_2steps_2016_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, PPI_lab))
-summary(hyd_lab_glm_2016)
-z_vals <- predict(hyd_lab_glm_2016, type="link")
-Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
-Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
-
-pos_index <- which(labs_2steps_2016_reg$hyd_lab == "1")
-neg_index <- which(labs_2steps_2016_reg$hyd_lab == "0")
-hyd_lab_res[pos_index] <- Inv_Mill_1[pos_index]
-hyd_lab_res[neg_index] <- Inv_Mill_1[neg_index]
-
-regression_data_2016 <- labs_2steps_2016_reg %>% 
-  mutate(PPI_lab_prob=PPI_lab_glm_2016$fitted.values,
-         hyd_lab_prob=hyd_lab_glm_2016$fitted.values) %>% 
-  select(-PPI_lab, -hyd_lab) %>% relocate(id, PPI_lab_prob, hyd_lab_prob)
-
-# regression_data_2016 <- labs_2steps_2016_reg %>% 
-#   mutate(PPI_lab_prob=PPI_lab_glm_2016$fitted.values,
-#          hyd_lab_prob=hyd_lab_glm_2016$fitted.values) %>% 
-#   select(-PPI_lab, -hyd_lab) %>% relocate(id, PPI_lab_prob, hyd_lab_prob)
-
-hyd_avg_lm <- lm(hyd_avg~., regression_data_2016 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
-summary(hyd_avg_lm)
-hyd_avg_pred <- predict(hyd_avg_lm, regression_data_2016 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
-regression_data_2016$hyd_avg <- ifelse(is.na(regression_data_2016$hyd_avg), hyd_avg_pred, regression_data_2016$hyd_avg)
-
-base_avg_lm <- lm(base_avg~., regression_data_2016 %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
-summary(base_avg_lm)
-base_avg_pred <- predict(base_avg_lm, regression_data_2016 %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
-regression_data_2016$base_avg <- ifelse(is.na(regression_data_2016$base_avg), base_avg_pred, regression_data_2016$base_avg)
-
-# write.csv(regression_data_2016 %>% left_join(data_year %>% select(id, base_source:hyd_destination), by="id") %>% relocate(id, base_source:hyd_destination),
-#           "Colombia Data/regression data all municipios lab_prob 2016.csv", row.names = F)
 
 regression_data_2016 <- read.csv("Colombia Data/regression data all municipios lab_prob 2016.csv") %>% as_tibble
 # write.csv(regression_data_2016_logit, "Colombia Data/regression data all municipios lab_prob 2016 logit.csv", row.names = F)
@@ -719,6 +965,9 @@ regression_data_2016 <- read.csv("Colombia Data/regression data all municipios l
   labs_2steps_year <- labs_reg_data %>% 
     filter(year == ex_year) %>% 
     select(-MUNICIPIO, -DEPARTAMENTO, -n_armed_groups, -n_rivers, -n_big_rivers, -n_roads) %>% 
+    mutate(coca_seizures=labs_reg_data %>% filter(year == ex_year - 1) %>% pull(coca_seizures),
+           base_seizures=labs_reg_data %>% filter(year == ex_year - 1) %>% pull(base_seizures),
+           hyd_seizures=labs_reg_data %>% filter(year == ex_year - 1) %>% pull(hyd_seizures)) %>% 
     mutate(n_PPI_labs=ifelse(is.na(n_PPI_labs), 0, n_PPI_labs),
            n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs),
            coca_area=ifelse(is.na(coca_area), 0, coca_area),
@@ -738,9 +987,9 @@ regression_data_2016 <- read.csv("Colombia Data/regression data all municipios l
   data_year$hyd_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
   data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
   
-  data_year$armed_group <- ifelse(data_year$n_armed_groups > 0, 1, 0)
-  data_year$PPI_lab <- ifelse(data_year$n_PPI_labs > 0, 1, 0)
-  data_year$hyd_lab <- ifelse(data_year$n_hyd_labs > 0, 1, 0)
+  data_year$armed_group <- ifelse(data_year$n_armed_groups > 0, 1, 0) %>% as.factor
+  data_year$PPI_lab <- ifelse(data_year$n_PPI_labs > 0, 1, 0) %>% as.factor
+  data_year$hyd_lab <- ifelse(data_year$n_hyd_labs > 0, 1, 0) %>% as.factor
   data_year$hyd_avg <- ifelse(data_year$hyd_price_distance > 0, NA, data_year$hyd_avg)
   data_year$base_avg <- ifelse(data_year$base_price_distance > 0, NA, data_year$base_avg)
   
@@ -771,31 +1020,51 @@ labs_2steps_2017_reg <- labs_2steps_2017 %>%
   select(-area_km2)
 
 # prices are excluded to compute lab_prob due to small number of obs.
-PPI_lab_glm_2017 <- glm(PPI_lab~., family="binomial", data=labs_2steps_2017_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, hyd_lab))
+{
+PPI_lab_glm_2017 <- glm(PPI_lab~., family=binomial(link="probit"), data=labs_2steps_2017_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, hyd_lab))
 summary(PPI_lab_glm_2017)
+z_vals <- predict(PPI_lab_glm_2017, type="link")
+Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
+Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
 
-hyd_lab_glm_2017 <- glm(hyd_lab~., family="binomial", data=labs_2steps_2017_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, PPI_lab))
+PPI_lab_res <- numeric(nrow(labs_2steps_2016_reg))
+pos_index <- which(labs_2steps_2016_reg$PPI_lab == "1")
+neg_index <- which(labs_2steps_2016_reg$PPI_lab == "0")
+PPI_lab_res[pos_index] <- Inv_Mill_1[pos_index]
+PPI_lab_res[neg_index] <- Inv_Mill_1[neg_index]
+
+hyd_lab_glm_2017 <- glm(hyd_lab~., family=binomial(link="probit"), data=labs_2steps_2017_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, PPI_lab))
 summary(hyd_lab_glm_2017)
+z_vals <- predict(hyd_lab_glm_2017, type="link")
+Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
+Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
+
+hyd_lab_res <- numeric(nrow(labs_2steps_2017_reg))
+pos_index <- which(labs_2steps_2017_reg$hyd_lab == "1")
+neg_index <- which(labs_2steps_2017_reg$hyd_lab == "0")
+hyd_lab_res[pos_index] <- Inv_Mill_1[pos_index]
+hyd_lab_res[neg_index] <- Inv_Mill_1[neg_index]
 
 regression_data_2017 <- labs_2steps_2017_reg %>% 
-  mutate(PPI_lab_prob=PPI_lab_glm_2017$fitted.values,
-         hyd_lab_prob=hyd_lab_glm_2017$fitted.values) %>% 
-  select(-PPI_lab, -hyd_lab) %>% relocate(id, PPI_lab_prob, hyd_lab_prob)
-
-hyd_avg_lm <- lm(hyd_avg~., regression_data_2017 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
+  mutate(PPI_lab_res=PPI_lab_res,
+         hyd_lab_res=hyd_lab_res) %>% 
+  relocate(id, PPI_lab, hyd_lab, PPI_lab_res, hyd_lab_res)
+}
+hyd_avg_lm <- lm(hyd_avg~., regression_data_2017 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_res, -hyd_lab_res))
 summary(hyd_avg_lm)
-hyd_avg_pred <- predict(hyd_avg_lm, regression_data_2017 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
+hyd_avg_pred <- predict(hyd_avg_lm, regression_data_2017 %>% select(-id, -base_avg, -base_seizures, -PPI_lab_res, -hyd_lab_res))
 regression_data_2017$hyd_avg <- ifelse(is.na(regression_data_2017$hyd_avg), hyd_avg_pred, regression_data_2017$hyd_avg)
 
-base_avg_lm <- lm(base_avg~., regression_data_2017 %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
+base_avg_lm <- lm(base_avg~., regression_data_2017 %>% select(-id, -hyd_avg, -hyd_seizures, -PPI_lab_res, -hyd_lab_res))
 summary(base_avg_lm)
-base_avg_pred <- predict(base_avg_lm, regression_data_2017 %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
+base_avg_pred <- predict(base_avg_lm, regression_data_2017 %>% select(-id, -hyd_avg, -hyd_seizures, -PPI_lab_res, -hyd_lab_res))
 regression_data_2017$base_avg <- ifelse(is.na(regression_data_2017$base_avg), base_avg_pred, regression_data_2017$base_avg)
 
 # write.csv(regression_data_2017 %>% left_join(data_year %>% select(id, base_source:hyd_destination), by="id") %>% relocate(id, base_source:hyd_destination),
 #           "Colombia Data/regression data all municipios lab_prob 2017.csv", row.names = F)
 
 regression_data_2017 <- read.csv("Colombia Data/regression data all municipios lab_prob 2017.csv") %>% as_tibble
+# write.csv(regression_data_2017_logit, "Colombia Data/regression data all municipios lab_prob 2017 logit.csv", row.names = F)
 
 {
   ex_year <- 2018

@@ -19,6 +19,7 @@ library(regclass)
 library(logistf)
 ########## used bandwidth range 0.5~3.0 due to the time limit
 {
+  hyd_gwr_data <- read.csv("Colombia Data/hyd gwr data.csv") %>% as_tibble
   municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
   municipios_capital$id <- as.numeric(municipios_capital$id)
   municipios_capital$municipio <- stri_trans_general(municipios_capital$municipio, "Latin-ASCII")
@@ -68,10 +69,6 @@ library(logistf)
     mutate(id=as.numeric(id)) %>% 
     filter(id != 88) %>% 
     left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
-}
-
-minmax_scale <- function(vec) {
-  return(vec/(max(vec) - min(vec)))
 }
 
 ever_regression_data_years <- function(dep_var) { 
@@ -878,17 +875,100 @@ prediction_map(PML_GWR_pred_10_loo_base_dest, "base_destination", 10)
 depto_SE <- c("Vichada", "Guainia", "Guaviare", "Vaupes", "Amazonas")
 id_SE <- municipios_capital %>% filter(depto %in% depto_SE) %>% pull(id)
 
+regression_data_2016 <- read.csv("Colombia Data/regression data all municipios lab_prob 2016.csv") %>% as_tibble
 regression_data_2017 <- read.csv("Colombia Data/regression data all municipios lab_prob 2017.csv") %>% as_tibble
 regression_data_2018 <- read.csv("Colombia Data/regression data all municipios lab_prob 2018.csv") %>% as_tibble
 regression_data_2020 <- read.csv("Colombia Data/regression data all municipios lab_prob 2020.csv") %>% as_tibble
 regression_data_2020_raw <- read.csv("Colombia Data/regression data all municipios raw prices and seizures 2020.csv") %>% as_tibble
 PML_gwr_coefs_F1_var_drop_hyd_dest_no_coca <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 no coca_area.csv") %>% as_tibble
-PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (12-09-2025).csv") %>% as_tibble
-# PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2016 data combined (01-27-2026).csv") %>% as_tibble
-# PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 2016 data (01-27-2026).csv") %>% as_tibble
+PML_gwr_coefs_F1_lab_prob_2016 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (12-09-2025).csv") %>% as_tibble
+PML_gwr_coefs_F1_lab_prob_2016_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 2016 data (01-27-2026).csv") %>% as_tibble
+PML_gwr_coefs_F1_lab_prob_2016_combined <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2016 data combined (01-27-2026).csv") %>% as_tibble
+PML_gwr_coefs_F1_lab_prob_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2017 data (01-27-2026).csv") %>% as_tibble
+# PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- 
 # hyd_dest_coef_bordering_Venezulla <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest %>% filter(id %in% id_bordering_Venezulla)
 
-PML_gwr_coefs_hyd_dest <- PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest
+# pred anal
+GWR_predict_year_lab_prob <- function(PML_gwr_coefs, regression_data_year, dep_var, no_price, threshold=0.5) {
+  if (grepl("hyd", dep_var)) {
+    indep_vars <- c("hyd_avg", "coca_area", "hyd_seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "armed_group", "hyd_lab_prob")
+    regression_data_year_pred <- regression_data_year %>% filter(id %in% PML_gwr_coefs$id) %>% 
+      select(id, all_of(c(dep_var, indep_vars))) %>%
+      rename(price_avg=hyd_avg, lab_prob=hyd_lab_prob, seizures=hyd_seizures)
+  }else if (grepl("base", dep_var)) {
+    indep_vars <- c("base_avg", "coca_area", "base_seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "armed_group", "PPI_lab_prob")
+    regression_data_year_pred <- regression_data_year %>% filter(id %in% PML_gwr_coefs$id) %>% 
+      select(id, all_of(c(dep_var, indep_vars))) %>%
+      rename(price_avg=base_avg, lab_prob=PPI_lab_prob, seizures=base_seizures)
+  }
+  
+  if (no_price) regression_data_year_pred$price_avg <- NULL
+  names(regression_data_year_pred)[names(regression_data_year_pred) == dep_var] <- "y"
+  regression_data_year_pred <- regression_data_year_pred %>% relocate(id, y, names(PML_gwr_coefs)[-(1:3)])
+  
+  PML_gwr_coefs_mat <- PML_gwr_coefs[,-(1:3)]
+  PML_gwr_coefs_mat[is.na(PML_gwr_coefs_mat)] <- 0
+  regression_data_year_pred_mat <- regression_data_year_pred[,-(1:2)]
+  bX_year <- PML_gwr_coefs$Intercept + apply(PML_gwr_coefs_mat * regression_data_year_pred_mat, 1, sum)
+  pi_hat_year <- 1/(1+exp(-bX_year))
+  result <- tibble(id = PML_gwr_coefs$id, pi_hat = pi_hat_year)
+  result$y_pred <- ifelse(result$pi_hat < threshold, 0, 1) %>% as.factor
+  result$y <- regression_data_year_pred$y
+  
+  return(result)
+}
+
+confusion_matrix_GWR <- function(GWR_pred) {
+  result <- confusionMatrix(GWR_pred$y_pred %>% as.factor, GWR_pred$y %>% as.factor, positive = "1")
+  return(result)
+}
+
+y_2016_combined <- left_join(regression_data_2016 %>% select(id), hyd_gwr_data %>% select(id, y), by="id")
+
+GWR_predict_2016_lab_prob_with_2016_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_2016, "hyd_destination", no_price=F)
+GWR_predict_2016_lab_prob_with_2016_coef_7_3 <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016_7_3, regression_data_2016, "hyd_destination", no_price=F)
+GWR_predict_2016_lab_prob_with_2016_coef_combined <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016_combined, regression_data_2016, "hyd_destination", no_price=F)
+
+GWR_predict_2016_lab_prob_with_2016_coef_combined$y <- y_2016_combined$y
+
+GWR_predict_2017_lab_prob_with_2016_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_2017, "hyd_destination", no_price=F)
+
+GWR_predict_2016_lab_prob_with_2016_coef
+GWR_predict_2017_lab_prob_with_2016_coef
+
+confusionMatrix(GWR_predict_2016_lab_prob_with_2016_coef$y_pred %>% as.factor, GWR_predict_2016_lab_prob_with_2016_coef$y %>% as.factor, positive = "1")
+confusionMatrix(GWR_predict_2016_lab_prob_with_2016_coef_7_3$y_pred %>% as.factor, GWR_predict_2016_lab_prob_with_2016_coef_7_3$y %>% as.factor, positive = "1")
+confusionMatrix(GWR_predict_2016_lab_prob_with_2016_coef_combined$y_pred %>% as.factor, GWR_predict_2016_lab_prob_with_2016_coef_combined$y %>% as.factor, positive = "1")
+confusionMatrix(GWR_predict_2017_lab_prob_with_2016_coef$y_pred %>% as.factor, GWR_predict_2017_lab_prob_with_2016_coef$y %>% as.factor, positive = "1")
+
+ROC_2016_lab_prob_with_2016_coef <- roc(GWR_predict_2016_lab_prob_with_2016_coef$y %>% as.factor, GWR_predict_2016_lab_prob_with_2016_coef$pi_hat)
+ROC_2016_lab_prob_with_2016_coef_7_3 <- roc(GWR_predict_2016_lab_prob_with_2016_coef_7_3$y %>% as.factor, GWR_predict_2016_lab_prob_with_2016_coef_7_3$pi_hat)
+ROC_2016_lab_prob_with_2016_coef_combined <- roc(GWR_predict_2016_lab_prob_with_2016_coef_combined$y %>% as.factor, GWR_predict_2016_lab_prob_with_2016_coef_combined$pi_hat)
+plot(ROC_2016_lab_prob_with_2016_coef)
+plot(ROC_2016_lab_prob_with_2016_coef_7_3)
+plot(ROC_2016_lab_prob_with_2016_coef_combined)
+ROC_2016_lab_prob_with_2016_coef_tbl <- tibble(sensitivities=ROC_2016_lab_prob_with_2016_coef$sensitivities,
+                                               specificities=ROC_2016_lab_prob_with_2016_coef$specificities,
+                                               threshold=ROC_2016_lab_prob_with_2016_coef$thresholds)
+ROC_2016_lab_prob_with_2016_coef_7_3_tbl <- tibble(sensitivities=ROC_2016_lab_prob_with_2016_coef_7_3$sensitivities,
+                                               specificities=ROC_2016_lab_prob_with_2016_coef_7_3$specificities,
+                                               threshold=ROC_2016_lab_prob_with_2016_coef_7_3$thresholds)
+ROC_2016_lab_prob_with_2016_coef_combined_tbl <- tibble(sensitivities=ROC_2016_lab_prob_with_2016_coef_combined$sensitivities,
+                                               specificities=ROC_2016_lab_prob_with_2016_coef_combined$specificities,
+                                               threshold=ROC_2016_lab_prob_with_2016_coef_combined$thresholds)
+
+ROC_2016_lab_prob_with_2016_coef_tbl %>% filter(specificities > 0.6) %>% arrange(desc(sensitivities))
+ROC_2016_lab_prob_with_2016_coef_7_3_tbl %>% filter(specificities > 0.9) %>% arrange(desc(sensitivities))
+ROC_2016_lab_prob_with_2016_coef_combined_tbl %>% filter(specificities > 0.6) %>% arrange(desc(sensitivities))
+
+confusion_matrix_GWR(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_2016, "hyd_destination", no_price=F, threshold = 0.3))
+confusion_matrix_GWR(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_2017, "hyd_destination", no_price=F, threshold = 0.3))
+
+confusion_matrix_GWR(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016_7_3, regression_data_2016, "hyd_destination", no_price=F, threshold = 0.3))
+confusion_matrix_GWR(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016_combined, regression_data_2016, "hyd_destination", no_price=F, threshold = 0.3))
+
+## separate GWR_prediction codes
+PML_gwr_coefs_hyd_dest <- PML_gwr_coefs_F1_lab_prob_2016
 
 regression_data_2017_pred <- regression_data_2017 %>% filter(id %in% PML_gwr_coefs_hyd_dest$id) %>% 
   select(-(base_source:hyd_source), -PPI_lab_prob, -base_avg, -base_seizures) %>%

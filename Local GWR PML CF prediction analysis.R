@@ -64,25 +64,27 @@ hyd_gwr_data <- read.csv("Colombia Data/hyd gwr data.csv") %>% as_tibble
 gwr_data_dist <- read.csv("Colombia Data/gwr data dist.csv") %>% as_tibble
 influence_tbl <- read.csv("Colombia Data/influence_tbl.csv") %>% as_tibble
 
-# PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (12-09-2025).csv") %>% as_tibble
+PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 (12-09-2025).csv") %>% as_tibble
 # PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_hyd_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_source leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (12-09-2025).csv") %>% as_tibble
 # PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs base_source leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (12-09-2025).csv") %>% as_tibble 
 # PML_gwr_coefs_F1_var_drop_log_seizure_coca_10_loo_base_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs base_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (12-09-2025).csv") %>% as_tibble 
 
 # PML_GWR_pred_10_loo_hyd_source <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_source predictions leave-one-out n_drop=10.csv") %>% as_tibble
-PML_GWR_pred_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/GWR PML hyd_destination predictions leave-one-out n_drop=10.csv") %>% as_tibble
-PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/GWR PML hyd_destination predictions leave-one-out n_drop=10 (2017).csv") %>% as_tibble
-# PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/GWR PML hyd_destination predictions leave-one-out n_drop=10 with 2016 data only (2017).csv")
-# PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/GWR PML hyd_destination predictions leave-one-out n_drop=10 with 2016 data combined (2017).csv")
-# PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/GWR PML hyd_destination predictions leave-one-out n_drop=10 with weight 7-3 2016 data (2017).csv")
-# PML_GWR_pred_10_loo_base_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/GWR PML base_source predictions leave-one-out n_drop=10.csv") %>% as_tibble
-# PML_GWR_pred_10_loo_base_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/GWR PML base_destination predictions leave-one-out n_drop=10.csv") %>% as_tibble
-PML_GWR_pred_10_loo_hyd_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/GWR PML hyd_source predictions leave-one-out n_drop=10 weight 7-3.csv") %>% as_tibble
-PML_GWR_pred_10_loo_base_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/GWR PML base_source predictions leave-one-out n_drop=10 weight 7-3.csv") %>% as_tibble
-PML_GWR_pred_10_loo_base_dest_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/GWR PML base_destination predictions leave-one-out n_drop=10 weight 7-3.csv") %>% as_tibble
+PML_GWR_pred_10_loo_hyd_dest_2016 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out CF n_drop=10 (2016).csv") %>% as_tibble
+PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out CF n_drop=10 (2017).csv") %>% as_tibble
+# PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 with 2016 data only (2017).csv")
+# PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 with 2016 data combined (2017).csv")
+# PML_GWR_pred_10_loo_hyd_dest_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_destination predictions leave-one-out n_drop=10 with weight 7-3 2016 data (2017).csv")
+# PML_GWR_pred_10_loo_base_source <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML base_source predictions leave-one-out n_drop=10.csv") %>% as_tibble
+# PML_GWR_pred_10_loo_base_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML base_destination predictions leave-one-out n_drop=10.csv") %>% as_tibble
+
+# PML_GWR_pred_10_loo_hyd_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML hyd_source predictions leave-one-out n_drop=10 weight 7-3.csv") %>% as_tibble
+# PML_GWR_pred_10_loo_base_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML base_source predictions leave-one-out n_drop=10 weight 7-3.csv") %>% as_tibble
+# PML_GWR_pred_10_loo_base_dest_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/GWR PML base_destination predictions leave-one-out n_drop=10 weight 7-3.csv") %>% as_tibble
 
 CM_var_drop_10_loo_hyd_dest <- confusionMatrix(PML_GWR_pred_10_loo_hyd_dest$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_hyd_dest$y %>% as.factor, positive = "1")
-CM_var_drop_10_loo_hyd_dest_2017 <- confusionMatrix(PML_GWR_pred_10_loo_hyd_dest_2017$pred_2017 %>% as.factor, PML_GWR_pred_10_loo_hyd_dest_2017$y %>% as.factor, positive = "1")
+CM_var_drop_10_loo_hyd_dest_2016 <- confusionMatrix(PML_GWR_pred_10_loo_hyd_dest_2016$pred_2016 %>% as.factor, PML_GWR_pred_10_loo_hyd_dest_2016$y_2016 %>% as.factor, positive = "1")
+CM_var_drop_10_loo_hyd_dest_2017 <- confusionMatrix(PML_GWR_pred_10_loo_hyd_dest_2017$pred_2017 %>% as.factor, PML_GWR_pred_10_loo_hyd_dest_2017$y_2017 %>% as.factor, positive = "1")
 # CM_var_drop_10_loo_hyd_source <- confusionMatrix(PML_GWR_pred_10_loo_hyd_source$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_hyd_source$y %>% as.factor, positive = "1")
 # CM_var_drop_10_loo_base_dest <- confusionMatrix(PML_GWR_pred_10_loo_base_dest$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_base_dest$y %>% as.factor, positive = "1")
 # CM_var_drop_10_loo_base_source <- confusionMatrix(PML_GWR_pred_10_loo_base_source$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_base_source$y %>% as.factor, positive = "1")
@@ -91,10 +93,10 @@ CM_var_drop_10_loo_hyd_source_7_3 <- confusionMatrix(PML_GWR_pred_10_loo_hyd_sou
 CM_var_drop_10_loo_base_source_7_3 <- confusionMatrix(PML_GWR_pred_10_loo_base_source_7_3$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_base_source_7_3$y %>% as.factor, positive = "1")
 CM_var_drop_10_loo_base_dest_7_3 <- confusionMatrix(PML_GWR_pred_10_loo_base_dest_7_3$y_PML_var_drop_loo %>% as.factor, PML_GWR_pred_10_loo_base_dest_7_3$y %>% as.factor, positive = "1")
 
-global_reg_pred_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/global regression hyd_destination predictions.csv") %>% as_tibble
-global_reg_pred_hyd_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/global regression hyd_source predictions weight 7-3.csv") %>% as_tibble
-global_reg_pred_base_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/global regression base_source predictions weight 7-3.csv") %>% as_tibble
-global_reg_pred_base_dest_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML bwd 5 (no CF)/global regression base_destination predictions weight 7-3.csv") %>% as_tibble
+# global_reg_pred_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/global regression hyd_destination predictions.csv") %>% as_tibble
+# global_reg_pred_hyd_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/global regression hyd_source predictions weight 7-3.csv") %>% as_tibble
+# global_reg_pred_base_source_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/global regression base_source predictions weight 7-3.csv") %>% as_tibble
+# global_reg_pred_base_dest_7_3 <- read.csv("Colombia Data/local GWR PML result predicted prices/global regression base_destination predictions weight 7-3.csv") %>% as_tibble
 
 CM_global_reg_hyd_dest <- confusionMatrix(global_reg_pred_hyd_dest$y_globbal_reg_pred %>% as.factor, global_reg_pred_hyd_dest$y %>% as.factor, positive = "1")
 CM_global_reg_hyd_source_7_3 <- confusionMatrix(global_reg_pred_hyd_source_7_3$y_globbal_reg_pred %>% as.factor, global_reg_pred_hyd_source_7_3$y %>% as.factor, positive = "1")
