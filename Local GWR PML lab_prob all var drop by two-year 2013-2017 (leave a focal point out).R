@@ -92,10 +92,10 @@ neighbor_id <- function(id_i, bw_i, scale_11_, gwr_data_) {
   return(result)
 }
 
-local_GWR_PML_lab_prob <- function(type.measure_="default", F1_mat, sig_level_=0.05, gwr_PML_data_, method_, n_drop, interact_=F, scale_11_=F, weight_=NULL, dep_var, price_) {
+local_GWR_PML_lab_prob_2years <- function(type.measure_="default", F1_mat, sig_level_=0.05, gwr_PML_data_1, gwr_PML_data_2, method_, n_drop, interact_=F, scale_11_=F, weight_=NULL, dep_var, price_) {
   bwd_range <- seq(0.5, max_bwd, by=0.1)
-  coord_unique <- gwr_PML_data_$coord
-  local_gwr_dist <- gwr_PML_data_$dist %>% as.matrix
+  coord_unique <- gwr_PML_data_1$coord
+  local_gwr_dist <- gwr_PML_data_1$dist %>% as.matrix
   
   local_GWR_coefs_PML_result <- list()
   for (i in 1:nrow(F1_mat)) {
@@ -106,8 +106,11 @@ local_GWR_PML_lab_prob <- function(type.measure_="default", F1_mat, sig_level_=0
       bw_name <- paste0("bw_", bw_ij)
       local_GWR_coefs_PML_result[[paste0("id_", id_i)]][[bw_name]] <- NA
       
-      neighbor_ij <- neighbor_id(id_i, bw_ij, scale_11_, gwr_data_=gwr_PML_data_) %>% 
+      neighbor_ij_year1 <- neighbor_id(id_i, bw_ij, scale_11_, gwr_data_=gwr_PML_data_1) %>% 
         filter(id != id_i) #### leave a focal point out
+      neighbor_ij_year2 <- neighbor_id(id_i, bw_ij, scale_11_, gwr_data_=gwr_PML_data_2) %>% 
+        filter(id != id_i)
+      neighbor_ij <- bind_rows(neighbor_ij_year1, neighbor_ij_year2)
       n_0_1 <- neighbor_ij$y %>% table
       
       # restrict too unbalanced responses
@@ -189,26 +192,38 @@ local_GWR_PML_lab_prob <- function(type.measure_="default", F1_mat, sig_level_=0
               PML=local_GWR_coefs_PML_result))
 }
 
-local_GWR_PML_1_year_lab_prob <- function(dep_var_, seed_model, reg_data_year, year_, price=F, weight_in=NULL) {
-  dep_var_index <- which(names(reg_data_year) == dep_var_)
-  names(reg_data_year)[dep_var_index] <- "y"
+local_GWR_PML_1_year_lab_prob_2years <- function(dep_var_, seed_model, reg_data_year1, reg_data_year2, year_, price=F, weight_in=NULL) {
+  dep_var_index <- which(names(reg_data_year1) == dep_var_)
+  names(reg_data_year1)[dep_var_index] <- "y"
+  names(reg_data_year2)[dep_var_index] <- "y"
   
   if (grepl("hyd", dep_var_)) {
-    reg_data_year <- reg_data_year %>% 
+    reg_data_year1 <- reg_data_year1 %>% 
+      select(-PPI_lab_prob, -base_avg, -base_seizures) %>%
+      rename(price_avg=hyd_avg, lab_prob=hyd_lab_prob, seizures=hyd_seizures) %>% 
+      select(id, y, all_of(indep_vars))
+    reg_data_year2 <- reg_data_year2 %>% 
       select(-PPI_lab_prob, -base_avg, -base_seizures) %>%
       rename(price_avg=hyd_avg, lab_prob=hyd_lab_prob, seizures=hyd_seizures) %>% 
       select(id, y, all_of(indep_vars))
   }else{
-    reg_data_year <- reg_data_year %>% 
+    reg_data_year1 <- reg_data_year1 %>% 
+      select(-hyd_lab_prob, -hyd_avg, -hyd_seizures) %>%
+      rename(price_avg=base_avg, lab_prob=PPI_lab_prob, seizures=base_seizures) %>% 
+      relocate(id, y, all_of(indep_vars))
+    reg_data_year2 <- reg_data_year2 %>% 
       select(-hyd_lab_prob, -hyd_avg, -hyd_seizures) %>%
       rename(price_avg=base_avg, lab_prob=PPI_lab_prob, seizures=base_seizures) %>% 
       relocate(id, y, all_of(indep_vars))
   }
-  
-  if (price) reg_data_year <- reg_data_year %>% select(-price_avg)
+  if (price) {
+    reg_data_year1 <- reg_data_year1 %>% select(-price_avg)
+    reg_data_year2 <- reg_data_year2 %>% select(-price_avg)
+  }
   title_for_price <- ifelse(price, "with price", "no price")
   
-  gwr_data <- list(norm = reg_data_year, coord = coord_unique, dist = gwr_data_dist)
+  gwr_data1 <- list(norm = reg_data_year1, coord = coord_unique, dist = gwr_data_dist)
+  gwr_data2 <- list(norm = reg_data_year2, coord = coord_unique, dist = gwr_data_dist)
   
   ### use this if allow 2013-2016 only for y
   # reg_data_year <- left_join(gwr_data$norm %>% select(id, municipio, y), reg_data_year %>% select(-y), by="id")
@@ -217,31 +232,32 @@ local_GWR_PML_1_year_lab_prob <- function(dep_var_, seed_model, reg_data_year, y
   F1_mat_ <- matrix(NA, 1120, 1+length(bwd_range))
   colnames(F1_mat_) <- c("id", paste0("bw_", bwd_range))
   F1_mat_ <- as_tibble(F1_mat_)
-  F1_mat_$id <- gwr_data$norm$id
+  F1_mat_$id <- gwr_data1$norm$id
   
-  min_seizure_scaled <- min(gwr_data$norm$seizures) %>% round(3)
-  min_coca_area_scaled <- min(gwr_data$norm$coca_area) %>% round(3)
+  min_seizure_scaled <- min(gwr_data1$norm$seizures) %>% round(3)
+  min_coca_area_scaled <- min(gwr_data1$norm$coca_area) %>% round(3)
   
   set.seed(seed_model)
-  local_GWR_coefs_PML_list <- local_GWR_PML_lab_prob(dep_var = dep_var_, F1_mat=F1_mat_, gwr_PML_data_ = gwr_data, method_="var drop", sig_level_ = 0.1, n_drop = 10, weight_ = weight_in, price_=price)
+  local_GWR_coefs_PML_list <- local_GWR_PML_lab_prob_2years(dep_var = dep_var_, F1_mat=F1_mat_, gwr_PML_data_1 = gwr_data1, gwr_PML_data_2 = gwr_data2, method_="var drop",
+                                                            sig_level_ = 0.1, n_drop = 10, weight_ = weight_in, price_=price)
   
   weight_in_1 <- weight_in[1]
   weight_in_0 <- weight_in[2]
   local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo <- local_GWR_coefs_PML_list$PML
   write.csv(local_GWR_coefs_PML_list$F1_mat,
-            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 %i data %s lab_prob (01-27-2026).csv",
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 %s data %s lab_prob (01-27-2026).csv",
                     dep_var_, year_, title_for_price), row.names = F)
   save("local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo",
-       file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 %i data %s lab_prob (01-27-2026).RData",
+       file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 %s data %s lab_prob (01-27-2026).RData",
                       dep_var_, year_, title_for_price))
   rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo); rm(local_GWR_coefs_PML_list)
   
   # local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3 <- local_GWR_coefs_PML_list$PML
   # write.csv(local_GWR_coefs_PML_list$F1_mat,
-  #           sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 weight %i-%i %i data lab_prob (01-27-2026).csv",
+  #           sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 weight %i-%i %s data lab_prob (01-27-2026).csv",
   #                   dep_var_, weight_in_1, weight_in_0, year_, title_for_price), row.names = F)
   # save("local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3",
-  #      file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 weight %i-%i %i data lab_prob (01-27-2026).RData",
+  #      file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 weight %i-%i %s data lab_prob (01-27-2026).RData",
   #                     dep_var_, weight_in_1, weight_in_0, year_, title_for_price))
   # rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3); rm(local_GWR_coefs_PML_list)
 }
@@ -249,14 +265,8 @@ local_GWR_PML_1_year_lab_prob <- function(dep_var_, seed_model, reg_data_year, y
 # Think about if weight_1 = 1 / positive ratio is a good idea
 # weights <- c(7, 0.3) # 7 for postive outcomes
 # sample(1:1000000, 4)
-regression_data_lab_prob_2013$hyd_seizures <- round(regression_data_lab_prob_2013$hyd_seizures, 2)
-regression_data_lab_prob_2014$hyd_seizures <- round(regression_data_lab_prob_2014$hyd_seizures, 2)
-regression_data_lab_prob_2016$hyd_seizures <- round(regression_data_lab_prob_2016$hyd_seizures, 2)
-regression_data_lab_prob_2017$hyd_seizures <- round(regression_data_lab_prob_2017$hyd_seizures, 2)
-local_GWR_PML_1_year_lab_prob("hyd_destination", 178373, regression_data_lab_prob_2013, 2013)
-local_GWR_PML_1_year_lab_prob("hyd_destination", 284840, regression_data_lab_prob_2014, 2014)
-local_GWR_PML_1_year_lab_prob("hyd_destination", 531190, regression_data_lab_prob_2016, 2016)
-local_GWR_PML_1_year_lab_prob("hyd_destination", 749864, regression_data_lab_prob_2017, 2017)
+local_GWR_PML_1_year_lab_prob_2years("hyd_destination", 178373, regression_data_lab_prob_2013, regression_data_lab_prob_2014, "2013-2014")
+local_GWR_PML_1_year_lab_prob_2years("hyd_destination", 531190, regression_data_lab_prob_2016, regression_data_lab_prob_2017, "2016-2017")
 # local_GWR_PML_1_year("hyd_destination", 100, regression_data_2016, 2016, weight_in = weights)
 # local_GWR_PML_1_year("hyd_destination", 100, regression_data_2016, 2016)
 # local_GWR_PML_1_year("hyd_source", 424271, weight_in = weights) # 424271
@@ -290,19 +300,19 @@ local_gwr_PML_coef_map_by_F1_lab_prob <- function(local_GWR_coefs_list, PML_best
   names(coef_table)[-(1:2)] <- indep_vars_
   names(pval_table)[-(1:2)] <- indep_vars_
   write.csv(coef_table,
-            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s leave-one-out %s all var drop %i %i data %s lab_prob (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s leave-one-out %s all var drop %i %s data %s lab_prob (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
             row.names = F)
   
   write.csv(pval_table,
-            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value %s leave-one-out %s all var drop %i %i data %s lab_prob (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value %s leave-one-out %s all var drop %i %s data %s lab_prob (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
             row.names = F)
   
   # for weighted reg
   # write.csv(coef_table,
-  #           sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s leave-one-out %s all var drop %i weight 7-3 %i data %s lab_prob (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
+  #           sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s leave-one-out %s all var drop %i weight 7-3 %s data %s lab_prob (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
   #           row.names = F)
   # write.csv(pval_table,
-  #           sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value %s leave-one-out %s all var drop %i weight 7-3 %i data %s lab_prob (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
+  #           sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value %s leave-one-out %s all var drop %i weight 7-3 %s data %s lab_prob (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
   #           row.names = F)
   
   for (i in c(2, 4:length(coef_table))) {
@@ -356,11 +366,11 @@ local_gwr_PML_coef_map_by_F1_lab_prob <- function(local_GWR_coefs_list, PML_best
         )
     }
     
-    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps lab_prob/%s (%i)/local GWR PML coef by drop %s %s all var drop %i %i data %s lab_prob (%s).png",
+    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps lab_prob/%s (%s)/local GWR PML coef by drop %s %s all var drop %i %s data %s lab_prob (%s).png",
                    dep_var, year_, var_name, dep_var, n_drop, year_, title_for_price, date_),
            gwr_coef_map, scale=1)
     
-    # ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s weight 7-3 (%i)/local GWR PML coef by drop %s %s all var drop %i weight 7-3 %i data %s lab_prob (%s).png",
+    # ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s weight 7-3 (%s)/local GWR PML coef by drop %s %s all var drop %s weight 7-3 %s data %s lab_prob (%s).png",
     #                dep_var, year_, var_name, dep_var,  n_drop, year_, title_for_price, date_),
     #        gwr_coef_map, scale=1)
   }
@@ -378,43 +388,42 @@ local_gwr_PML_coef_map_by_F1_year_lab_prob <- function(dep_var_, year_, price_=F
   indep_vars_in <- c("Intercept", indep_vars_in)
   
   PML_F1_score_var_drop_log_seizure_10_loo <-
-    read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 %i data %s lab_prob (01-27-2026).csv",
+    read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 %s data %s lab_prob (01-27-2026).csv",
                      dep_var_,year_, title_for_price)) %>% as_tibble
   # PML_F1_score_var_drop_log_seizure_10_loo <-
-  #   read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 weight 7-3 %i data lab_prob %s (01-27-2026).csv",
+  #   read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 weight 7-3 %s data lab_prob %s (01-27-2026).csv",
   #                    dep_var_, year_, title_for_price)) %>% as_tibble
   
   # local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo
-  load(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 %i data %s lab_prob (01-27-2026).RData",
+  load(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 %s data %s lab_prob (01-27-2026).RData",
                dep_var_, year_, title_for_price))
   # local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3
-  # load(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 weight 7-3 %i data %s lab_prob (01-27-2026).RData",
+  # load(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 weight 7-3 %s data %s lab_prob (01-27-2026).RData",
   #              dep_var_, year_, title_for_price))
   
   PML_best_bw_tbl_var_drop  <- tibble(id = PML_F1_score_var_drop_log_seizure_10_loo$id,
                                       PML_log_seizure_coca_bw_F1 = PML_F1_score_var_drop_log_seizure_10_loo[,-1] %>% apply(1, function(x) return(ifelse(all(is.na(x)), NA, bwd_range[which.max(x)]))) %>% unlist)
   
   local_gwr_PML_coef_map_by_F1_lab_prob(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo, PML_best_bw_tbl_var_drop, criteria="PML_log_seizure_coca_bw_F1", dep_var = dep_var_,
-                                        indep_vars_ = indep_vars_in, n_drop=10, date_="02-04-2026", year_=year_, price=price_)
+                                        indep_vars_ = indep_vars_in, n_drop=10, date_="02-17-2026", year_=year_, price=price_)
   rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo)
   # local_gwr_PML_coef_map_by_F1(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3, PML_best_bw_tbl_var_drop, criteria="PML_log_seizure_coca_bw_F1", dep_var = dep_var_,
   #                              indep_vars_ = indep_vars_in, n_drop=10, date_="02-04-2026", year_=year_, price=price_)
   # rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3)
 }
 
-local_gwr_PML_coef_map_by_F1_year_lab_prob("hyd_destination", 2013, price_=F)
-local_gwr_PML_coef_map_by_F1_year_lab_prob("hyd_destination", 2014, price_=F)
-local_gwr_PML_coef_map_by_F1_year_lab_prob("hyd_destination", 2016, price_=F)
-local_gwr_PML_coef_map_by_F1_year_lab_prob("hyd_destination", 2017, price_=F)
+local_gwr_PML_coef_map_by_F1_year_lab_prob("hyd_destination", "2013-2014", price_=F)
+local_gwr_PML_coef_map_by_F1_year_lab_prob("hyd_destination", "2016-2017", price_=F)
 # local_gwr_PML_coef_map_by_F1_year("hyd_source")
 # local_gwr_PML_coef_map_by_F1_year("base_source")
 # local_gwr_PML_coef_map_by_F1_year("base_destination")
 
 # prediction check
-PML_gwr_coefs_F1_lab_prob_2013 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2013 data no price lab_prob (02-04-2026).csv") %>% as_tibble
-PML_gwr_coefs_F1_lab_prob_2014 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2014 data no price lab_prob (02-04-2026).csv") %>% as_tibble
-PML_gwr_coefs_F1_lab_prob_2016 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2016 data no price lab_prob (02-04-2026).csv") %>% as_tibble
-PML_gwr_coefs_F1_lab_prob_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2017 data no price lab_prob (02-04-2026).csv") %>% as_tibble
+PML_gwr_F1_scores_lab_prob_2013_2014 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_destination leave-one-out F1 all var drop log seizure coca scaled n_drop=10 2013-2014 data no price lab_prob (01-27-2026).csv") %>% as_tibble
+PML_gwr_F1_scores_lab_prob_2016_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_destination leave-one-out F1 all var drop log seizure coca scaled n_drop=10 2016-2017 data no price lab_prob (01-27-2026).csv") %>% as_tibble
+
+PML_gwr_coefs_F1_lab_prob_2013_2014 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2013-2014 data no price lab_prob (02-17-2026).csv") %>% as_tibble
+PML_gwr_coefs_F1_lab_prob_2016_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2016-2017 data no price lab_prob (02-17-2026).csv") %>% as_tibble
 
 GWR_predict_year_lab_prob <- function(PML_gwr_coefs, reg_data_year, dep_var, no_price, threshold=0.5) {
   indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "armed_group", "lab_prob")

@@ -23,54 +23,66 @@ library(regclass)
 library(logistf)
 ########## used bandwidth range 0.5~3.0 due to the time limit
 {
-municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
-municipios_capital$id <- as.numeric(municipios_capital$id)
-municipios_capital$municipio <- stri_trans_general(municipios_capital$municipio, "Latin-ASCII")
-municipios_capital$depto <-  stri_trans_general(municipios_capital$depto, "Latin-ASCII")
-municipios_capital$depto <- gsub(" De ", " de ", municipios_capital$depto)
-municipios_capital$depto <- gsub(" Del ", " del ", municipios_capital$depto)
-municipios_capital$depto <- gsub(" Y ", " y ", municipios_capital$depto)
-municipios_capital$depto <- gsub(" Y ", " y ", municipios_capital$depto)
-municipios_capital$depto <- gsub("Bogota, D. C.", "Bogota", municipios_capital$depto)
-municipios_capital$municipio <- gsub(", D.C.", "", municipios_capital$municipio)
-municipios_capital$municipio <- gsub("GUADALAJARA DE BUGA", "BUGA", municipios_capital$municipio)
-municipios_capital <- municipios_capital %>% filter(!(id %in% c(88001, 88564))) %>% as_tibble
-
-map <- municipios
-map_df <- suppressMessages(fortify(map)) %>% 
-  mutate(id=as.numeric(id)) %>% 
-  filter(!(id %in% c(88001, 88564)))
-map_df <- left_join(map_df, municipios_capital %>% unique, by="id")
-
-municipio_centroid <- map_df %>% 
-  filter(!(id %in% c(88001, 88564))) %>% 
-  group_by(id, municipio, depto) %>% 
-  summarize(long=mean(long),
-            lat=mean(lat))
-
-airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
-ferry <- read.csv("Colombia Data/ferry terminals.csv") %>% as_tibble
-police <- read.csv("Colombia Data/polices.csv") %>% as_tibble
-military <- read.csv("Colombia Data/military.csv") %>% as_tibble
-ferry$n_police <- police$n_polices
-ferry$n_military <- military$n_military
-
-n_drop_ <- 10
-bwd_range <- seq(0.5, max_bwd, by=0.1)
-depto_map <- suppressMessages(fortify(departamentos)) %>% 
-  mutate(id=as.numeric(id)) %>% 
-  filter(id != 88) %>% 
-  left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
-
-regression_data_CF_2013 <- read.csv("Colombia Data/regression data all municipios CF 2013.csv") %>% as_tibble
-regression_data_CF_2014 <- read.csv("Colombia Data/regression data all municipios CF 2014.csv") %>% as_tibble
-regression_data_CF_2016 <- read.csv("Colombia Data/regression data all municipios CF 2016.csv") %>% as_tibble
-regression_data_CF_2017 <- read.csv("Colombia Data/regression data all municipios CF 2017.csv") %>% as_tibble
-
-coord_unique <- left_join(regression_data_CF_2013 %>% select(id), municipio_centroid %>% ungroup %>% select(id, long, lat), by="id") 
-gwr_data_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T) %>% as.matrix
-
-# PML_gwr_coefs_F1_CF_2016 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2016 data CF (02-04-2026).csv") %>% as_tibble
+  municipios_capital <- municipios@data %>% mutate(municipio=str_to_upper(municipio, locale="en"))
+  municipios_capital$id <- as.numeric(municipios_capital$id)
+  municipios_capital$municipio <- stri_trans_general(municipios_capital$municipio, "Latin-ASCII")
+  municipios_capital$depto <-  stri_trans_general(municipios_capital$depto, "Latin-ASCII")
+  municipios_capital$depto <- gsub(" De ", " de ", municipios_capital$depto)
+  municipios_capital$depto <- gsub(" Del ", " del ", municipios_capital$depto)
+  municipios_capital$depto <- gsub(" Y ", " y ", municipios_capital$depto)
+  municipios_capital$depto <- gsub(" Y ", " y ", municipios_capital$depto)
+  municipios_capital$depto <- gsub("Bogota, D. C.", "Bogota", municipios_capital$depto)
+  municipios_capital$municipio <- gsub(", D.C.", "", municipios_capital$municipio)
+  municipios_capital$municipio <- gsub("GUADALAJARA DE BUGA", "BUGA", municipios_capital$municipio)
+  municipios_capital <- municipios_capital %>% filter(!(id %in% c(88001, 88564))) %>% as_tibble
+  
+  map <- municipios
+  map_df <- suppressMessages(fortify(map)) %>% 
+    mutate(id=as.numeric(id)) %>% 
+    filter(!(id %in% c(88001, 88564)))
+  map_df <- left_join(map_df, municipios_capital %>% unique, by="id")
+  
+  municipio_centroid <- map_df %>% 
+    filter(!(id %in% c(88001, 88564))) %>% 
+    group_by(id, municipio, depto) %>% 
+    summarize(long=mean(long),
+              lat=mean(lat))
+  
+  airports <- read.csv("Colombia Data/airports.csv") %>% as_tibble
+  ferry <- read.csv("Colombia Data/ferry terminals.csv") %>% as_tibble
+  police <- read.csv("Colombia Data/polices.csv") %>% as_tibble
+  military <- read.csv("Colombia Data/military.csv") %>% as_tibble
+  ferry$n_police <- police$n_polices
+  ferry$n_military <- military$n_military
+  
+  n_drop_ <- 10
+  bwd_range <- seq(0.5, max_bwd, by=0.1)
+  depto_map <- suppressMessages(fortify(departamentos)) %>% 
+    mutate(id=as.numeric(id)) %>% 
+    filter(id != 88) %>% 
+    left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
+  
+  regression_data_CF_2013 <- read.csv("Colombia Data/regression data all municipios CF 2013.csv") %>% as_tibble
+  regression_data_CF_2014 <- read.csv("Colombia Data/regression data all municipios CF 2014.csv") %>% as_tibble
+  regression_data_CF_2016 <- read.csv("Colombia Data/regression data all municipios CF 2016.csv") %>% as_tibble
+  regression_data_CF_2017 <- read.csv("Colombia Data/regression data all municipios CF 2017.csv") %>% as_tibble
+  
+  coord_unique <- left_join(regression_data_CF_2013 %>% select(id), municipio_centroid %>% ungroup %>% select(id, long, lat), by="id") 
+  gwr_data_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T) %>% as.matrix
+  
+  municipios_sf <- st_as_sf(municipios) %>% mutate(id = id %>% as.numeric) %>% filter(!(id %in% c(88001, 88564)))
+  municipios_sf$area_km2 <- st_area(municipios_sf) %>% units::set_units("km^2") %>% as.numeric
+  rivers_selected <- read.csv("Colombia Data/rivers (selected).csv") %>% as_tibble
+  reg_data_with_selected_river <- function(regression_data) {
+    result <- regression_data %>% 
+      left_join(municipios_sf %>% as_tibble %>% select(id, area_km2), by="id") %>% 
+      mutate(river_length = scale(river_length / area_km2)[,1]) %>% select(-area_km2)
+    return(result)
+  }
+  regression_data_CF_2013 <- reg_data_with_selected_river(regression_data_CF_2013)
+  regression_data_CF_2014 <- reg_data_with_selected_river(regression_data_CF_2014)
+  regression_data_CF_2016 <- reg_data_with_selected_river(regression_data_CF_2016)
+  regression_data_CF_2017 <- reg_data_with_selected_river(regression_data_CF_2017)
 }
 
 # the number of municipios with y=1
@@ -160,19 +172,19 @@ local_GWR_PML_CF <- function(type.measure_="default", F1_mat, sig_level_=0.05, g
       result_i <- tryCatch(
         {
           PML_result_ij <- logistf(y~., neighbor_ij %>% select(-id), weights=weight_i, alpha=sig_level_)
-
+          
           PML_result_ij_y <- PML_result_ij$model$y %>% as.factor
           PML_result_ij_pred <- ifelse(PML_result_ij$predict < 0.5, 0, 1) %>% factor(levels = c("0", "1"))
           PML_result_ij_CM <- confusionMatrix(PML_result_ij_pred, PML_result_ij_y, positive = "1")
           F1_mat[[paste0("bw_", bw_ij)]][i] <- PML_result_ij_CM$byClass[7] # F1 score
-
+          
           local_GWR_coefs_PML_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- PML_result_ij
         },
         error = function(e) {
           return(e)
         }
       )
-
+      
       if (inherits(result_i, "error")) {
         F1_mat[[paste0("bw_", bw_ij)]][i] <- NA
         local_GWR_coefs_PML_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
@@ -206,8 +218,8 @@ local_GWR_PML_1_year <- function(dep_var_, seed_model, reg_data_year, year_, pri
   title_for_price <- ifelse(price, "with price", "no price")
   
   gwr_data <- list(norm = reg_data_year, coord = coord_unique, dist = gwr_data_dist)
-
-    ### use this if allow 2013-2016 only for y
+  
+  ### use this if allow 2013-2016 only for y
   # reg_data_year <- left_join(gwr_data$norm %>% select(id, municipio, y), reg_data_year %>% select(-y), by="id")
   
   bwd_range <- seq(0.5, max_bwd, by=0.1)
@@ -223,19 +235,19 @@ local_GWR_PML_1_year <- function(dep_var_, seed_model, reg_data_year, year_, pri
   weight_in_0 <- weight_in[2]
   local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo <- local_GWR_coefs_PML_list$PML
   write.csv(local_GWR_coefs_PML_list$F1_mat,
-            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 %i data %s CF (01-27-2026).csv",
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 %i data %s CF selected rivers (01-27-2026).csv",
                     dep_var_, year_, title_for_price), row.names = F)
   save("local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo",
-       file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 %i data %s CF (01-27-2026).RData",
+       file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 %i data %s CF selected rivers (01-27-2026).RData",
                       dep_var_, year_, title_for_price))
   rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo); rm(local_GWR_coefs_PML_list)
-
+  
   # local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3 <- local_GWR_coefs_PML_list$PML
   # write.csv(local_GWR_coefs_PML_list$F1_mat,
-  #           sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 weight %i-%i %i data CF (01-27-2026).csv",
+  #           sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out F1 all var drop log seizure coca scaled n_drop=10 weight %i-%i %i data CF selected rivers (01-27-2026).csv",
   #                   dep_var_, weight_in_1, weight_in_0, year_, title_for_price), row.names = F)
   # save("local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3",
-  #      file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 weight %i-%i %i data CF (01-27-2026).RData",
+  #      file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 weight %i-%i %i data CF selected rivers (01-27-2026).RData",
   #                     dep_var_, weight_in_1, weight_in_0, year_, title_for_price))
   # rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3); rm(local_GWR_coefs_PML_list)
 }
@@ -287,7 +299,7 @@ local_gwr_PML_coef_map_by_F1 <- function(local_GWR_coefs_list, PML_best_bw_tbl_,
   write.csv(coef_table,
             sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s leave-one-out %s all var drop %i %i data %s CF (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
             row.names = F)
-
+  
   write.csv(pval_table,
             sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value %s leave-one-out %s all var drop %i %i data %s CF (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
             row.names = F)
