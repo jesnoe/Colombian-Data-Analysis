@@ -366,7 +366,7 @@ local_gwr_PML_coef_map_by_F1_lab_prob <- function(local_GWR_coefs_list, PML_best
         )
     }
     
-    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps lab_prob/%s (%s)/local GWR PML coef by drop %s %s all var drop %i %s data %s lab_prob (%s).png",
+    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s (%s)/local GWR PML coef by drop %s %s all var drop %i %s data %s lab_prob (%s).png",
                    dep_var, year_, var_name, dep_var, n_drop, year_, title_for_price, date_),
            gwr_coef_map, scale=1)
     
@@ -425,9 +425,9 @@ PML_gwr_F1_scores_lab_prob_2016_2017 <- read.csv("Colombia Data/local GWR PML re
 PML_gwr_coefs_F1_lab_prob_2013_2014 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2013-2014 data no price lab_prob (02-17-2026).csv") %>% as_tibble
 PML_gwr_coefs_F1_lab_prob_2016_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 2016-2017 data no price lab_prob (02-17-2026).csv") %>% as_tibble
 
-GWR_predict_year_lab_prob <- function(PML_gwr_coefs, reg_data_year, dep_var, no_price, threshold=0.5) {
+GWR_predict_year_lab_prob <- function(PML_gwr_coefs, reg_data_year, dep_var_, no_price, threshold=0.5) {
   indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "armed_group", "lab_prob")
-  dep_var_index <- which(names(reg_data_year) == dep_var)
+  dep_var_index <- which(names(reg_data_year) == dep_var_)
   names(reg_data_year)[dep_var_index] <- "y"
   if (grepl("hyd", dep_var_)) {
     reg_data_year_pred <- reg_data_year %>% 
@@ -465,37 +465,49 @@ ROC_pred <- function(GWR_pred) {
   return(result)
 }
 
-GWR_predict_2013_lab_prob_with_2013_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013, regression_data_lab_prob_2013, "hyd_destination", no_price=T)
-GWR_predict_2014_lab_prob_with_2014_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2014, regression_data_lab_prob_2014, "hyd_destination", no_price=T)
-GWR_predict_2016_lab_prob_with_2016_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_lab_prob_2016, "hyd_destination", no_price=T)
-GWR_predict_2017_lab_prob_with_2017_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2017, regression_data_lab_prob_2017, "hyd_destination", no_price=T)
+GWR_predict_2013_lab_prob_with_1314_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013_2014, regression_data_lab_prob_2013, "hyd_destination", no_price=T)
+GWR_predict_2014_lab_prob_with_1314_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013_2014, regression_data_lab_prob_2014, "hyd_destination", no_price=T)
+GWR_predict_2016_lab_prob_with_1314_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013_2014, regression_data_lab_prob_2016, "hyd_destination", no_price=T)
+GWR_predict_2017_lab_prob_with_1314_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013_2014, regression_data_lab_prob_2017, "hyd_destination", no_price=T)
+GWR_predict_2016_lab_prob_with_1617_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016_2017, regression_data_lab_prob_2016, "hyd_destination", no_price=T)
+GWR_predict_2017_lab_prob_with_1617_coef <- GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016_2017, regression_data_lab_prob_2017, "hyd_destination", no_price=T)
 
-confusion_matrix_pred(GWR_predict_2013_lab_prob_with_2013_coef)
-confusion_matrix_pred(GWR_predict_2014_lab_prob_with_2014_coef)
-confusion_matrix_pred(GWR_predict_2016_lab_prob_with_2016_coef)
-confusion_matrix_pred(GWR_predict_2017_lab_prob_with_2017_coef)
+confusion_matrix_pred(GWR_predict_2013_lab_prob_with_1314_coef)
+confusion_matrix_pred(GWR_predict_2014_lab_prob_with_1314_coef)
+confusion_matrix_pred(GWR_predict_2016_lab_prob_with_1617_coef)
+confusion_matrix_pred(GWR_predict_2017_lab_prob_with_1617_coef)
 
-ROC_2013_lab_prob_with_2013_coef <- ROC_pred(GWR_predict_2013_lab_prob_with_2013_coef)
-ROC_2014_lab_prob_with_2014_coef <- ROC_pred(GWR_predict_2014_lab_prob_with_2014_coef)
-ROC_2016_lab_prob_with_2016_coef <- ROC_pred(GWR_predict_2016_lab_prob_with_2016_coef)
-ROC_2017_lab_prob_with_2017_coef <- ROC_pred(GWR_predict_2017_lab_prob_with_2017_coef)
+ROC_2013_lab_prob_with_1314_coef <- ROC_pred(GWR_predict_2013_lab_prob_with_1314_coef)
+ROC_2014_lab_prob_with_1314_coef <- ROC_pred(GWR_predict_2014_lab_prob_with_1314_coef)
+ROC_2016_lab_prob_with_1314_coef <- ROC_pred(GWR_predict_2016_lab_prob_with_1314_coef)
+ROC_2017_lab_prob_with_1314_coef <- ROC_pred(GWR_predict_2017_lab_prob_with_1314_coef)
+ROC_2016_lab_prob_with_1617_coef <- ROC_pred(GWR_predict_2016_lab_prob_with_1617_coef)
+ROC_2017_lab_prob_with_1617_coef <- ROC_pred(GWR_predict_2017_lab_prob_with_1617_coef)
 
-plot(ROC_2013_lab_prob_with_2013_coef)
-plot(ROC_2014_lab_prob_with_2014_coef)
-plot(ROC_2016_lab_prob_with_2016_coef)
-plot(ROC_2017_lab_prob_with_2017_coef)
+plot(ROC_2013_lab_prob_with_1314_coef)
+plot(ROC_2014_lab_prob_with_1314_coef)
+plot(ROC_2016_lab_prob_with_1314_coef)
+plot(ROC_2017_lab_prob_with_1314_coef)
+plot(ROC_2016_lab_prob_with_1617_coef)
+plot(ROC_2017_lab_prob_with_1617_coef)
 
-png("Colombia Data/local GWR PML result predicted prices/roc curves lab_prob/roc curve GWR hyd destinations 2013.png")
-plot(ROC_2013_lab_prob_with_2013_coef, main="hyd destination - predictions 2013"); text(0.1, 0, paste("AUC:", round(ROC_2013_lab_prob_with_2013_coef$auc, 2)))
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves lab_prob by two-year/roc curve GWR hyd destinations 2013 with 1314 coef.png")
+plot(ROC_2013_lab_prob_with_1314_coef, main="hyd destination - predictions 2013"); text(0.1, 0, paste("AUC:", round(ROC_2013_lab_prob_with_1314_coef$auc, 2)))
 dev.off()
-png("Colombia Data/local GWR PML result predicted prices/roc curves lab_prob/roc curve GWR hyd destinations 2014.png")
-plot(ROC_2014_lab_prob_with_2014_coef, main="hyd destination - predictions 2014"); text(0.1, 0, paste("AUC:", round(ROC_2014_lab_prob_with_2014_coef$auc, 2)))
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves lab_prob by two-year/roc curve GWR hyd destinations 2014 with 1314 coef.png")
+plot(ROC_2014_lab_prob_with_1314_coef, main="hyd destination - predictions 2014"); text(0.1, 0, paste("AUC:", round(ROC_2014_lab_prob_with_1314_coef$auc, 2)))
 dev.off()
-png("Colombia Data/local GWR PML result predicted prices/roc curves lab_prob/roc curve GWR hyd destinations 2016.png")
-plot(ROC_2016_lab_prob_with_2016_coef, main="hyd destination - predictions 2016"); text(0.1, 0, paste("AUC:", round(ROC_2016_lab_prob_with_2016_coef$auc, 2)))
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves lab_prob by two-year/roc curve GWR hyd destinations 2016 with 1314 coef.png")
+plot(ROC_2016_lab_prob_with_1314_coef, main="hyd destination - predictions 2016"); text(0.1, 0, paste("AUC:", round(ROC_2016_lab_prob_with_1314_coef$auc, 2)))
 dev.off()
-png("Colombia Data/local GWR PML result predicted prices/roc curves lab_prob/roc curve GWR hyd destinations 2017.png")
-plot(ROC_2017_lab_prob_with_2017_coef, main="hyd destination - predictions 2017"); text(0.1, 0, paste("AUC:", round(ROC_2017_lab_prob_with_2017_coef$auc, 2)))
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves lab_prob by two-year/roc curve GWR hyd destinations 2017 with 1314 coef.png")
+plot(ROC_2017_lab_prob_with_1314_coef, main="hyd destination - predictions 2017"); text(0.1, 0, paste("AUC:", round(ROC_2017_lab_prob_with_1314_coef$auc, 2)))
+dev.off()
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves lab_prob by two-year/roc curve GWR hyd destinations 2016 with 1617 coef.png")
+plot(ROC_2016_lab_prob_with_1617_coef, main="hyd destination - predictions 2016"); text(0.1, 0, paste("AUC:", round(ROC_2016_lab_prob_with_1617_coef$auc, 2)))
+dev.off()
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves lab_prob by two-year/roc curve GWR hyd destinations 2017 with 1617 coef.png")
+plot(ROC_2017_lab_prob_with_1617_coef, main="hyd destination - predictions 2017"); text(0.1, 0, paste("AUC:", round(ROC_2017_lab_prob_with_1617_coef$auc, 2)))
 dev.off()
 
 GWR_predict_2013_lab_prob_with_2013_coef %>% filter(y == 1) %>% mutate(y = as.factor(y)) %>% 
@@ -518,49 +530,6 @@ threshold_tables(ROC_2013_lab_prob_with_2013_coef, 0.6) # 0.0797
 threshold_tables(ROC_2014_lab_prob_with_2014_coef, 0.6) # 0.132
 threshold_tables(ROC_2016_lab_prob_with_2016_coef, 0.6) # 0.047
 threshold_tables(ROC_2017_lab_prob_with_2017_coef, 0.6) # 0.312
-
-# 2013 pred
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013, regression_data_lab_prob_2013, "hyd_destination", no_price=T, threshold = 0.0797))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013, regression_data_lab_prob_2014, "hyd_destination", no_price=T, threshold = 0.0797))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013, regression_data_lab_prob_2014, "hyd_destination", no_price=T, threshold = 0.5))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2014, regression_data_lab_prob_2014, "hyd_destination", no_price=T, threshold = 0.5))
-
-roc_curve_pred <- ROC_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013, regression_data_lab_prob_2014, "hyd_destination", no_price=T, threshold = 0.5))
-png("Colombia Data/local GWR PML result predicted prices/roc curves lab_prob/roc curve GWR predictions of hyd destinations in 2014 with 2013.png")
-plot(roc_curve_pred, main="hyd destination - predictions in 2014 with 2013 data"); text(0.1, 0, paste("AUC:", round(roc_curve_pred$auc, 2)))
-dev.off()
-
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013, regression_data_lab_prob_2016, "hyd_destination", no_price=T, threshold = 0.0797))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013, regression_data_lab_prob_2016, "hyd_destination", no_price=T, threshold = 0.5))
-
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013, regression_data_lab_prob_2017, "hyd_destination", no_price=T, threshold = 0.0797))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2013, regression_data_lab_prob_2017, "hyd_destination", no_price=T, threshold = 0.5))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2017, regression_data_lab_prob_2017, "hyd_destination", no_price=T, threshold = 0.5))
-
-roc_curve_pred <- ROC_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_lab_prob_2017, "hyd_destination", no_price=T, threshold = 0.5))
-png("Colombia Data/local GWR PML result predicted prices/roc curves lab_prob/roc curve GWR predictions of hyd destinations in 2017 with 2016.png")
-plot(roc_curve_pred, main="hyd destination - predictions in 2017 with 2016 data"); text(0.1, 0, paste("AUC:", round(roc_curve_pred$auc, 2)))
-dev.off()
-
-# 2014 pred
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2014, regression_data_lab_prob_2014, "hyd_destination", no_price=T, threshold = 0.132))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2014, regression_data_lab_prob_2014, "hyd_destination", no_price=T, threshold = 0.5))
-
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2014, regression_data_lab_prob_2016, "hyd_destination", no_price=T, threshold = 0.132))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2014, regression_data_lab_prob_2016, "hyd_destination", no_price=T, threshold = 0.5))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_lab_prob_2016, "hyd_destination", no_price=T, threshold = 0.5))
-
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2014, regression_data_lab_prob_2017, "hyd_destination", no_price=T, threshold = 0.132))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2014, regression_data_lab_prob_2017, "hyd_destination", no_price=T, threshold = 0.5))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2017, regression_data_lab_prob_2017, "hyd_destination", no_price=T, threshold = 0.5))
-
-# 2016 pred
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_lab_prob_2016, "hyd_destination", no_price=T, threshold = 0.047))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_lab_prob_2016, "hyd_destination", no_price=T, threshold = 0.5))
-
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_lab_prob_2017, "hyd_destination", no_price=T, threshold = 0.047))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2016, regression_data_lab_prob_2017, "hyd_destination", no_price=T, threshold = 0.5))
-confusion_matrix_pred(GWR_predict_year_lab_prob(PML_gwr_coefs_F1_lab_prob_2017, regression_data_lab_prob_2017, "hyd_destination", no_price=T, threshold = 0.5))
 
 
 # CM with smaller thresholds

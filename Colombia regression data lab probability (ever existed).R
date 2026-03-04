@@ -30,6 +30,8 @@ library(sp)
     filter(!(id %in% c(88001, 88564)))
   map_df <- left_join(map_df, municipios_capital %>% select(id, municipio, depto) %>% unique, by="id")
   
+  conflict <- read.csv("Colombia Data/GEDEvent_v25_1 Colombia.csv") %>% as_tibble
+  
   base_to_base <- read.csv("Colombia Data/Anecdotal base to base municipality only.csv") %>% as_tibble
   hyd_to_hyd <- read.csv("Colombia Data/Anecdotal hyd to hyd municipality only.csv") %>% as_tibble
   general <- read.csv("Colombia Data/Anecdotal general municipality only.csv") %>% as_tibble
