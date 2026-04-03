@@ -233,7 +233,7 @@ local_GWR_PML_2_years <- function(dep_var_, seed_model, reg_data_year1, reg_data
       select(id, y, all_of(indep_vars))
   }
   
-  if (price) {
+  if (!price) {
     reg_data_year1 <- reg_data_year1 %>% select(-price_avg)
     reg_data_year2 <- reg_data_year2 %>% select(-price_avg)
   }

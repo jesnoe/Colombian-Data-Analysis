@@ -125,8 +125,7 @@ local_GWR_PML_CF_2years <- function(type.measure_="default", AUC_mat, sig_level_
       
       neighbor_ij_year1 <- neighbor_id(id_i, bw_ij, scale_11_, gwr_data_=gwr_PML_data_1) %>% 
         filter(id != id_i) #### leave a focal point out
-      neighbor_ij_year2 <- neighbor_id(id_i, bw_ij, scale_11_, gwr_data_=gwr_PML_data_2) %>% 
-        filter(id != id_i)
+      neighbor_ij_year2 <- neighbor_id(id_i, bw_ij, scale_11_, gwr_data_=gwr_PML_data_2) %>% filter(id != id_i)
       neighbor_ij <- bind_rows(neighbor_ij_year1, neighbor_ij_year2)
       n_0_1 <- neighbor_ij$y %>% table
       
@@ -233,7 +232,7 @@ local_GWR_PML_2_years <- function(dep_var_, seed_model, reg_data_year1, reg_data
       select(id, y, all_of(indep_vars))
   }
   
-  if (price) {
+  if (!price) {
     reg_data_year1 <- reg_data_year1 %>% select(-price_avg)
     reg_data_year2 <- reg_data_year2 %>% select(-price_avg)
   }
@@ -318,11 +317,11 @@ local_gwr_PML_coef_map_by_AUC <- function(local_GWR_coefs_list, PML_best_bw_tbl_
   names(coef_table)[-(1:2)] <- indep_vars_
   names(pval_table)[-(1:2)] <- indep_vars_
   write.csv(coef_table,
-            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s violence_AAMM %s all var drop %i %s data %s CF (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s violence_AAMM all var drop by AUC n_drop=%i %s data %s CF (%s).csv", dep_var, n_drop, year_, title_for_price, date_),
             row.names = F)
 
   write.csv(pval_table,
-            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value %s violence_AAMM %s all var drop %i %s data %s CF (%s).csv", dep_var, criteria, n_drop, year_, title_for_price, date_),
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value %s violence_AAMM all var drop by AUC n_drop=%i %s data %s CF (%s).csv", dep_var, n_drop, year_, title_for_price, date_),
             row.names = F)
   
   # for weighted reg
@@ -468,8 +467,8 @@ local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo$id_5113$bw_0.5 %>% summary
 logistf(y~.+armed_group*FARC, local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo$id_5113$bw_0.5$model) %>% summary
 
 # prediction check
-PML_gwr_coefs_AUC_CF_2013_2014 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_AAMM PML_log_seizure_coca_bw_AUC all var drop 10 2013-2014 data no price CF (03-24-2026).csv") %>% as_tibble
-PML_gwr_coefs_AUC_CF_2016_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_AAMM PML_log_seizure_coca_bw_AUC all var drop 10 2016-2017 data no price CF (03-24-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_CF_2013_2014 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_AAMM all var drop by AUC n_drop=10 2013-2014 data no price CF (03-24-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_CF_2016_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_AAMM all var drop by AUC n_drop=10 2016-2017 data no price CF (03-24-2026).csv") %>% as_tibble
 
 PML_gwr_coefs_AUC_CF_2013 %>% filter(seizures > 100)
 
@@ -561,6 +560,15 @@ GWR_predict_2016_CF_with_1617_coef %>% filter(y == 1) %>% mutate(y = as.factor(y
   ggplot(aes(x=pi_hat, y=y)) + geom_point() + labs(title="predicted probabilities for y=1 cases 2016")
 GWR_predict_2017_CF_with_1617_coef %>% filter(y == 1) %>% mutate(y = as.factor(y)) %>% 
   ggplot(aes(x=pi_hat, y=y)) + geom_point() + labs(title="predicted probabilities for y=1 cases 2017")
+
+GWR_predict_2013_CF_with_1314_coef %>% mutate(y = as.factor(y)) %>% 
+  ggplot(aes(x=pi_hat, color = y, fill = y)) + geom_density(alpha = 0.3) + labs(title = "Density of Predicted Probabilities (2013)")
+GWR_predict_2014_CF_with_1314_coef %>% mutate(y = as.factor(y)) %>% 
+  ggplot(aes(x=pi_hat, color = y, fill = y)) + geom_density(alpha = 0.3) + labs(title = "Density of Predicted Probabilities (2014)")
+GWR_predict_2016_CF_with_1617_coef %>% mutate(y = as.factor(y)) %>% 
+  ggplot(aes(x=pi_hat, color = y, fill = y)) + geom_density(alpha = 0.3) + labs(title = "Density of Predicted Probabilities (2016)")
+GWR_predict_2017_CF_with_1617_coef %>% mutate(y = as.factor(y)) %>% 
+  ggplot(aes(x=pi_hat, color = y, fill = y)) + geom_density(alpha = 0.3) + labs(title = "Density of Predicted Probabilities (2016)")
 
 threshold_tables <- function(ROC_obs, specificity_limit) {
   result <- tibble(thresholds = ROC_obs$thresholds,
@@ -1021,66 +1029,55 @@ GWR_predict_2017_CF_with_1617_map_1 %>% ggplot(aes(x=long, y=lat)) +
 # ggsave("Colombia Data/local GWR PML result predicted prices/VI maps CF (y=1)/hyd destination predicted probabilities (2017).png", hyd_dest_pi_hat_map_2017, scale=1)
 
 dep_var <- "base_destination"
-gwr_data <- ever_regression_data_years(dep_var)
-
-data_map <- function(year_, reg_data_year, dep_var) {
-  binary_vars <- c("y", "airport", "armed_group", "ferry", "police", "military", "lab_reported")
-  dep_var_index <- which(names(reg_data_year_in) == dep_var)
-  names(reg_data_year_in)[dep_var_index] <- "y"
-  if (grepl("hyd", dep_var)) {
-    reg_data_year <- reg_data_year_in %>% 
+gwr_data_year <- function(dep_var_, reg_data_cor, price=F) {
+  dep_var_index <- which(names(reg_data_cor) == dep_var_)
+  names(reg_data_cor)[dep_var_index] <- "y"
+  
+  if (grepl("hyd", dep_var_)) {
+    reg_data_cor <- reg_data_cor %>% 
       select(-PPI_lab, -PPI_lab_res, -base_avg, -base_seizures) %>%
       rename(price_avg=hyd_avg, lab_reported=hyd_lab, lab_residual=hyd_lab_res, seizures=hyd_seizures) %>% 
       select(id, y, all_of(indep_vars))
   }else{
-    reg_data_year <- reg_data_year_in %>% 
+    reg_data_cor <- reg_data_cor %>% 
       select(-hyd_lab, -hyd_lab_res, -hyd_avg, -hyd_seizures) %>%
       rename(price_avg=base_avg, lab_reported=PPI_lab, lab_residual=PPI_lab_res, seizures=base_seizures) %>% 
       select(id, y, all_of(indep_vars))
   }
   
-  for (i in 4:15) {
-    var_name_ <- names(reg_data_year)[i]
-    gwr_data_i <- data.frame(id=reg_data_year$id,
-                             obs=reg_data_year[[var_name_]])
-    data_map_coords <- map_df %>%
-      left_join(gwr_data_i, by="id")
-    if (var_name_ %in% binary_vars) {
-      ggplot(data_map_coords, aes(x=long, y=lat)) +
-        geom_polygon(aes(group=group, fill=as.factor(obs)),
-                     color = "black",
-                     linewidth = 0.1) +
-        expand_limits(x = depto_map$long, y = depto_map$lat) +
-        coord_quickmap() +
-        scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
-        labs(fill=var_name_, x="", y="") +
-        theme_bw() +
-        theme(panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank(),
-              panel.border = element_blank(),
-              axis.text = element_blank(),
-              line = element_blank()
-        ) -> data_map_i
-    }else{
-      ggplot(data_map_coords, aes(x=long, y=lat)) +
-        geom_polygon(aes(group=group, fill=obs),
-                     color = "black",
-                     linewidth = 0.1) +
-        expand_limits(x = depto_map$long, y = depto_map$lat) +
-        coord_quickmap() +
-        scale_fill_viridis_c(na.value = "white") +
-        labs(fill=var_name_, x="", y="") +
-        theme_bw() +
-        theme(panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank(),
-              panel.border = element_blank(),
-              axis.text = element_blank(),
-              line = element_blank()
-        ) -> data_map_i
-      # next
-    }
-    
-    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/data maps (%i)/%s local GWR data %s.png", year_, dep_var, var_name_),
-           data_map_i, scale=1)
-  }
+  reg_data_cor <- reg_data_cor %>% select(-price_avg)
+  gwr_data_year <- list(norm = reg_data_cor, coord = coord_unique, dist = gwr_data_dist)
+  return(gwr_data_year)
 }
+
+
+gwr_data_2013 <- gwr_data_year("hyd_destination", regression_data_CF_2013)
+gwr_data_2014 <- gwr_data_year("hyd_destination", regression_data_CF_2014)
+gwr_data_2016 <- gwr_data_year("hyd_destination", regression_data_CF_2016)
+gwr_data_2017 <- gwr_data_year("hyd_destination", regression_data_CF_2017)
+
+violence_map <- function(year_, reg_data_year, dep_var) {
+  data_map_coords <- map_df %>% left_join(reg_data_year %>% select(id, FARC), by="id")
+  ggplot(data_map_coords, aes(x=long, y=lat)) +
+    geom_polygon(aes(group=group, fill=as.factor(FARC)),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = data_map_coords$long, y = data_map_coords$lat) +
+    coord_quickmap() +
+    scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
+    labs(fill="FARC", x="", y="") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    ) -> data_map_i
+  
+  ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/data maps (%i)/%s local GWR data violence.png", year_, dep_var),
+         data_map_i, scale=1)
+}
+violence_map(2013, gwr_data_2013$norm, "hyd_destination")
+violence_map(2014, gwr_data_2014$norm, "hyd_destination")
+violence_map(2016, gwr_data_2016$norm, "hyd_destination")
+violence_map(2017, gwr_data_2017$norm, "hyd_destination")
