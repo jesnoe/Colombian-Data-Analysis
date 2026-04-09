@@ -64,25 +64,51 @@ library(logistf)
   
   violence_AAMM <- read.csv("Colombia Data/violence with id (AAMM).csv") %>% as_tibble
   conflict <- read.csv("Colombia Data/Conflict events.csv") %>% as_tibble
-  violence_combined <- bind_rows(violence_AAMM %>% select(id, year, FARC) %>% mutate(FARC = ifelse(FARC == "yes", 1 , 0)),
+  violence_combined <- bind_rows(violence_AAMM %>% select(id, year, FARC, ELN, AUC) %>%
+                                   mutate(FARC = ifelse(FARC == "yes", 1 , 0),
+                                          ELN = ifelse(ELN == "yes", 1 , 0),
+                                          AUC = ifelse(AUC == "yes", 1 , 0)),
                                  conflict %>% mutate(FARC = ifelse(grepl("FARC", dyad_name), 1, 0)) %>% select(id, year, FARC)) %>% 
-    group_by(id, year) %>% summarize(FARC = ifelse(any(FARC == 1), 1, 0)) %>% ungroup
+    group_by(id, year) %>%
+    summarize(FARC = ifelse(any(FARC == 1), 1, 0),
+              ELN = ifelse(any(ELN == 1), 1, 0),
+              AUC = ifelse(any(AUC == 1), 1, 0)) %>% ungroup
   
   regression_data_CF_2013 <- read.csv("Colombia Data/regression data all municipios CF 2013.csv") %>% as_tibble
   regression_data_CF_2014 <- read.csv("Colombia Data/regression data all municipios CF 2014.csv") %>% as_tibble
   regression_data_CF_2016 <- read.csv("Colombia Data/regression data all municipios CF 2016.csv") %>% as_tibble
   regression_data_CF_2017 <- read.csv("Colombia Data/regression data all municipios CF 2017.csv") %>% as_tibble
   
-  regression_data_CF_2013 <- regression_data_CF_2013 %>% left_join(violence_combined %>% filter(year == 2013) %>% select(-year), by = "id") %>% mutate(FARC = ifelse(is.na(FARC), 0, FARC))
-  regression_data_CF_2014 <- regression_data_CF_2014 %>% left_join(violence_combined %>% filter(year == 2014) %>% select(-year), by = "id") %>% mutate(FARC = ifelse(is.na(FARC), 0, FARC))
-  regression_data_CF_2016 <- regression_data_CF_2016 %>% left_join(violence_combined %>% filter(year == 2016) %>% select(-year), by = "id") %>% mutate(FARC = ifelse(is.na(FARC), 0, FARC))
-  regression_data_CF_2017 <- regression_data_CF_2017 %>% left_join(violence_combined %>% filter(year == 2017) %>% select(-year), by = "id") %>% mutate(FARC = ifelse(is.na(FARC), 0, FARC))
+  regression_data_CF_2013 <- regression_data_CF_2013 %>% left_join(violence_combined %>% filter(year == 2013) %>% select(-year), by = "id") %>% 
+    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
+           ELN = ifelse(is.na(ELN), 0, ELN),
+           AUC = ifelse(is.na(AUC), 0, AUC),
+           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC)
+  regression_data_CF_2014 <- regression_data_CF_2014 %>% left_join(violence_combined %>% filter(year == 2014) %>% select(-year), by = "id") %>% 
+    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
+           ELN = ifelse(is.na(ELN), 0, ELN),
+           AUC = ifelse(is.na(AUC), 0, AUC),
+           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC)
+  regression_data_CF_2016 <- regression_data_CF_2016 %>% left_join(violence_combined %>% filter(year == 2016) %>% select(-year), by = "id") %>% 
+    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
+           ELN = ifelse(is.na(ELN), 0, ELN),
+           AUC = ifelse(is.na(AUC), 0, AUC),
+           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC)
+  regression_data_CF_2017 <- regression_data_CF_2017 %>% left_join(violence_combined %>% filter(year == 2017) %>% select(-year), by = "id") %>% 
+    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
+           ELN = ifelse(is.na(ELN), 0, ELN),
+           AUC = ifelse(is.na(AUC), 0, AUC),
+           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC)
   
   
   coord_unique <- left_join(regression_data_CF_2013 %>% select(id), municipio_centroid %>% ungroup %>% select(id, long, lat), by="id") 
   gwr_data_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T) %>% as.matrix
   
   # PML_gwr_coefs_AUC_CF_2016 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_AUC all var drop 10 2016 data CF (02-04-2026).csv") %>% as_tibble
+  regression_data_CF_2013$hyd_seizures <- round(regression_data_CF_2013$hyd_seizures, 2)
+  regression_data_CF_2014$hyd_seizures <- round(regression_data_CF_2014$hyd_seizures, 2)
+  regression_data_CF_2016$hyd_seizures <- round(regression_data_CF_2016$hyd_seizures, 2)
+  regression_data_CF_2017$hyd_seizures <- round(regression_data_CF_2017$hyd_seizures, 2)
 }
 
 # the number of municipios with y=1
@@ -90,6 +116,12 @@ regression_data_CF_2013 %>% filter(hyd_destination == 1) %>% nrow # 157
 regression_data_CF_2014 %>% filter(hyd_destination == 1) %>% nrow # 278
 regression_data_CF_2016 %>% filter(hyd_destination == 1) %>% nrow # 123
 regression_data_CF_2017 %>% filter(hyd_destination == 1) %>% nrow # 365
+
+# y ratio by armed groups
+regression_data_CF_2016 %>% select(id, hyd_destination, armed_group, FARC, ELN)
+confusionMatrix(regression_data_CF_2016$hyd_destination %>% as.factor, reference = regression_data_CF_2016$armed_group %>% as.factor)
+confusionMatrix(regression_data_CF_2016$hyd_destination %>% as.factor, reference = regression_data_CF_2016$FARC %>% as.factor)
+confusionMatrix(regression_data_CF_2016$hyd_destination %>% as.factor, reference = regression_data_CF_2016$ELN %>% as.factor)
 
 ROC_pred <- function(GWR_pred) {
   result <- roc(GWR_pred$y, GWR_pred$pi_hat, positive = "1", quiet = T)
@@ -108,11 +140,6 @@ neighbor_id <- function(id_i, bw_i, scale_11_, gwr_data_) {
     filter(id %in% coord_unique_$id[which(local_gwr_dist_[id_i_index,] <= bw_i)])
   return(result)
 }
-
-regression_data_CF_2013$hyd_seizures <- round(regression_data_CF_2013$hyd_seizures, 2)
-regression_data_CF_2014$hyd_seizures <- round(regression_data_CF_2014$hyd_seizures, 2)
-regression_data_CF_2016$hyd_seizures <- round(regression_data_CF_2016$hyd_seizures, 2)
-regression_data_CF_2017$hyd_seizures <- round(regression_data_CF_2017$hyd_seizures, 2)
 
 gwr_data_year <- function(dep_var_, reg_data_cor, price=F) {
   dep_var_index <- which(names(reg_data_cor) == dep_var_)
@@ -302,3 +329,208 @@ logistf_result2 <- logistf(y~., reg_data_with_year_id_5002)
 roc(reg_data_id_5002$y, logistf_result1$predict, positive = "1", quiet = T)
 roc(reg_data_with_year_id_5002$y, logistf_result2$predict, positive = "1", quiet = T)
 
+
+
+# data map
+violence_annual <- bind_rows(regression_data_CF_2013 %>% select(id, armed_group, FARC) %>% mutate(year = 2013),
+                             regression_data_CF_2014 %>% select(id, armed_group, FARC) %>% mutate(year = 2014),
+                             regression_data_CF_2016 %>% select(id, armed_group, FARC) %>% mutate(year = 2016),
+                             regression_data_CF_2017 %>% select(id, armed_group, FARC) %>% mutate(year = 2017)) %>% 
+  mutate(violence_group = ifelse(armed_group == 1 & FARC == 0, "paramilitary",
+                                 ifelse(armed_group == 1 & FARC == 1, "both",
+                                        ifelse(armed_group == 0 & FARC == 0, "X", "FARC"))) %>% as.factor)
+for (year_ in c(2013, 2014, 2016, 2017)) { # area maps
+  violence_year <- violence_annual %>% filter(year == year_)
+  violence_year_map <- left_join(map_df, violence_year %>% select(id, violence_group), by="id")
+  
+  FARC_map_year <- violence_year_map %>% ggplot() +
+    geom_polygon(aes(x=long, y=lat, group=group, fill=violence_group),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = map_df$long, y = map_df$lat) +
+    coord_quickmap() +
+    scale_fill_manual(values = c("X"="white", "FARC"="red", "paramilitary"="blue", "both"="violet"), na.value = "white") +
+    labs(fill="occupied group", x="", y="") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank())
+  
+  ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/violence maps/paramilitary group and FARC violence %i.png", year_),
+         FARC_map_year, scale=1)
+}
+
+violence_annual <- bind_rows(regression_data_CF_2013 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2013),
+                             regression_data_CF_2014 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2014),
+                             regression_data_CF_2016 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2016),
+                             regression_data_CF_2017 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2017)) %>% 
+  mutate(left_wing = as.numeric(FARC | ELN),
+         violence_group = ifelse(armed_group == 1 & left_wing == 0, "paramilitary",
+                                 ifelse(armed_group == 1 & left_wing == 1, "both",
+                                        ifelse(armed_group == 0 & left_wing == 0, "X", "left-wing"))) %>% as.factor)
+for (year_ in c(2013, 2014, 2016, 2017)) { # area maps
+  violence_year <- violence_annual %>% filter(year == year_)
+  violence_year_map <- left_join(map_df, violence_year %>% select(id, violence_group), by="id")
+  
+  FARC_map_year <- violence_year_map %>% ggplot() +
+    geom_polygon(aes(x=long, y=lat, group=group, fill=violence_group),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = map_df$long, y = map_df$lat) +
+    coord_quickmap() +
+    scale_fill_manual(values = c("X"="white", "left-wing"="red", "paramilitary"="blue", "both"="violet"), na.value = "white") +
+    labs(fill="occupied group", x="", y="") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank())
+  
+  ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/violence maps/paramilitary group and left-wing violence %i.png", year_),
+         FARC_map_year, scale=1)
+}
+
+empty_map <- ggplot(map_df, aes(x=long, y=lat)) + 
+  geom_polygon(aes(group=group),
+               color = "black",
+               fill="white",
+               linewidth = 0.1) + 
+  expand_limits(x = map_df$long, y = map_df$lat) + 
+  coord_quickmap() +
+  labs(fill="", x="", y="", title="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        line = element_blank())
+
+violence_annual <- bind_rows(regression_data_CF_2013 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2013),
+                             regression_data_CF_2014 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2014),
+                             regression_data_CF_2016 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2016),
+                             regression_data_CF_2017 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2017))
+
+for (year_ in c(2013, 2014, 2016, 2017)) { # point maps
+  violence_map_year <- left_join(map_df, violence_annual %>% filter(year == year_) %>% select(id, FARC, ELN), by = "id")
+  
+  FARC_map_year <- violence_map_year %>% ggplot() +
+    geom_polygon(aes(x=long, y=lat, group=group, fill=as.factor(FARC)),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = map_df$long, y = map_df$lat) +
+    coord_quickmap() +
+    scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
+    labs(fill="FARC", x="", y="", title = sprintf("Violence (attack) - FARC %i", year_)) +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank())
+  
+  ELN_map_year <- violence_map_year %>% ggplot() +
+    geom_polygon(aes(x=long, y=lat, group=group, fill=as.factor(ELN)),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = map_df$long, y = map_df$lat) +
+    coord_quickmap() +
+    scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
+    labs(fill="ELN", x="", y="", title = sprintf("Violence (attack) - ELN %i", year_)) +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank())
+  
+  ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/violence maps/violence involved with FARC %i.png", year_),
+         FARC_map_year, scale=1)
+  ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/violence maps/violence involved with ELN %i.png", year_),
+         ELN_map_year, scale=1)
+}
+
+{
+  violence_etc <- read.csv("Colombia Data/violence with id (etc).csv") %>% as_tibble
+  conflict <- read.csv("Colombia Data/Conflict events.csv") %>% as_tibble
+  violence_combined <- bind_rows(violence_etc %>% select(id, year, FARC, ELN, AUC) %>%
+                                   mutate(FARC = ifelse(FARC == "yes", 1 , 0),
+                                          ELN = ifelse(ELN == "yes", 1 , 0),
+                                          AUC = ifelse(AUC == "yes", 1 , 0)),
+                                 conflict %>% mutate(FARC = ifelse(grepl("FARC", dyad_name), 1, 0)) %>% select(id, year, FARC)) %>% 
+    group_by(id, year) %>%
+    summarize(FARC = ifelse(any(FARC == 1), 1, 0),
+              ELN = ifelse(any(ELN == 1), 1, 0),
+              AUC = ifelse(any(AUC == 1), 1, 0)) %>% ungroup
+  
+  regression_data_CF_2013 <- read.csv("Colombia Data/regression data all municipios CF 2013.csv") %>% as_tibble
+  regression_data_CF_2014 <- read.csv("Colombia Data/regression data all municipios CF 2014.csv") %>% as_tibble
+  regression_data_CF_2016 <- read.csv("Colombia Data/regression data all municipios CF 2016.csv") %>% as_tibble
+  regression_data_CF_2017 <- read.csv("Colombia Data/regression data all municipios CF 2017.csv") %>% as_tibble
+  
+  regression_data_CF_2013 <- regression_data_CF_2013 %>% left_join(violence_combined %>% filter(year == 2013) %>% select(-year), by = "id") %>% 
+    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
+           ELN = ifelse(is.na(ELN), 0, ELN),
+           AUC = ifelse(is.na(AUC), 0, AUC),
+           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC) %>% rename(FARC_etc = FARC, ELN_etc = ELN)
+  regression_data_CF_2014 <- regression_data_CF_2014 %>% left_join(violence_combined %>% filter(year == 2014) %>% select(-year), by = "id") %>% 
+    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
+           ELN = ifelse(is.na(ELN), 0, ELN),
+           AUC = ifelse(is.na(AUC), 0, AUC),
+           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC) %>% rename(FARC_etc = FARC, ELN_etc = ELN)
+  regression_data_CF_2016 <- regression_data_CF_2016 %>% left_join(violence_combined %>% filter(year == 2016) %>% select(-year), by = "id") %>% 
+    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
+           ELN = ifelse(is.na(ELN), 0, ELN),
+           AUC = ifelse(is.na(AUC), 0, AUC),
+           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC) %>% rename(FARC_etc = FARC, ELN_etc = ELN)
+  regression_data_CF_2017 <- regression_data_CF_2017 %>% left_join(violence_combined %>% filter(year == 2017) %>% select(-year), by = "id") %>% 
+    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
+           ELN = ifelse(is.na(ELN), 0, ELN),
+           AUC = ifelse(is.na(AUC), 0, AUC),
+           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC) %>% rename(FARC_etc = FARC, ELN_etc = ELN)
+}
+violence_annual <- bind_rows(regression_data_CF_2013 %>% select(id, armed_group, FARC_etc, ELN_etc) %>% mutate(year = 2013),
+                             regression_data_CF_2014 %>% select(id, armed_group, FARC_etc, ELN_etc) %>% mutate(year = 2014),
+                             regression_data_CF_2016 %>% select(id, armed_group, FARC_etc, ELN_etc) %>% mutate(year = 2016),
+                             regression_data_CF_2017 %>% select(id, armed_group, FARC_etc, ELN_etc) %>% mutate(year = 2017))
+
+for (year_ in c(2013, 2014, 2016, 2017)) { # point maps
+  violence_map_year <- left_join(map_df, violence_annual %>% filter(year == year_) %>% select(id, FARC_etc, ELN_etc), by = "id")
+  
+  FARC_map_year <- violence_map_year %>% ggplot() +
+    geom_polygon(aes(x=long, y=lat, group=group, fill=as.factor(FARC_etc)),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = map_df$long, y = map_df$lat) +
+    coord_quickmap() +
+    scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
+    labs(fill="FARC", x="", y="", title = sprintf("Violence (etc.) - FARC %i", year_)) +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank())
+  
+  ELN_map_year <- violence_map_year %>% ggplot() +
+    geom_polygon(aes(x=long, y=lat, group=group, fill=as.factor(ELN_etc)),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = map_df$long, y = map_df$lat) +
+    coord_quickmap() +
+    scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
+    labs(fill="ELN", x="", y="", title = sprintf("Violence (etc.) - ELN %i", year_)) +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank())
+  
+  ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/violence maps/violence involved with FARC_etc %i.png", year_),
+         FARC_map_year, scale=1)
+  ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/violence maps/violence involved with ELN_etc %i.png", year_),
+         ELN_map_year, scale=1)
+}

@@ -188,8 +188,8 @@ local_GWR_PML_CF <- function(type.measure_="default", AUC_mat, sig_level_=0.05, 
       if (neighbor_ij$police %>% table %>% min < n_drop | n_unique_vals[["police"]] < 2) neighbor_ij$police <- NULL
       if (neighbor_ij$military %>% table %>% min < n_drop | n_unique_vals[["military"]] < 2) neighbor_ij$military <- NULL
       if (neighbor_ij$lab_reported %>% table %>% min < n_drop | n_unique_vals[["lab_reported"]] < 2) neighbor_ij$lab_reported <- NULL
-      if (neighbor_ij$FARC %>% table %>% min < n_drop | n_unique_vals[["FARC"]] < 2) neighbor_ij$lab_reported <- NULL
-      if (neighbor_ij$FARC %>% table %>% min < n_drop | n_unique_vals[["ELN"]] < 2) neighbor_ij$lab_reported <- NULL
+      if (neighbor_ij$FARC %>% table %>% min < n_drop | n_unique_vals[["FARC"]] < 2) neighbor_ij$FARC <- NULL
+      if (neighbor_ij$ELN %>% table %>% min < n_drop | n_unique_vals[["ELN"]] < 2) neighbor_ij$ELN <- NULL
       if (is.null(neighbor_ij$lab_reported)) neighbor_ij$lab_residual <- NULL
       # variable drop end
       

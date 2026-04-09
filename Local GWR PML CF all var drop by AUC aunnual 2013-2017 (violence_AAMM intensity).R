@@ -1,6 +1,6 @@
 #### seizures are last year data t-1
 ## bandwidth range: 0~4
-indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "armed_group", "lab_reported", "lab_residual", "FARC_etc", "ELN_etc")
+indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "violence_int")
 max_bwd <- 4
 # setwd("/Users/R")
 # setwd("C:/Users/User/Documents/R")
@@ -63,9 +63,9 @@ depto_map <- suppressMessages(fortify(departamentos)) %>%
   left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
 
 
-violence_etc <- read.csv("Colombia Data/violence with id (etc).csv") %>% as_tibble
+violence_AAMM <- read.csv("Colombia Data/violence with id (AAMM).csv") %>% as_tibble
 conflict <- read.csv("Colombia Data/Conflict events.csv") %>% as_tibble
-violence_combined <- bind_rows(violence_etc %>% select(id, year, FARC, ELN, AUC) %>%
+violence_combined <- bind_rows(violence_AAMM %>% select(id, year, FARC, ELN, AUC) %>%
                                  mutate(FARC = ifelse(FARC == "yes", 1 , 0),
                                         ELN = ifelse(ELN == "yes", 1 , 0),
                                         AUC = ifelse(AUC == "yes", 1 , 0)),
@@ -84,22 +84,26 @@ regression_data_CF_2013 <- regression_data_CF_2013 %>% left_join(violence_combin
   mutate(FARC = ifelse(is.na(FARC), 0, FARC),
          ELN = ifelse(is.na(ELN), 0, ELN),
          AUC = ifelse(is.na(AUC), 0, AUC),
-         armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC) %>% rename(FARC_etc = FARC, ELN_etc = ELN)
+         armed_group = ifelse(AUC == 1, 1, armed_group),
+         violence_int = armed_group + ELN*FARC) %>% select(-armed_group, -AUC, -FARC, -ELN)
 regression_data_CF_2014 <- regression_data_CF_2014 %>% left_join(violence_combined %>% filter(year == 2014) %>% select(-year), by = "id") %>% 
   mutate(FARC = ifelse(is.na(FARC), 0, FARC),
          ELN = ifelse(is.na(ELN), 0, ELN),
          AUC = ifelse(is.na(AUC), 0, AUC),
-         armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC) %>% rename(FARC_etc = FARC, ELN_etc = ELN)
+         armed_group = ifelse(AUC == 1, 1, armed_group),
+         violence_int = armed_group + ELN*FARC) %>% select(-armed_group, -AUC, -FARC, -ELN)
 regression_data_CF_2016 <- regression_data_CF_2016 %>% left_join(violence_combined %>% filter(year == 2016) %>% select(-year), by = "id") %>% 
   mutate(FARC = ifelse(is.na(FARC), 0, FARC),
          ELN = ifelse(is.na(ELN), 0, ELN),
          AUC = ifelse(is.na(AUC), 0, AUC),
-         armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC) %>% rename(FARC_etc = FARC, ELN_etc = ELN)
+         armed_group = ifelse(AUC == 1, 1, armed_group),
+         violence_int = armed_group + ELN*FARC) %>% select(-armed_group, -AUC, -FARC, -ELN)
 regression_data_CF_2017 <- regression_data_CF_2017 %>% left_join(violence_combined %>% filter(year == 2017) %>% select(-year), by = "id") %>% 
   mutate(FARC = ifelse(is.na(FARC), 0, FARC),
          ELN = ifelse(is.na(ELN), 0, ELN),
          AUC = ifelse(is.na(AUC), 0, AUC),
-         armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC) %>% rename(FARC_etc = FARC, ELN_etc = ELN)
+         armed_group = ifelse(AUC == 1, 1, armed_group),
+         violence_int = armed_group + ELN*FARC) %>% select(-armed_group, -AUC, -FARC, -ELN)
 
 coord_unique <- left_join(regression_data_CF_2013 %>% select(id), municipio_centroid %>% ungroup %>% select(id, long, lat), by="id") 
 gwr_data_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T) %>% as.matrix
@@ -183,13 +187,11 @@ local_GWR_PML_CF <- function(type.measure_="default", AUC_mat, sig_level_=0.05, 
       }
       
       if (neighbor_ij$airport %>% table %>% min < n_drop | n_unique_vals[["airport"]] < 2) neighbor_ij$airport <- NULL
-      if (neighbor_ij$armed_group %>% table %>% min < n_drop | n_unique_vals[["armed_group"]] < 2) neighbor_ij$armed_group <- NULL
       if (neighbor_ij$ferry %>% table %>% min < n_drop | n_unique_vals[["ferry"]] < 2) neighbor_ij$ferry <- NULL
       if (neighbor_ij$police %>% table %>% min < n_drop | n_unique_vals[["police"]] < 2) neighbor_ij$police <- NULL
       if (neighbor_ij$military %>% table %>% min < n_drop | n_unique_vals[["military"]] < 2) neighbor_ij$military <- NULL
       if (neighbor_ij$lab_reported %>% table %>% min < n_drop | n_unique_vals[["lab_reported"]] < 2) neighbor_ij$lab_reported <- NULL
-      if (neighbor_ij$FARC_etc %>% table %>% min < n_drop | n_unique_vals[["FARC_etc"]] < 2) neighbor_ij$FARC_etc <- NULL
-      if (neighbor_ij$ELN_etc %>% table %>% min < n_drop | n_unique_vals[["ELN_etc"]] < 2) neighbor_ij$ELN_etc <- NULL
+      if (sort(neighbor_ij$violence_int %>% table)[1:2] %>% sum < n_drop | n_unique_vals[["violence_int"]] < 2) neighbor_ij$violence_int <- NULL
       if (is.null(neighbor_ij$lab_reported)) neighbor_ij$lab_residual <- NULL
       # variable drop end
       
@@ -265,10 +267,10 @@ local_GWR_PML_1_year <- function(dep_var_, seed_model, reg_data_year, year_, pri
   weight_in_0 <- weight_in[2]
   local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo <- local_GWR_coefs_PML_list$PML
   write.csv(local_GWR_coefs_PML_list$AUC_mat,
-            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s violence_etc all var drop by AUC n_drop=10 %i data %s CF (03-24-2026).csv",
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s violence_AAMM intensity all var drop by AUC n_drop=10 %i data %s CF (03-24-2026).csv",
                     dep_var_, year_, title_for_price), row.names = F)
   save("local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo",
-       file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s violence_etc all var drop by AUC n_drop=10 %i data %s CF (03-24-2026).RData",
+       file = sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s violence_AAMM intensity all var drop by AUC n_drop=10 %i data %s CF (03-24-2026).RData",
                       dep_var_, year_, title_for_price))
   rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo); rm(local_GWR_coefs_PML_list)
 
@@ -327,11 +329,11 @@ local_gwr_PML_coef_map_by_AUC <- function(local_GWR_coefs_list, PML_best_bw_tbl_
   names(coef_table)[-(1:2)] <- indep_vars_
   names(pval_table)[-(1:2)] <- indep_vars_
   write.csv(coef_table,
-            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s violence_etc all var drop by AUC n_drop=%i %i data %s CF (%s).csv", dep_var, n_drop, year_, title_for_price, date_),
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs %s violence_AAMM intensity all var drop by AUC n_drop=%i %i data %s CF (%s).csv", dep_var, n_drop, year_, title_for_price, date_),
             row.names = F)
 
   write.csv(pval_table,
-            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value %s violence_etc all var drop by AUC n_drop=%i %i data %s CF (%s).csv", dep_var, n_drop, year_, title_for_price, date_),
+            sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value %s violence_AAMM intensity all var drop by AUC n_drop=%i %i data %s CF (%s).csv", dep_var, n_drop, year_, title_for_price, date_),
             row.names = F)
   
   # for weighted reg
@@ -393,7 +395,7 @@ local_gwr_PML_coef_map_by_AUC <- function(local_GWR_coefs_list, PML_best_bw_tbl_
         )
     }
     
-    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s (%i) - etc/local GWR PML coef by AUC violence_etc %s %s all var drop n_drop=%i %i data %s CF (%s).png",
+    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s (%i)/local GWR PML coef by AUC violence_AAMM intensity %s %s all var drop n_drop=%i %i data %s CF (%s).png",
                    dep_var, year_, var_name, dep_var, n_drop, year_, title_for_price, date_),
            gwr_coef_map, scale=1)
     
@@ -415,14 +417,14 @@ local_gwr_PML_coef_map_by_AUC_year <- function(dep_var_, year_, price_=F) {
   indep_vars_in <- c("Intercept", indep_vars_in)
   
   PML_AUC_score_var_drop_log_seizure_10_loo <-
-    read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s violence_etc all var drop by AUC n_drop=10 %i data %s CF (03-24-2026).csv",
+    read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s violence_AAMM intensity all var drop by AUC n_drop=10 %i data %s CF (03-24-2026).csv",
                      dep_var_,year_, title_for_price)) %>% as_tibble
   # PML_AUC_score_var_drop_log_seizure_10_loo <-
   #   read.csv(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out AUC all var drop log seizure coca scaled n_drop=10 weight 7-3 %i data CF %s (03-24-2026).csv",
   #                    dep_var_, year_, title_for_price)) %>% as_tibble
   
   # local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo
-  load(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s violence_etc all var drop by AUC n_drop=10 %i data %s CF (03-24-2026).RData",
+  load(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s violence_AAMM intensity all var drop by AUC n_drop=10 %i data %s CF (03-24-2026).RData",
                dep_var_, year_, title_for_price))
   # local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3
   # load(sprintf("Colombia Data/local GWR PML result predicted prices/local GWR PML %s leave-one-out all var drop log seizure coca scaled n_drop=10 weight 7-3 %i data %s CF (03-24-2026).RData",
@@ -443,18 +445,20 @@ local_gwr_PML_coef_map_by_AUC_year("hyd_destination", 2013, price_=F)
 local_gwr_PML_coef_map_by_AUC_year("hyd_destination", 2014, price_=F)
 local_gwr_PML_coef_map_by_AUC_year("hyd_destination", 2016, price_=F)
 local_gwr_PML_coef_map_by_AUC_year("hyd_destination", 2017, price_=F)
- # local_gwr_PML_coef_map_by_AUC_year("hyd_source")
+# local_gwr_PML_coef_map_by_AUC_year("hyd_source")
 # local_gwr_PML_coef_map_by_AUC_year("base_source")
 # local_gwr_PML_coef_map_by_AUC_year("base_destination")
 
 # prediction check
-PML_gwr_coefs_AUC_CF_2013 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_etc all var drop by AUC n_drop=10 2013 data no price CF (03-24-2026).csv") %>% as_tibble
-PML_gwr_coefs_AUC_CF_2014 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_etc all var drop by AUC n_drop=10 2014 data no price CF (03-24-2026).csv") %>% as_tibble
-PML_gwr_coefs_AUC_CF_2016 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_etc all var drop by AUC n_drop=10 2016 data no price CF (03-24-2026).csv") %>% as_tibble
-PML_gwr_coefs_AUC_CF_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_etc all var drop by AUC n_drop=10 2017 data no price CF (03-24-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_CF_2013 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_AAMM intensity all var drop by AUC n_drop=10 2013 data no price CF (03-24-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_CF_2014 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_AAMM intensity all var drop by AUC n_drop=10 2014 data no price CF (03-24-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_CF_2016 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_AAMM intensity all var drop by AUC n_drop=10 2016 data no price CF (03-24-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_CF_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_AAMM intensity all var drop by AUC n_drop=10 2017 data no price CF (03-24-2026).csv") %>% as_tibble
+
+PML_gwr_coefs_AUC_CF_2013 %>% filter(seizures > 100)
 
 GWR_predict_year_CF <- function(PML_gwr_coefs, reg_data_year, dep_var, no_price, threshold=0.5) {
-  indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "armed_group", "lab_reported", "lab_residual", "FARC_etc", "ELN_etc")
+  indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "violence_int")
   dep_var_index <- which(names(reg_data_year) == dep_var)
   names(reg_data_year)[dep_var_index] <- "y"
   if (grepl("hyd", dep_var)) {
@@ -493,6 +497,15 @@ GWR_predict_2013_CF_with_2013_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2
 GWR_predict_2014_CF_with_2014_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2014, regression_data_CF_2014, "hyd_destination", no_price=T)
 GWR_predict_2016_CF_with_2016_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2016, regression_data_CF_2016, "hyd_destination", no_price=T)
 GWR_predict_2017_CF_with_2017_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2017, regression_data_CF_2017, "hyd_destination", no_price=T)
+GWR_predict_2017_CF_with_2016_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2017, regression_data_CF_2016, "hyd_destination", no_price=T)
+
+GWR_predict_2014_CF_with_2013_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2014, regression_data_CF_2013, "hyd_destination", no_price=T)
+GWR_predict_2016_CF_with_2014_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2016, regression_data_CF_2014, "hyd_destination", no_price=T)
+
+GWR_predict_2013_CF_with_2013_coef %>% filter(!is.na(pi_hat)) # 1099
+GWR_predict_2014_CF_with_2014_coef %>% filter(!is.na(pi_hat)) # 1080
+GWR_predict_2016_CF_with_2016_coef %>% filter(!is.na(pi_hat)) # 1096
+GWR_predict_2017_CF_with_2017_coef %>% filter(!is.na(pi_hat)) # 1102
 
 confusion_matrix_pred(GWR_predict_2013_CF_with_2013_coef)
 confusion_matrix_pred(GWR_predict_2014_CF_with_2014_coef)
@@ -503,23 +516,34 @@ ROC_2013_CF_with_2013_coef <- ROC_pred(GWR_predict_2013_CF_with_2013_coef)
 ROC_2014_CF_with_2014_coef <- ROC_pred(GWR_predict_2014_CF_with_2014_coef)
 ROC_2016_CF_with_2016_coef <- ROC_pred(GWR_predict_2016_CF_with_2016_coef)
 ROC_2017_CF_with_2017_coef <- ROC_pred(GWR_predict_2017_CF_with_2017_coef)
+ROC_2017_CF_with_2016_coef <- ROC_pred(GWR_predict_2017_CF_with_2016_coef)
+
+ROC_2014_CF_with_2013_coef <- ROC_pred(GWR_predict_2014_CF_with_2013_coef)
+ROC_2016_CF_with_2014_coef <- ROC_pred(GWR_predict_2016_CF_with_2014_coef)
 
 plot(ROC_2013_CF_with_2013_coef)
 plot(ROC_2014_CF_with_2014_coef)
 plot(ROC_2016_CF_with_2016_coef)
 plot(ROC_2017_CF_with_2017_coef)
+plot(ROC_2017_CF_with_2016_coef)
 
-png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves CF by year (violence_etc)/roc curve GWR hyd destinations 2013.png")
+plot(ROC_2014_CF_with_2013_coef)
+plot(ROC_2016_CF_with_2014_coef)
+
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves CF by year (violence_AAMM intensity)/roc curve GWR hyd destinations 2013.png")
 plot(ROC_2013_CF_with_2013_coef, main="hyd destination - predictions 2013"); text(0.1, 0, paste("AUC:", round(ROC_2013_CF_with_2013_coef$auc, 2)))
 dev.off()
-png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves CF by year (violence_etc)/roc curve GWR hyd destinations 2014.png")
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves CF by year (violence_AAMM intensity)/roc curve GWR hyd destinations 2014.png")
 plot(ROC_2014_CF_with_2014_coef, main="hyd destination - predictions 2014"); text(0.1, 0, paste("AUC:", round(ROC_2014_CF_with_2014_coef$auc, 2)))
 dev.off()
-png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves CF by year (violence_etc)/roc curve GWR hyd destinations 2016.png")
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves CF by year (violence_AAMM intensity)/roc curve GWR hyd destinations 2016.png")
 plot(ROC_2016_CF_with_2016_coef, main="hyd destination - predictions 2016"); text(0.1, 0, paste("AUC:", round(ROC_2016_CF_with_2016_coef$auc, 2)))
 dev.off()
-png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves CF by year (violence_etc)/roc curve GWR hyd destinations 2017.png")
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves CF by year (violence_AAMM intensity)/roc curve GWR hyd destinations 2017.png")
 plot(ROC_2017_CF_with_2017_coef, main="hyd destination - predictions 2017"); text(0.1, 0, paste("AUC:", round(ROC_2017_CF_with_2017_coef$auc, 2)))
+dev.off()
+png("Colombia Data/local GWR PML result predicted prices/roc curves/roc curves CF by year (violence_AAMM intensity)/roc curve GWR hyd destinations 2017 using 2016 coefs.png")
+plot(ROC_2017_CF_with_2016_coef, main="hyd destination - predictions 2017 (2016 coefs)"); text(0.1, 0, paste("AUC:", round(ROC_2017_CF_with_2016_coef$auc, 2)))
 dev.off()
 
 GWR_predict_2013_CF_with_2013_coef %>% mutate(y = as.factor(y)) %>% 
