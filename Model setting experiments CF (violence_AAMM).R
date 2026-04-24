@@ -393,6 +393,13 @@ for (year_ in c(2013, 2014, 2016, 2017)) { # area maps
          FARC_map_year, scale=1)
 }
 
+overlap_tbl_2016 <- table(violence_year$violence_group, regression_data_CF_2016$hyd_destination %>% as.factor)
+overlap_tbl_2016 <- tibble(violence_group = rownames(overlap_tbl_2016), hyd_dest_0 = overlap_tbl_2016[,1], hyd_dest_1 = overlap_tbl_2016[,2]) %>% mutate(positive_ratio = hyd_dest_1/hyd_dest_0)
+overlap_tbl_2017 <- table(violence_year$violence_group, regression_data_CF_2017$hyd_destination %>% as.factor)
+overlap_tbl_2017 <- tibble(violence_group = rownames(overlap_tbl_2017), hyd_dest_0 = overlap_tbl_2017[,1], hyd_dest_1 = overlap_tbl_2017[,2]) %>% mutate(positive_ratio = hyd_dest_1/hyd_dest_0)
+overlap_tbl_2016
+overlap_tbl_2016
+
 empty_map <- ggplot(map_df, aes(x=long, y=lat)) + 
   geom_polygon(aes(group=group),
                color = "black",
@@ -534,3 +541,60 @@ for (year_ in c(2013, 2014, 2016, 2017)) { # point maps
   ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/violence maps/violence involved with ELN_etc %i.png", year_),
          ELN_map_year, scale=1)
 }
+
+
+# positive ratio check
+violence_annual <- bind_rows(regression_data_CF_2013 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2013),
+                             regression_data_CF_2014 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2014),
+                             regression_data_CF_2016 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2016),
+                             regression_data_CF_2017 %>% select(id, armed_group, FARC, ELN) %>% mutate(year = 2017)) %>% 
+  mutate(left_wing = as.numeric(FARC | ELN),
+         violence_group = ifelse(armed_group == 1 & left_wing == 0, "paramilitary",
+                                 ifelse(armed_group == 1 & left_wing == 1, "both",
+                                        ifelse(armed_group == 0 & left_wing == 0, "X", "left-wing"))) %>% as.factor)
+
+violence_2013 <- violence_annual %>% filter(year == 2013)
+violence_2014 <- violence_annual %>% filter(year == 2014)
+violence_2016 <- violence_annual %>% filter(year == 2016)
+violence_2017 <- violence_annual %>% filter(year == 2017)
+
+overlap_tbl_2013 <- table(violence_2013$violence_group, regression_data_CF_2013$hyd_destination %>% as.factor)
+overlap_tbl_2013 <- tibble(violence_group = rownames(overlap_tbl_2013), hyd_dest_0 = overlap_tbl_2013[,1], hyd_dest_1 = overlap_tbl_2013[,2]) %>% mutate(positive_ratio = hyd_dest_1/(hyd_dest_1+hyd_dest_0))
+overlap_tbl_2014 <- table(violence_2014$violence_group, regression_data_CF_2014$hyd_destination %>% as.factor)
+overlap_tbl_2014 <- tibble(violence_group = rownames(overlap_tbl_2014), hyd_dest_0 = overlap_tbl_2014[,1], hyd_dest_1 = overlap_tbl_2014[,2]) %>% mutate(positive_ratio = hyd_dest_1/(hyd_dest_1+hyd_dest_0))
+overlap_tbl_2016 <- table(violence_2016$violence_group, regression_data_CF_2016$hyd_destination %>% as.factor)
+overlap_tbl_2016 <- tibble(violence_group = rownames(overlap_tbl_2016), hyd_dest_0 = overlap_tbl_2016[,1], hyd_dest_1 = overlap_tbl_2016[,2]) %>% mutate(positive_ratio = hyd_dest_1/(hyd_dest_1+hyd_dest_0))
+overlap_tbl_2017 <- table(violence_2017$violence_group, regression_data_CF_2017$hyd_destination %>% as.factor)
+overlap_tbl_2017 <- tibble(violence_group = rownames(overlap_tbl_2017), hyd_dest_0 = overlap_tbl_2017[,1], hyd_dest_1 = overlap_tbl_2017[,2]) %>% mutate(positive_ratio = hyd_dest_1/(hyd_dest_1+hyd_dest_0))
+overlap_tbl_2013
+overlap_tbl_2014
+overlap_tbl_2016
+overlap_tbl_2017
+
+violence_2016$violence_group %>% table
+violence_2017$violence_group %>% table
+
+violence_2017 %>% select(armed_group:ELN) %>% table
+
+
+overlap_tbl_2016 <- table(violence_2016$violence_group, regression_data_CF_2016$hyd_source %>% as.factor)
+overlap_tbl_2016 <- tibble(violence_group = rownames(overlap_tbl_2016), hyd_dest_0 = overlap_tbl_2016[,1], hyd_dest_1 = overlap_tbl_2016[,2]) %>% mutate(positive_ratio = hyd_dest_1/(hyd_dest_1+hyd_dest_0))
+overlap_tbl_2017 <- table(violence_2017$violence_group, regression_data_CF_2017$hyd_source %>% as.factor)
+overlap_tbl_2017 <- tibble(violence_group = rownames(overlap_tbl_2017), hyd_dest_0 = overlap_tbl_2017[,1], hyd_dest_1 = overlap_tbl_2017[,2]) %>% mutate(positive_ratio = hyd_dest_1/(hyd_dest_1+hyd_dest_0))
+overlap_tbl_2016
+overlap_tbl_2017
+
+
+overlap_tbl_2016 <- table(violence_2016$violence_group, regression_data_CF_2016$base_destination %>% as.factor)
+overlap_tbl_2016 <- tibble(violence_group = rownames(overlap_tbl_2016), hyd_dest_0 = overlap_tbl_2016[,1], hyd_dest_1 = overlap_tbl_2016[,2]) %>% mutate(positive_ratio = hyd_dest_1/(hyd_dest_1+hyd_dest_0))
+overlap_tbl_2017 <- table(violence_2017$violence_group, regression_data_CF_2017$base_destination %>% as.factor)
+overlap_tbl_2017 <- tibble(violence_group = rownames(overlap_tbl_2017), hyd_dest_0 = overlap_tbl_2017[,1], hyd_dest_1 = overlap_tbl_2017[,2]) %>% mutate(positive_ratio = hyd_dest_1/(hyd_dest_1+hyd_dest_0))
+overlap_tbl_2016
+overlap_tbl_2017
+
+overlap_tbl_2016 <- table(violence_2016$violence_group, regression_data_CF_2016$base_source %>% as.factor)
+overlap_tbl_2016 <- tibble(violence_group = rownames(overlap_tbl_2016), hyd_dest_0 = overlap_tbl_2016[,1], hyd_dest_1 = overlap_tbl_2016[,2]) %>% mutate(positive_ratio = hyd_dest_1/(hyd_dest_1+hyd_dest_0))
+overlap_tbl_2017 <- table(violence_2017$violence_group, regression_data_CF_2017$base_source %>% as.factor)
+overlap_tbl_2017 <- tibble(violence_group = rownames(overlap_tbl_2017), hyd_dest_0 = overlap_tbl_2017[,1], hyd_dest_1 = overlap_tbl_2017[,2]) %>% mutate(positive_ratio = hyd_dest_1/(hyd_dest_1+hyd_dest_0))
+overlap_tbl_2016
+overlap_tbl_2017

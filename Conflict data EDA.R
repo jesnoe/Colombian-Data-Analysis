@@ -79,12 +79,25 @@ violence <- read.csv("Colombia Data/Violent events.csv") %>% as_tibble
 # violence <- left_join(violence, violence_types, by = "ViolenceType")
 violence %>% filter(grepl("mine", ViolenceType)) %>% pull(ViolenceType) %>% unique %>% sort
 
-violence_collapsed <- violence %>% mutate(massacre = ifelse(grepl("massacre", ViolenceType), "yes", "no"),
-                                          assassination = ifelse(grepl("assassination", ViolenceType), "yes", "no"),
-                                          attack = ifelse(grepl("attack", ViolenceType), "yes", "no"),
-                                          mine = ifelse(grepl("mine", ViolenceType), "yes", "no"),
-                                          kidnap = ifelse(grepl("kidnap", ViolenceType), "yes", "no"),
-                                          etc. = "yes")
+violence$municipio_new <- gsub("TUMACO", "SAN ANDRES DE TUMACO", violence$municipio_new)
+violence$municipio_new <- gsub("VISTA HERMOSA", "VISTAHERMOSA", violence$municipio_new)
+violence$municipio_new <- gsub("MONTANITA", "LA MONTANITA", violence$municipio_new)
+violence$municipio_new <- gsub("MIRITI-PARANA", "PUERTO SANTANDER", violence$municipio_new)
+violence$municipio_new <- gsub(", D.C.", "", violence$municipio_new)
+violence$municipio_new <- gsub(" D.C.", "", violence$municipio_new)
+violence$depto_new <- gsub("Distrito Capital", "Bogota", violence$depto_new)
+
+violence_with_id <- violence %>%
+  select(year, Guerrilla:ELN, Front, Bloque, LocationFinal, municipio_new:etc.) %>% 
+  rename(municipio = municipio_new, depto = depto_new) %>%
+  mutate(municipio = str_to_upper(municipio)) %>% 
+  left_join(municipios_capital %>% select(id, municipio, depto), by=c("municipio", "depto"))
+violence_with_id %>% filter(is.na(id)) %>% select(LocationFinal, municipio, depto) %>% unique %>% arrange(municipio) %>% filter(municipio != "")
+violence_with_id %>% filter(if_any(massacre:mine, ~ .x == "yes"))
+violence_with_id %>% filter(if_any(massacre:mine, ~ .x == "yes") & FARC == "yes")
+violence_with_id %>% filter(if_any(massacre:mine, ~ .x == "yes") & ELN == "yes")
+# write.csv(violence_with_id %>% filter(if_any(massacre:mine, ~ .x == "yes")), "Colombia Data/violence with id (AAMM).csv", row.names = F)
+
 
 violence_collapsed <- violence_collapsed %>% mutate(assassination = ifelse(grepl("murder", ViolenceType), "yes", assassination),)
 violence_collapsed <- violence_collapsed %>% mutate(assassination = ifelse(grepl("asesinato", ViolenceType), "yes", assassination),)
@@ -107,13 +120,13 @@ violence_collapsed <- violence_collapsed %>% mutate(etc. = ifelse(massacre == "y
 # ceasefire?
 violence_collapsed %>% filter(if_all(massacre:kidnap, function(x) x == "no")) %>% pull(ViolenceType) %>% unique %>% sort
 
-violence_collapsed$municipio_new <- gsub("TUMACO", "SAN ANDRES DE TUMACO", violence_collapsed$municipio_new)
-violence_collapsed$municipio_new <- gsub("VISTA HERMOSA", "VISTAHERMOSA", violence_collapsed$municipio_new)
-violence_collapsed$municipio_new <- gsub("MONTANITA", "LA MONTANITA", violence_collapsed$municipio_new)
-violence_collapsed$municipio_new <- gsub("MIRITI-PARANA", "PUERTO SANTANDER", violence_collapsed$municipio_new)
-violence_collapsed$municipio_new <- gsub(", D.C.", "", violence_collapsed$municipio_new)
-violence_collapsed$municipio_new <- gsub(" D.C.", "", violence_collapsed$municipio_new)
-violence_collapsed$depto_new <- gsub("Distrito Capital", "Bogota", violence_collapsed$depto_new)
+# violence_collapsed$municipio_new <- gsub("TUMACO", "SAN ANDRES DE TUMACO", violence_collapsed$municipio_new)
+# violence_collapsed$municipio_new <- gsub("VISTA HERMOSA", "VISTAHERMOSA", violence_collapsed$municipio_new)
+# violence_collapsed$municipio_new <- gsub("MONTANITA", "LA MONTANITA", violence_collapsed$municipio_new)
+# violence_collapsed$municipio_new <- gsub("MIRITI-PARANA", "PUERTO SANTANDER", violence_collapsed$municipio_new)
+# violence_collapsed$municipio_new <- gsub(", D.C.", "", violence_collapsed$municipio_new)
+# violence_collapsed$municipio_new <- gsub(" D.C.", "", violence_collapsed$municipio_new)
+# violence_collapsed$depto_new <- gsub("Distrito Capital", "Bogota", violence_collapsed$depto_new)
 
 violence_with_id <- violence_collapsed %>%
   select(year, FARC:ELN, LocationFinal, municipio_new:etc.) %>% 
@@ -562,8 +575,8 @@ for (year_ in c(2013, 2014, 2016, 2017)) { # area maps
 #   }
 #   violence_i_coords <- geo(address=address_i, method = "arcgis", unique_only = T, quiet = TRUE)
 #   # violence_i_rev_geocode <- reverse_geocode(violence_i_coords, latviolence_i_coords = lat, long = long, method = "arcgis", full_results = T)
-#   violence_coords <- bind_rows(violence_coords, violence_i_coords %>% rename(lat_new = lat, long_nes = long))
-#   
+#   violence_coords <- bind_rows(violence_coords, violence_i_coords %>% rename(lat_new = lat, long_new = long))
+# 
 #   if (i %% 1000 == 0) print(paste0(i, "th row complete"))
 # }
 # end.t <- Sys.time()
