@@ -1,7 +1,7 @@
 #### seizures are last year data t-1
 # setwd("/Users/R")
 # setwd("C:/Users/User/Documents/R")
-indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "armed_group", "lab_reported", "lab_residual", "FARC", "ELN")
+indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "left_wing", "right_paramilitary")
 library(readxl)
 library(stringi)
 library(tidyverse)
@@ -58,45 +58,11 @@ library(logistf)
     filter(id != 88) %>% 
     left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
   
-  violence_AAMM <- read.csv("Colombia Data/violence with id (AAMM).csv") %>% as_tibble
-  violence_etc <- read.csv("Colombia Data/violence with id (etc).csv") %>% as_tibble
-  violence_all <- bind_rows(violence_AAMM, violence_etc)
-  conflict <- read.csv("Colombia Data/Conflict events.csv") %>% as_tibble
-  violence_combined <- bind_rows(violence_all %>% select(id, year, FARC, ELN, AUC) %>%
-                                   mutate(FARC = ifelse(FARC == "yes", 1 , 0),
-                                          ELN = ifelse(ELN == "yes", 1 , 0),
-                                          AUC = ifelse(AUC == "yes", 1 , 0)),
-                                 conflict %>% mutate(FARC = ifelse(grepl("FARC", dyad_name), 1, 0)) %>% select(id, year, FARC)) %>% 
-    group_by(id) %>% # removed year under the assumption that paramilitary and guerrilla groups do not relocate that much
-    summarize(FARC = ifelse(any(FARC == 1), 1, 0),
-              ELN = ifelse(any(ELN == 1), 1, 0),
-              AUC = ifelse(any(AUC == 1), 1, 0)) %>% ungroup
-  
   regression_data_CF_2013 <- read.csv("Colombia Data/regression data all municipios CF 2013.csv") %>% as_tibble
   regression_data_CF_2014 <- read.csv("Colombia Data/regression data all municipios CF 2014.csv") %>% as_tibble
   regression_data_CF_2016 <- read.csv("Colombia Data/regression data all municipios CF 2016.csv") %>% as_tibble
   regression_data_CF_2017 <- read.csv("Colombia Data/regression data all municipios CF 2017.csv") %>% as_tibble
   
-  regression_data_CF_2013 <- regression_data_CF_2013 %>% left_join(violence_combined, by = "id") %>% 
-    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
-           ELN = ifelse(is.na(ELN), 0, ELN),
-           AUC = ifelse(is.na(AUC), 0, AUC),
-           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC)
-  regression_data_CF_2014 <- regression_data_CF_2014 %>% left_join(violence_combined, by = "id") %>% 
-    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
-           ELN = ifelse(is.na(ELN), 0, ELN),
-           AUC = ifelse(is.na(AUC), 0, AUC),
-           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC)
-  regression_data_CF_2016 <- regression_data_CF_2016 %>% left_join(violence_combined, by = "id") %>% 
-    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
-           ELN = ifelse(is.na(ELN), 0, ELN),
-           AUC = ifelse(is.na(AUC), 0, AUC),
-           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC)
-  regression_data_CF_2017 <- regression_data_CF_2017 %>% left_join(violence_combined, by = "id") %>% 
-    mutate(FARC = ifelse(is.na(FARC), 0, FARC),
-           ELN = ifelse(is.na(ELN), 0, ELN),
-           AUC = ifelse(is.na(AUC), 0, AUC),
-           armed_group = ifelse(AUC == 1, 1, armed_group)) %>% select(-AUC)
   
   coord_unique <- left_join(regression_data_CF_2013 %>% select(id), municipio_centroid %>% ungroup %>% select(id, long, lat), by="id") 
   gwr_data_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T) %>% as.matrix
@@ -117,6 +83,35 @@ library(logistf)
   regression_data_CF_2014$armed_group <- collapsed_armed_group
   regression_data_CF_2016$armed_group <- collapsed_armed_group
   regression_data_CF_2017$armed_group <- collapsed_armed_group
+  
+  violence_all <- read.csv("Colombia Data/violence with id (all).csv") %>% as_tibble %>% filter(!is.na(id))
+  violence_combined <- violence_all %>%
+    mutate(Guerrilla = ifelse(Guerrilla == "yes", 1 , 0),
+           FARC = ifelse(FARC == "yes", 1 , 0),
+           ELN = ifelse(ELN == "yes", 1 , 0),
+           AUC = ifelse(AUC == "yes", 1 , 0),
+           Front = ifelse(Front != -1, 1 , 0),
+           Bloque = ifelse(Bloque != -1, 1 , 0)) %>% 
+    group_by(id) %>% # removed year under the assumption that paramilitary and guerrilla groups do not relocate that much
+    summarize(Guerrilla = ifelse(any(Guerrilla == 1), 1, 0),
+              FARC = ifelse(any(FARC == 1), 1, 0),
+              ELN = ifelse(any(ELN == 1), 1, 0),
+              AUC = ifelse(any(AUC == 1), 1, 0),
+              Front = ifelse(any(Front == 1), 1, 0),
+              Bloque = ifelse(any(Bloque == 1), 1, 0)) %>% ungroup %>% 
+    right_join(regression_data_CF_2016 %>% select(id, armed_group) %>% rename(paramilitary = armed_group), by="id") %>% 
+    mutate(left_wing = if_any(c(Guerrilla:ELN, Front), ~ . == 1) %>% as.numeric,
+           right_paramilitary = if_any(c(AUC, Bloque, paramilitary), ~ . == 1) %>%  as.numeric)
+  violence_combined[is.na(violence_combined)] <- 0
+  # violence_combined <- violence_combined %>% 
+  #   mutate(armed_group = ifelse(left_wing == 1, "left-wing",
+  #                        ifelse(right_paramilitary == 1, "right-wing", "X"))) %>% 
+  #   mutate(armed_group = ifelse(left_wing == 1 & right_paramilitary == 1, "both", armed_group) %>% as.factor)
+  
+  regression_data_CF_2013 <- regression_data_CF_2013 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
+  regression_data_CF_2014 <- regression_data_CF_2014 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
+  regression_data_CF_2016 <- regression_data_CF_2016 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
+  regression_data_CF_2017 <- regression_data_CF_2017 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
   
   # PML_gwr_coefs_AUC_CF_2016 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_AUC all var drop 10 2016 data CF (04-13-2026).csv") %>% as_tibble
 }
@@ -145,7 +140,7 @@ global_reg_data_year <- function(dep_var_, reg_data_year, year_, price=F) {
   if (!price) reg_data_year <- reg_data_year %>% select(-price_avg)
   title_for_price <- ifelse(price, "with price", "no price")
   
-  global_reg_year <- glm(y~., family = binomial, data=reg_data_year %>% select(-id))
+  global_reg_year <- glm(y~.+left_wing*right_paramilitary, family = binomial, data=reg_data_year %>% select(-id))
   
   return(global_reg_year)
 }
@@ -156,9 +151,16 @@ global_reg_2017 <- global_reg_data_year("hyd_destination", regression_data_CF_20
 global_reg_2016_ROC <- roc(global_reg_2016$data$y, global_reg_2016$fitted.values, positive = "1", quiet = T)
 global_reg_2017_ROC <- roc(global_reg_2017$data$y, global_reg_2017$fitted.values, positive = "1", quiet = T)
 
-png("Colombia Data/local GWR PML result predicted prices/roc curves/global model roc curves CF by year (violence_all)/roc curve global hyd destinations 2016.png")
+png("Colombia Data/local GWR PML result predicted prices/roc curves/global model roc curves CF by year left-right log freq (violence_all)/roc curve global hyd destinations 2016.png")
 plot(global_reg_2016_ROC, main="hyd destination - predictions 2016"); text(0.1, 0, paste("AUC:", round(global_reg_2016_ROC$auc, 2)))
 dev.off()
-png("Colombia Data/local GWR PML result predicted prices/roc curves/global model roc curves CF by year (violence_all)/roc curve global hyd destinations 2017.png")
+png("Colombia Data/local GWR PML result predicted prices/roc curves/global model roc curves CF by year left-right log freq (violence_all)/roc curve global hyd destinations 2017.png")
 plot(global_reg_2017_ROC, main="hyd destination - predictions 2017"); text(0.1, 0, paste("AUC:", round(global_reg_2017_ROC$auc, 2)))
 dev.off()
+
+# png("Colombia Data/local GWR PML result predicted prices/roc curves/global model roc curves CF by year (violence_all)/roc curve global hyd destinations 2016.png")
+# plot(global_reg_2016_ROC, main="hyd destination - predictions 2016"); text(0.1, 0, paste("AUC:", round(global_reg_2016_ROC$auc, 2)))
+# dev.off()
+# png("Colombia Data/local GWR PML result predicted prices/roc curves/global model roc curves CF by year (violence_all)/roc curve global hyd destinations 2017.png")
+# plot(global_reg_2017_ROC, main="hyd destination - predictions 2017"); text(0.1, 0, paste("AUC:", round(global_reg_2017_ROC$auc, 2)))
+# dev.off()
