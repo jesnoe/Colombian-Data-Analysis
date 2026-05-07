@@ -63,21 +63,6 @@ library(logistf)
     left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
   
   
-  # violence_AAMM <- read.csv("Colombia Data/violence with id (AAMM).csv") %>% as_tibble
-  # violence_etc <- read.csv("Colombia Data/violence with id (etc).csv") %>% as_tibble
-  # violence_all <- read.csv("Colombia Data/Violent events.csv") %>% as_tibble
-  # conflict <- read.csv("Colombia Data/Conflict events.csv") %>% as_tibble
-  # violence_combined <- bind_rows(violence_all %>% select(id, year, FARC, ELN, AUC) %>%
-  #                                  mutate(FARC = ifelse(FARC == "yes", 1 , 0),
-  #                                         ELN = ifelse(ELN == "yes", 1 , 0),
-  #                                         AUC = ifelse(AUC == "yes", 1 , 0)),
-  #                                conflict %>% mutate(FARC = ifelse(grepl("FARC", dyad_name), 1, 0)) %>% select(id, year, FARC)) %>% 
-  #   group_by(id) %>% # removed year under the assumption that paramilitary and guerrilla groups do not relocate that much
-  #   summarize(FARC = ifelse(any(FARC == 1), 1, 0),
-  #             ELN = ifelse(any(ELN == 1), 1, 0),
-  #             AUC = ifelse(any(AUC == 1), 1, 0)) %>% ungroup
-  
-  
   regression_data_CF_2013 <- read.csv("Colombia Data/regression data all municipios CF 2013.csv") %>% as_tibble
   regression_data_CF_2014 <- read.csv("Colombia Data/regression data all municipios CF 2014.csv") %>% as_tibble
   regression_data_CF_2016 <- read.csv("Colombia Data/regression data all municipios CF 2016.csv") %>% as_tibble
@@ -132,8 +117,6 @@ library(logistf)
   regression_data_CF_2014 <- regression_data_CF_2014 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
   regression_data_CF_2016 <- regression_data_CF_2016 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
   regression_data_CF_2017 <- regression_data_CF_2017 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
-  
-  # PML_gwr_coefs_AUC_CF_2016 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination leave-one-out PML_log_seizure_coca_bw_AUC all var drop 10 2016 data CF (04-13-2026).csv") %>% as_tibble
 }
 
 # the number of municipios with y=1

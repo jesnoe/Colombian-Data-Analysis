@@ -278,10 +278,6 @@ local_GWR_PML_2_years <- function(dep_var_, seed_model, reg_data_year1, reg_data
 # Think about if weight_1 = 1 / positive ratio is a good idea
 # weights <- c(7, 0.3) # 7 for postive outcomes
 # sample(1:1000000, 4)
-regression_data_CF_2013$hyd_seizures <- round(regression_data_CF_2013$hyd_seizures, 2)
-regression_data_CF_2014$hyd_seizures <- round(regression_data_CF_2014$hyd_seizures, 2)
-regression_data_CF_2016$hyd_seizures <- round(regression_data_CF_2016$hyd_seizures, 2)
-regression_data_CF_2017$hyd_seizures <- round(regression_data_CF_2017$hyd_seizures, 2)
 local_GWR_PML_2_years("hyd_destination", 178373, regression_data_CF_2013, regression_data_CF_2014, "2013-2014")
 local_GWR_PML_2_years("hyd_destination", 531190, regression_data_CF_2016, regression_data_CF_2017, "2016-2017")
 # local_GWR_PML_2_years("hyd_destination", 100, regression_data_2016, 2016, weight_in = weights)
@@ -429,7 +425,7 @@ local_gwr_PML_coef_map_by_AUC_year <- function(dep_var_, year_, price_=F) {
   # rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo_7_3)
 }
 
-local_gwr_PML_coef_map_by_AUC_year("hyd_destination", "2013-2014", price_=F)
+# local_gwr_PML_coef_map_by_AUC_year("hyd_destination", "2013-2014", price_=F)
 local_gwr_PML_coef_map_by_AUC_year("hyd_destination", "2016-2017", price_=F)
 # local_gwr_PML_coef_map_by_AUC_year("hyd_source")
 # local_gwr_PML_coef_map_by_AUC_year("base_source")
