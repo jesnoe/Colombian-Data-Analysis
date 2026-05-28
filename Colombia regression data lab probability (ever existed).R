@@ -157,7 +157,7 @@ create_reg_data_year <- function(anecdotal_annual, labs_reg_data, ex_year, is_CF
   
   # prices are excluded to compute lab_prob due to small number of obs.
   if (is_CF) {
-    PPI_lab_glm_year <- glm(PPI_lab~., family=binomial(link="probit"), data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, hyd_lab))
+    PPI_lab_glm_year <- glm(PPI_lab~., family=binomial(link="probit"), data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, -hyd_lab))
     summary(PPI_lab_glm_year)
     z_vals <- predict(PPI_lab_glm_year, type="link")
     Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
@@ -167,14 +167,14 @@ create_reg_data_year <- function(anecdotal_annual, labs_reg_data, ex_year, is_CF
     pos_index <- which(labs_2steps_year_reg$PPI_lab == "1")
     neg_index <- which(labs_2steps_year_reg$PPI_lab == "0")
     PPI_lab_res[pos_index] <- Inv_Mill_1[pos_index]
-    PPI_lab_res[neg_index] <- Inv_Mill_1[neg_index]
+    PPI_lab_res[neg_index] <- Inv_Mill_0[neg_index]
     
     res_tbl <- tibble(y = labs_2steps_year_reg$PPI_lab,
                       y_pred = predict(PPI_lab_glm_year, type="response"),
                       glm_res = PPI_lab_glm_year$residuals,
                       inv_Mil_ratio = PPI_lab_res)
     
-    hyd_lab_glm_year <- glm(hyd_lab~., family=binomial(link="probit"), data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, PPI_lab))
+    hyd_lab_glm_year <- glm(hyd_lab~., family=binomial(link="probit"), data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, -PPI_lab))
     summary(hyd_lab_glm_year)
     z_vals <- predict(hyd_lab_glm_year, type="link")
     Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
@@ -184,7 +184,7 @@ create_reg_data_year <- function(anecdotal_annual, labs_reg_data, ex_year, is_CF
     pos_index <- which(labs_2steps_year_reg$hyd_lab == "1")
     neg_index <- which(labs_2steps_year_reg$hyd_lab == "0")
     hyd_lab_res[pos_index] <- Inv_Mill_1[pos_index]
-    hyd_lab_res[neg_index] <- Inv_Mill_1[neg_index]
+    hyd_lab_res[neg_index] <- Inv_Mill_0[neg_index]
     
     regression_data_year <- labs_2steps_year_reg %>% 
       mutate(PPI_lab_res=PPI_lab_res,
@@ -245,6 +245,140 @@ regression_data_lab_prob_2017 <- create_reg_data_year(anecdotal_annual, labs_reg
 # write.csv(regression_data_lab_prob_2014, "Colombia Data/regression data all municipios lab_prob 2014.csv", row.names = F)
 # write.csv(regression_data_lab_prob_2016, "Colombia Data/regression data all municipios lab_prob 2016.csv", row.names = F)
 # write.csv(regression_data_lab_prob_2017, "Colombia Data/regression data all municipios lab_prob 2017.csv", row.names = F)
+
+
+  # 1617 combined data
+create_reg_data_combined_year <- function(anecdotal_annual, labs_reg_data, combined_year, is_CF) {
+  {
+    anecdotal_year <- anecdotal_annual %>%
+      filter(YEAR %in% combined_year)
+    labs_2steps_year <- labs_reg_data %>% 
+      select(-MUNICIPIO, -DEPARTAMENTO, -n_rivers, -n_big_rivers, -n_roads) %>% 
+      mutate(n_PPI_labs=ifelse(is.na(n_PPI_labs), 0, n_PPI_labs),
+             n_hyd_labs=ifelse(is.na(n_hyd_labs), 0, n_hyd_labs),
+             coca_area=ifelse(is.na(coca_area), 0, coca_area),
+             erad_aerial=ifelse(is.na(erad_aerial), 0, erad_aerial),
+             erad_manual=ifelse(is.na(erad_manual), 0, erad_manual),
+             coca_seizures=ifelse(is.na(coca_seizures), 0, coca_seizures),
+             base_seizures=ifelse(is.na(base_seizures), 0, base_seizures),
+             hyd_seizures=ifelse(is.na(hyd_seizures), 0, hyd_seizures)) %>% 
+      relocate(id, n_PPI_labs, n_hyd_labs)
+    labs_2steps_year[is.na(labs_2steps_year)] <- 0
+    
+    
+    data_year <- labs_2steps_year %>% left_join(population %>% select(id, population), by="id")
+    data_year$base_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(source_id)), 1, 0) %>% as.factor
+    data_year$base_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "BASE") %>% pull(destination_id)), 1, 0) %>% as.factor
+    data_year$hyd_source <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(source_id)), 1, 0) %>% as.factor
+    data_year$hyd_destination <- ifelse(data_year$id %in% (anecdotal_year %>% filter(PROCESS == "COCAINE") %>% pull(destination_id)), 1, 0) %>% as.factor
+    
+    data_year$armed_group <- ifelse(data_year$n_armed_groups > 0, 1, 0) %>% as.factor
+    data_year$PPI_lab <- ifelse(data_year$n_PPI_labs > 0, 1, 0) %>% as.factor
+    data_year$hyd_lab <- ifelse(data_year$n_hyd_labs > 0, 1, 0) %>% as.factor
+    data_year$hyd_avg <- ifelse(data_year$hyd_price_distance > 0, NA, data_year$hyd_avg)
+    data_year$base_avg <- ifelse(data_year$base_price_distance > 0, NA, data_year$base_avg)
+    
+    labs_2steps_year <- data_year %>% select(id:hyd_seizures, armed_group, population, PPI_lab, hyd_lab, base_source:hyd_destination) %>% left_join(airports, by="id") %>% relocate(id, year, base_source:hyd_destination)
+  }
+  
+  labs_2steps_year <- labs_2steps_year %>% select(id, base_avg, hyd_avg, coca_area, base_seizures, hyd_seizures, PPI_lab, hyd_lab, river_length, road_length, armed_group, population, airport:military) %>% 
+    mutate(coca_area = scale(log(1+coca_area))[,1],
+           base_avg=scale(base_avg)[,1],
+           hyd_avg=scale(hyd_avg)[,1],
+           population=scale(population)[,1],
+           base_seizures = scale(log(1+base_seizures))[,1],
+           hyd_seizures = scale(log(1+hyd_seizures))[,1])
+  
+  labs_2steps_year_reg <- labs_2steps_year %>% 
+    left_join(municipios_sf %>% as_tibble %>% select(id, area_km2), by="id") %>% 
+    mutate(river_length = scale(river_length / area_km2)[,1],
+           road_length = scale(road_length / area_km2)[,1]) %>% 
+    select(-area_km2)
+  
+  # prices are excluded to compute lab_prob due to small number of obs.
+  if (is_CF) {
+    PPI_lab_glm_year <- glm(PPI_lab~., family=binomial(link="probit"), data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, -hyd_lab))
+    summary(PPI_lab_glm_year)
+    z_vals <- predict(PPI_lab_glm_year, type="link")
+    Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
+    Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
+    
+    PPI_lab_res <- numeric(nrow(labs_2steps_year_reg))
+    pos_index <- which(labs_2steps_year_reg$PPI_lab == "1")
+    neg_index <- which(labs_2steps_year_reg$PPI_lab == "0")
+    PPI_lab_res[pos_index] <- Inv_Mill_1[pos_index]
+    PPI_lab_res[neg_index] <- Inv_Mill_0[neg_index]
+    
+    res_tbl <- tibble(y = labs_2steps_year_reg$PPI_lab,
+                      y_pred = predict(PPI_lab_glm_year, type="response"),
+                      glm_res = PPI_lab_glm_year$residuals,
+                      inv_Mil_ratio = PPI_lab_res)
+    
+    hyd_lab_glm_year <- glm(hyd_lab~., family=binomial(link="probit"), data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, -PPI_lab))
+    summary(hyd_lab_glm_year)
+    z_vals <- predict(hyd_lab_glm_year, type="link")
+    Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
+    Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
+    
+    hyd_lab_res <- numeric(nrow(labs_2steps_year_reg))
+    pos_index <- which(labs_2steps_year_reg$hyd_lab == "1")
+    neg_index <- which(labs_2steps_year_reg$hyd_lab == "0")
+    hyd_lab_res[pos_index] <- Inv_Mill_1[pos_index]
+    hyd_lab_res[neg_index] <- Inv_Mill_0[neg_index]
+    
+    regression_data_year <- labs_2steps_year_reg %>% 
+      mutate(PPI_lab_res=PPI_lab_res,
+             hyd_lab_res=hyd_lab_res) %>% 
+      relocate(id, PPI_lab, hyd_lab, PPI_lab_res, hyd_lab_res)
+    
+    hyd_avg_lm <- lm(hyd_avg~., regression_data_year %>% select(-id, -base_avg, -base_seizures, -PPI_lab_res, -hyd_lab_res))
+    summary(hyd_avg_lm)
+    hyd_avg_pred <- predict(hyd_avg_lm, regression_data_year %>% select(-id, -base_avg, -base_seizures, -PPI_lab_res, -hyd_lab_res))
+    regression_data_year$hyd_avg <- ifelse(is.na(regression_data_year$hyd_avg), hyd_avg_pred, regression_data_year$hyd_avg)
+    
+    base_avg_lm <- lm(base_avg~., regression_data_year %>% select(-id, -hyd_avg, -hyd_seizures, -PPI_lab_res, -hyd_lab_res))
+    summary(base_avg_lm)
+    base_avg_pred <- predict(base_avg_lm, regression_data_year %>% select(-id, -hyd_avg, -hyd_seizures, -PPI_lab_res, -hyd_lab_res))
+    regression_data_year$base_avg <- ifelse(is.na(regression_data_year$base_avg), base_avg_pred, regression_data_year$base_avg)
+    result <- regression_data_year %>% left_join(data_year %>% select(id, base_source:hyd_destination), by="id") %>% relocate(id, base_source:hyd_destination)
+  }else{
+    hyd_lab_glm_year <- glm(hyd_lab~., family=binomial, data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -base_seizures, -PPI_lab))
+    PPI_lab_glm_year <- glm(PPI_lab~., family=binomial, data=labs_2steps_year_reg %>% select(-id, -base_avg, -hyd_avg, -hyd_seizures, -hyd_lab))
+    
+    regression_data_year <- labs_2steps_year_reg %>%
+      mutate(PPI_lab_prob=PPI_lab_glm_year$fitted.values,
+             hyd_lab_prob=hyd_lab_glm_year$fitted.values) %>%
+      select(-PPI_lab, -hyd_lab) %>% relocate(id, PPI_lab_prob, hyd_lab_prob)
+    
+    hyd_avg_lm <- lm(hyd_avg~., regression_data_year %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
+    summary(hyd_avg_lm)
+    hyd_avg_pred <- predict(hyd_avg_lm, regression_data_year %>% select(-id, -base_avg, -base_seizures, -PPI_lab_prob))
+    regression_data_year$hyd_avg <- ifelse(is.na(regression_data_year$hyd_avg), hyd_avg_pred, regression_data_year$hyd_avg)
+    
+    base_avg_lm <- lm(base_avg~., regression_data_year %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
+    summary(base_avg_lm)
+    base_avg_pred <- predict(base_avg_lm, regression_data_year %>% select(-id, -hyd_avg, -hyd_seizures, -hyd_lab_prob))
+    regression_data_year$base_avg <- ifelse(is.na(regression_data_year$base_avg), base_avg_pred, regression_data_year$base_avg)
+    result <- regression_data_year %>% left_join(data_year %>% select(id, base_source:hyd_destination), by="id") %>% relocate(id, base_source:hyd_destination)
+  }
+  
+  return(result)
+}
+
+labs_reg_data_1314 <- labs_reg_data %>% filter(year %in% c(2013, 2014)) %>% group_by(id) %>% 
+  summarize(across(c(MUNICIPIO, DEPARTAMENTO, paste_avg:n_roads, erad_aerial, erad_manual), first),
+            year = 1314,
+            across(c(coca_area, n_PPI_labs, n_hyd_labs, n_armed_groups, coca_seizures:hyd_seizures), \(x) sum(x, na.rm = TRUE))) %>% ungroup
+labs_reg_data_1617 <- labs_reg_data %>% filter(year %in% c(2016, 2017)) %>% group_by(id) %>% 
+  summarize(across(c(MUNICIPIO, DEPARTAMENTO, paste_avg:n_roads, erad_aerial, erad_manual), first),
+            year = 1617,
+            across(c(coca_area, n_PPI_labs, n_hyd_labs, n_armed_groups, coca_seizures:hyd_seizures), \(x) sum(x, na.rm = TRUE))) %>% ungroup
+labs_reg_data_1617$hyd_seizures <- labs_reg_data_1314$hyd_seizures
+labs_reg_data_1617$base_seizures <- labs_reg_data_1314$base_seizures
+labs_reg_data_1617$coca_seizures <- labs_reg_data_1314$coca_seizures
+
+regression_data_CF_1617 <- create_reg_data_combined_year(anecdotal_annual, labs_reg_data_1617, c(2016, 2017), is_CF=T)
+# write.csv(regression_data_CF_1617, "Colombia Data/regression data all municipios CF 1617.csv", row.names = F)
 
 
 regression_data_CF_2013 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))

@@ -61,10 +61,81 @@ empty_map <- ggplot(map_df, aes(x=long, y=lat)) +
         line = element_blank()
   )
 
+depto_map <- suppressMessages(fortify(departamentos)) %>% 
+  mutate(id=as.numeric(id)) %>% 
+  filter(id != 88) %>% 
+  left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
+
 indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "left_wing", "right_paramilitary")
+row1 <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx") %>% head(1)
 
 dep_var_ <- "hyd_destination"; price <- F
-reg_data_year1 <- regression_data_CF_2016
+regression_data_CF_2013 <- read.csv("Colombia Data/regression data all municipios CF 2013.csv") %>% as_tibble
+regression_data_CF_2014 <- read.csv("Colombia Data/regression data all municipios CF 2014.csv") %>% as_tibble
+regression_data_CF_2016 <- read.csv("Colombia Data/regression data all municipios CF 2016.csv") %>% as_tibble
+regression_data_CF_2017 <- read.csv("Colombia Data/regression data all municipios CF 2017.csv") %>% as_tibble
+regression_data_CF_1617 <- read.csv("Colombia Data/regression data all municipios CF 1617.csv") %>% as_tibble
+
+regression_data_CF_2013$hyd_seizures <- round(regression_data_CF_2013$hyd_seizures, 2)
+regression_data_CF_2014$hyd_seizures <- round(regression_data_CF_2014$hyd_seizures, 2)
+regression_data_CF_2016$hyd_seizures <- round(regression_data_CF_2016$hyd_seizures, 2)
+regression_data_CF_2017$hyd_seizures <- round(regression_data_CF_2017$hyd_seizures, 2)
+regression_data_CF_1617$hyd_seizures <- round(regression_data_CF_1617$hyd_seizures, 2)
+
+collapsed_armed_group <- tibble(id = regression_data_CF_2013$id,
+                                armed_group_2013 = regression_data_CF_2013$armed_group,
+                                armed_group_2014 = regression_data_CF_2014$armed_group,
+                                armed_group_2016 = regression_data_CF_2016$armed_group,
+                                armed_group_2017 = regression_data_CF_2017$armed_group) %>% 
+  apply(1, function(x) ifelse(sum(x[2:5]) > 0, 1, 0))
+
+regression_data_CF_2013$armed_group <- collapsed_armed_group
+regression_data_CF_2014$armed_group <- collapsed_armed_group
+regression_data_CF_2016$armed_group <- collapsed_armed_group
+regression_data_CF_2017$armed_group <- collapsed_armed_group
+
+violence_all <- read.csv("Colombia Data/violence with id (all).csv") %>% as_tibble %>% filter(!is.na(id))
+violence_combined <- violence_all %>%
+  mutate(Guerrilla = ifelse(Guerrilla == "yes", 1 , 0),
+         FARC = ifelse(FARC == "yes", 1 , 0),
+         ELN = ifelse(ELN == "yes", 1 , 0),
+         AUC = ifelse(AUC == "yes", 1 , 0),
+         Front = ifelse(Front != -1, 1 , 0),
+         Bloque = ifelse(Bloque != -1, 1 , 0)) %>% 
+  group_by(id) %>% # removed year under the assumption that paramilitary and guerrilla groups do not relocate that much
+  summarize(Guerrilla = ifelse(any(Guerrilla == 1), 1, 0),
+            FARC = ifelse(any(FARC == 1), 1, 0),
+            ELN = ifelse(any(ELN == 1), 1, 0),
+            AUC = ifelse(any(AUC == 1), 1, 0),
+            Front = ifelse(any(Front == 1), 1, 0),
+            Bloque = ifelse(any(Bloque == 1), 1, 0)) %>% ungroup %>% 
+  right_join(regression_data_CF_2016 %>% select(id, armed_group) %>% rename(paramilitary = armed_group), by="id") %>% 
+  mutate(left_wing = if_any(c(Guerrilla:ELN, Front), ~ . == 1) %>% as.numeric,
+         right_paramilitary = if_any(c(AUC, Bloque, paramilitary), ~ . == 1) %>%  as.numeric)
+violence_combined[is.na(violence_combined)] <- 0
+
+regression_data_CF_2013 <- regression_data_CF_2013 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
+regression_data_CF_2014 <- regression_data_CF_2014 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
+regression_data_CF_2016 <- regression_data_CF_2016 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
+regression_data_CF_2017 <- regression_data_CF_2017 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
+regression_data_CF_1617 <- regression_data_CF_1617 %>% select(-armed_group) %>% left_join(violence_combined %>% select(id, left_wing, right_paramilitary), by = "id")
+# reg_data_year1 <- regression_data_CF_2016
+
+hyd_lab_glm_year <- glm(hyd_lab~.+left_wing*right_paramilitary, family=binomial(link="probit"),
+                        data=regression_data_CF_1617 %>% select(hyd_lab, coca_area, hyd_seizures, river_length:right_paramilitary))
+summary(hyd_lab_glm_year)
+z_vals <- predict(hyd_lab_glm_year, type="link")
+Inv_Mill_1 <- dnorm(z_vals) / pnorm(z_vals)
+Inv_Mill_0 <- -dnorm(z_vals) / (1-pnorm(z_vals))
+
+hyd_lab_res <- numeric(nrow(regression_data_CF_1617))
+pos_index <- which(regression_data_CF_1617$hyd_lab == "1")
+neg_index <- which(regression_data_CF_1617$hyd_lab == "0")
+hyd_lab_res[pos_index] <- Inv_Mill_1[pos_index]
+hyd_lab_res[neg_index] <- Inv_Mill_0[neg_index]
+regression_data_CF_1617$hyd_lab_res <- hyd_lab_res
+
+reg_data_year1 <- regression_data_CF_1617
 reg_data_year2 <- regression_data_CF_2017
 dep_var_index <- which(names(reg_data_year1) == dep_var_)
 names(reg_data_year1)[dep_var_index] <- "y"
@@ -104,7 +175,8 @@ gwr_data2 <- list(norm = reg_data_year2, coord = coord_unique, dist = gwr_data_d
 
 # base_gwr_data <- read.csv("Colombia Data/base gwr data.csv") %>% as_tibble
 # hyd_gwr_data <- read.csv("Colombia Data/hyd gwr data.csv") %>% as_tibble
-PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 2016-2017 data no price CF (05-01-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF (05-08-2026).csv") %>% as_tibble
+# PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 2016-2017 data no price CF (05-01-2026).csv") %>% as_tibble
 # PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_source leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (12-09-2025).csv") %>% as_tibble
 # PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_base_source <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs base_source leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (12-09-2025).csv") %>% as_tibble 
 # PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_base_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs base_destination leave-one-out PML_log_seizure_coca_bw_F1 all var drop 10 weight 7-3 (12-09-2025).csv") %>% as_tibble 
@@ -130,7 +202,249 @@ neighbor_id <- function(id_i, bw_i, scale_11_, gwr_data_) {
   return(result)
 }
 
-local_GWR_PML_sensitivity <- function(id_i, gwr_PML_data_1, gwr_PML_data_2, indep_vars, weight_=NULL, sig_level_=0.1) {
+local_GWR_PML_sensitivity <- function(id_i, gwr_PML_data_1, indep_vars, weight_=NULL, sig_level_=0.1, n_drop_max, n_drop_min, n_y_max, n_y_min) {
+  bwd_range <- seq(0.5, 4, by=0.1)
+  local_GWR_coefs_PML_result <- list()
+  AUC_i <- list()
+  for (n_drop_ in n_drop_max:n_drop_min) {
+    for (n_y_ in n_y_max:n_y_min) {
+      param_name <- paste0("param_", n_drop_, "_", n_y_)
+      AUC_i[[param_name]] <- c()
+      local_GWR_coefs_PML_result[[param_name]] <- list()
+    }
+  }
+  
+  for (j in 1:length(bwd_range)) {
+    bw_ij <- bwd_range[j]
+    bw_name <- paste0("bw_", bw_ij)
+    
+    neighbor_ij <- neighbor_id(id_i, bw_ij, F, gwr_data_=gwr_PML_data_1) %>% filter(id != id_i)
+    n_0_1 <- neighbor_ij$y %>% table
+    
+    for (n_drop_ in n_drop_max:n_drop_min) {
+      for (n_y_ in n_y_max:n_y_min) {
+        neighbor_ij_param <- neighbor_ij
+        n_unique_vals <- neighbor_ij_param %>% select(-id) %>% apply(2, function(x) length(table(x)))
+        param_name <- paste0("param_", n_drop_, "_", n_y_)
+        local_GWR_coefs_PML_result[[param_name]][[bw_name]] <- NA
+        
+        # restrict too unbalanced responses
+        if (sum(n_0_1 < 8) > 0 | length(n_0_1) < 2) {
+          AUC_i[[param_name]] <- c(AUC_i[[param_name]], NA)
+          local_GWR_coefs_PML_result[[paste0("id_", id_i)]][[paste0("bw_", bw_ij)]] <- NA
+          next
+        }
+        
+        n_unique_vals <- neighbor_ij_param %>% select(-id) %>% apply(2, function(x) length(table(x)))
+        
+        # variable drop
+        if (n_unique_vals[["coca_area"]] < n_drop_) {
+          neighbor_ij_param$coca_area <- NULL
+          n_unique_vals[["coca_area"]] <- n_drop_
+        }
+        if (n_unique_vals[["seizures"]] < n_drop_) {
+          neighbor_ij_param$seizures <- NULL
+          n_unique_vals[["seizures"]] <- n_drop_
+        }
+        if (n_unique_vals[["river_length"]] < n_drop_) {
+          neighbor_ij_param$river_length <- NULL
+          n_unique_vals[["river_length"]] <- n_drop_
+        }
+        if (n_unique_vals[["road_length"]] < n_drop_) {
+          neighbor_ij_param$road_length <- NULL
+          n_unique_vals[["road_length"]] <- n_drop_
+        }
+        
+        if (neighbor_ij_param$airport %>% table %>% min < n_drop_ | n_unique_vals[["airport"]] < 2) neighbor_ij_param$airport <- NULL
+        # if (neighbor_ij_param$armed_group %>% table %>% min < n_drop_ | n_unique_vals[["armed_group"]] < 2) neighbor_ij_param$armed_group <- NULL
+        if (neighbor_ij_param$ferry %>% table %>% min < n_drop_ | n_unique_vals[["ferry"]] < 2) neighbor_ij_param$ferry <- NULL
+        if (neighbor_ij_param$police %>% table %>% min < n_drop_ | n_unique_vals[["police"]] < 2) neighbor_ij_param$police <- NULL
+        if (neighbor_ij_param$military %>% table %>% min < n_drop_ | n_unique_vals[["military"]] < 2) neighbor_ij_param$military <- NULL
+        if (neighbor_ij_param$lab_reported %>% table %>% min < n_drop_ | n_unique_vals[["lab_reported"]] < 2) neighbor_ij_param$lab_reported <- NULL
+        if (neighbor_ij_param$left_wing %>% table %>% min < n_drop_ | n_unique_vals[["left_wing"]] < 2) neighbor_ij_param$left_wing <- NULL
+        if (neighbor_ij_param$right_paramilitary %>% table %>% min < n_drop_ | n_unique_vals[["right_paramilitary"]] < 2) neighbor_ij_param$right_paramilitary <- NULL
+        if (is.null(neighbor_ij_param$lab_reported)) neighbor_ij_param$lab_residual <- NULL
+        # variable drop end
+        
+        if (!is.null(weight_)) {
+          weight_i <- ifelse(neighbor_ij_param$y == 1, weight_[1], weight_[2])
+        }else{
+          weight_i <- NULL
+        }
+        
+        result_i <- tryCatch(
+          {
+            if (("left_wing" %in% names(neighbor_ij_param)) & ("right_paramilitary" %in% names(neighbor_ij_param))) {
+              left_right <- (neighbor_ij_param$left_wing * neighbor_ij_param$right_paramilitary) %>% table
+              if (left_right %>% min < n_drop_ | length(left_right) < 2) {
+                PML_result_ij <- logistf(y~., neighbor_ij_param %>% select(-id), weights=weight_i, alpha=sig_level_)
+              }else{
+                PML_result_ij <- logistf(y~.+left_wing*right_paramilitary, neighbor_ij_param %>% select(-id), weights=weight_i, alpha=sig_level_)
+              }
+            }else{
+              PML_result_ij <- logistf(y~., neighbor_ij_param %>% select(-id), weights=weight_i, alpha=sig_level_)
+            }
+            
+            PML_result_ij_y <- PML_result_ij$model$y %>% as.factor
+            PML_result_ij_pi_hat_tbl <- tibble(y=PML_result_ij_y, pi_hat=PML_result_ij$predict)
+            PML_result_ij_ROC <- ROC_pred(PML_result_ij_pi_hat_tbl)
+            AUC_ij <- PML_result_ij_ROC$auc # AUC
+            
+            AUC_i[[param_name]] <- c(AUC_i[[param_name]], AUC_ij)
+            local_GWR_coefs_PML_result[[param_name]][[bw_name]] <- PML_result_ij
+          },
+          error = function(e) {
+            return(e)
+          }
+        )
+        
+        if (inherits(result_i, "error")) {
+          AUC_i[[param_name]] <- c(AUC_i[[param_name]], NA)
+        }
+      }
+    }
+  }
+  
+  # best bw coef
+  result <- list()
+  for (n_drop_ in n_drop_max:n_drop_min) {
+    for (n_y_ in n_y_max:n_y_min) {
+      param_name <- paste0("param_", n_drop_, "_", n_y_)
+      AUC_i_param <- AUC_i[[param_name]]
+      
+      best_bw <- ifelse(all(is.na(AUC_i_param)), NA, bwd_range[which.max(AUC_i_param)])
+      coef_table <- tibble(id = id_i, bw=best_bw, n_y=n_y_, n_drop=n_drop_)
+      coef_mat <- matrix(NA, 1, length(indep_vars)+1)
+      if (is.na(best_bw)) {
+        colnames(coef_mat) <- c(indep_vars, "left_right")
+        coef_table <- bind_cols(coef_table, coef_mat)
+        coef_table$pi_hat <- NA
+        coef_table$y <- NA
+        result[[param_name]] <- coef_table
+        next
+      }
+      
+      indep_vars_df <- data.frame(var_name=c(indep_vars, "left_wing:right_paramilitary"))
+      if (!is.na(best_bw)) {
+        local_GWR_model_i <- local_GWR_coefs_PML_result[[param_name]][[paste0("bw_", best_bw)]]
+        coef_i <- coef(local_GWR_model_i)
+        coef_i_df <- data.frame(var_name=c("Intercept", names(coef_i)[-1]), coef=coef_i, p_value=local_GWR_model_i$prob)
+        coef_i_df <- left_join(indep_vars_df, coef_i_df, by="var_name")
+        coef_mat[1,] <- coef_i_df$coef
+      }
+      
+      colnames(coef_mat) <- c(indep_vars, "left_right")
+      coef_table <- bind_cols(coef_table, coef_mat)
+      model_vars_i <- (coef_i %>% names)[-1]
+      
+      neighbor_i <- neighbor_id(id_i, best_bw, scale_11_=F, gwr_PML_data_1)
+      var_names_i <- names(neighbor_i)[names(neighbor_i) %in% model_vars_i]
+      data_pred_i <- neighbor_i %>% filter(id == id_i) %>% select(y, all_of(var_names_i))
+      pi_hat_i <- predict(local_GWR_model_i, data_pred_i, type="response")
+      coef_table$pi_hat <- pi_hat_i
+      coef_table$y <- data_pred_i$y
+      result[[param_name]] <- coef_table
+    }
+  }
+  rm(local_GWR_coefs_PML_result)
+  return(bind_rows(result))
+}
+
+
+local_GWR_PML_sensitivity_hyd_dest <- list()
+start_time <- Sys.time()
+for (j in 1:nrow(PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest)) {
+  id_j <- PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest$id[j]
+  local_GWR_PML_sensitivity_hyd_dest[[paste0("bw_", id_j)]] <- local_GWR_PML_sensitivity(id_j, gwr_data1, indep_vars, n_drop_max = 20, n_drop_min = 5, n_y_max = 9, n_y_min = 7)
+  if (j %% 100 == 0) print(paste0(j, "th municipio complete: ", Sys.time()))
+}
+end_time <- Sys.time()
+end_time - start_time # 1.98736 days
+local_GWR_PML_sensitivity_hyd_dest_tbl <- bind_rows(local_GWR_PML_sensitivity_hyd_dest)
+write_xlsx(local_GWR_PML_sensitivity_hyd_dest_tbl, "Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx")
+
+# further n_y
+local_GWR_PML_sensitivity_hyd_dest2 <- list()
+start_time <- Sys.time()
+for (j in 1:nrow(PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest)) {
+  id_j <- PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest$id[j]
+  local_GWR_PML_sensitivity_hyd_dest2[[paste0("bw_", id_j)]] <- local_GWR_PML_sensitivity(id_j, gwr_data1, indep_vars, n_drop_max = 20, n_drop_min = 5, n_y_max = 11, n_y_min = 10)
+  local_GWR_PML_sensitivity_hyd_dest2[[paste0("bw_", id_j)]] <- local_GWR_PML_sensitivity(id_j, gwr_data1, indep_vars, n_drop_max = 20, n_drop_min = 5, n_y_max = 6, n_y_min = 5)
+  if (j %% 100 == 0) print(paste0(j, "th municipio complete: ", Sys.time()))
+}
+end_time <- Sys.time()
+end_time - start_time # 2.140106 days
+local_GWR_PML_sensitivity_hyd_dest2 <- bind_rows(local_GWR_PML_sensitivity_hyd_dest2)
+write_xlsx(local_GWR_PML_sensitivity_hyd_dest2, "Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined 2 (violence left-right).xlsx")
+
+local_GWR_PML_sensitivity_hyd_dest_tbl <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx")
+sensitivity_summary <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% group_by(id) %>%
+  summarize(y=y[1], n_params=n(), bw_sd=sd(bw, na.rm=T), across(Intercept:pi_hat,  \(x) sd(x, na.rm = TRUE)))
+sensitivity_summary_coef <- sensitivity_summary %>% ungroup %>% select(-pi_hat)
+
+AUC_1617 <- c()
+AUC_param <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% select(n_y, n_drop) %>% unique
+for (i in 1:nrow(AUC_param)) {
+  n_y_i <- AUC_param$n_y[i]
+  n_drop_i <- AUC_param$n_drop[i]
+  pi_hat_1617 <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% filter(n_y == n_y_i & n_drop == n_drop_i) %>% select(y, pi_hat) %>% mutate(y=as.factor(y))
+  
+  AUC_1617 <- c(AUC_1617, ROC_pred(pi_hat_1617)$auc)
+}
+AUC_param$AUC <- AUC_1617
+AUC_param$n_y <- as.factor(AUC_param$n_y)
+
+AUC_param %>% print(n=48)
+AUC_param %>% ggplot +
+  geom_point(aes(x=n_drop, y=AUC, group=n_y, color=n_y)) +
+  geom_line(aes(x=n_drop, y=AUC, group=n_y, color=n_y))
+
+# coef, pi_hat standard deviation maps
+sensitivity_summary_tbl <- sensitivity_summary_coef
+for (i in c(4, 6:length(sensitivity_summary_tbl))) {
+  var_name <- names(sensitivity_summary_tbl)[i]
+  map_data_i <- data.frame(id=sensitivity_summary_tbl$id,
+                           coef=sensitivity_summary_tbl[[var_name]],
+                           rounded_coef=sensitivity_summary_tbl[[var_name]] %>% round(3))
+  min_coef <- min(map_data_i$coef, na.rm=T)
+  max_coef <- max(map_data_i$coef, na.rm=T)
+  sensitivity_map_coords <- map_df %>% left_join(map_data_i, by="id")
+  
+  sensitivity_map <- ggplot(sensitivity_map_coords, aes(x=long, y=lat)) +
+    geom_polygon(aes(group=group, fill=coef),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = depto_map$long, y = depto_map$lat) +
+    coord_quickmap() +
+    scale_fill_viridis_c(na.value = "white") +
+    labs(fill=var_name, x="", y="") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    )
+  
+  ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/sensitivity maps (%s)/2016-2017 combined/coef sensitivity map (%s).png",
+                 "hyd_destination", var_name),
+         sensitivity_map, scale=1)
+}
+
+
+
+sensitivity_summary %>% filter(seizures_sd > 40)
+local_GWR_PML_sensitivity_hyd_dest_tbl %>% filter(year == 2016 & id %in% c(15533, 85225)) %>% select(-year) %>% print(n=144)
+
+
+sum(sensitivity_summary$pred_var > 0, na.rm = T) / nrow(sensitivity_summary %>% filter(!is.na(pred_var))) # 153/1110 = 0.1378
+sensitivity_summary$bw_var %>% summary
+sensitivity_summary %>% arrange(desc(pred_var))
+sensitivity_summary %>% arrange(desc(bw_var))
+local_GWR_PML_sensitivity_hyd_dest_tbl %>% filter(id %in% (sensitivity_summary %>% filter(is.na(pred_var)) %>% pull(id)))
+
+#### two-year senesitivity analysis
+local_GWR_PML_sensitivity_two_year <- function(id_i, gwr_PML_data_1, gwr_PML_data_2, indep_vars, weight_=NULL, sig_level_=0.1) {
   bwd_range <- seq(0.5, 4, by=0.1)
   local_GWR_coefs_PML_result <- list()
   AUC_i <- list()
@@ -248,7 +562,7 @@ local_GWR_PML_sensitivity <- function(id_i, gwr_PML_data_1, gwr_PML_data_2, inde
       coef_table <- bind_rows(coef_table, coef_table)
       coef_mat <- matrix(NA, 1, length(indep_vars)+1)
       if (is.na(best_bw)) {
-        colnames(coef_mat) <- indep_vars
+        colnames(coef_mat) <- c(indep_vars, "left_right")
         coef_table <- bind_cols(coef_table, coef_mat)
         coef_table$pi_hat <- NA
         coef_table$y <- NA
@@ -289,7 +603,7 @@ local_GWR_PML_sensitivity_hyd_dest <- list()
 start_time <- Sys.time()
 for (j in 1:nrow(PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest)) {
   id_j <- PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest$id[j]
-  local_GWR_PML_sensitivity_hyd_dest[[paste0("bw_", id_j)]] <- local_GWR_PML_sensitivity(id_j, gwr_data1, gwr_data2, indep_vars_)
+  local_GWR_PML_sensitivity_hyd_dest[[paste0("bw_", id_j)]] <- local_GWR_PML_sensitivity_two_year(id_j, gwr_data1, gwr_data2, indep_vars_)
   if (j %% 100 == 0) print(paste0(j, "th municipio complete: ", Sys.time()))
 }
 end_time <- Sys.time()
@@ -344,7 +658,7 @@ for (i in c(4, 6:length(sensitivity_summary_tbl))) {
     expand_limits(x = depto_map$long, y = depto_map$lat) +
     coord_quickmap() +
     scale_fill_viridis_c(na.value = "white") +
-    labs(fill=var_name, x="", y="", title=dep_var) +
+    labs(fill=var_name, x="", y="") +
     theme_bw() +
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
@@ -357,18 +671,6 @@ for (i in c(4, 6:length(sensitivity_summary_tbl))) {
                  "hyd_destination", var_name),
          sensitivity_map, scale=1)
 }
-
-
-sensitivity_summary %>% filter(seizures_sd > 40)
-local_GWR_PML_sensitivity_hyd_dest_tbl %>% filter(year == 2016 & id %in% c(15533, 85225)) %>% select(-year) %>% print(n=144)
-
-
-sum(sensitivity_summary$pred_var > 0, na.rm = T) / nrow(sensitivity_summary %>% filter(!is.na(pred_var))) # 153/1110 = 0.1378
-sensitivity_summary$bw_var %>% summary
-sensitivity_summary %>% arrange(desc(pred_var))
-sensitivity_summary %>% arrange(desc(bw_var))
-local_GWR_PML_sensitivity_hyd_dest_tbl %>% filter(id %in% (sensitivity_summary %>% filter(is.na(pred_var)) %>% pull(id)))
-
 
 
 sample(PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest$id, 5)
