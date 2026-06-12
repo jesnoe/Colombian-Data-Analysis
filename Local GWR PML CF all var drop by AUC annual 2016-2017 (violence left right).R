@@ -7,6 +7,7 @@ max_bwd <- 4
 library(readxl)
 library(stringi)
 library(tidyverse)
+library(ggbreak)
 library(gridExtra)
 library(lubridate)
 library(colmaps)
@@ -136,11 +137,48 @@ library(logistf)
   regression_data_CF_1617$hyd_lab_res <- hyd_lab_res
 }
 
+## Box plot of coefs
+PML_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF (05-08-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_CF_1617_tbl_for_box <- PML_gwr_coefs_AUC_CF_1617 %>% pivot_longer(coca_area:left_right, names_to = "var_name", values_to = "coefficients") %>% 
+  mutate(var_name = factor(var_name, levels = c(indep_vars, "left_right")))
+
+PML_gwr_coefs_AUC_CF_1617_box <- ggplot(PML_gwr_coefs_AUC_CF_1617_tbl_for_box) + 
+  geom_boxplot(aes(x = var_name, y = coefficients)) + 
+  geom_hline(yintercept=0, linetype = "dashed") +
+  labs(x="") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        text = element_text(size = 20)) +
+  ylim(-10, 10)
+  # scale_y_break(c(-100, -10)) +
+  # scale_y_break(breaks = c(10, 80))
+ggsave("Colombia Data/local GWR PML result predicted prices/Box plot of local GWR PML coeficients (truncated).png", PML_gwr_coefs_AUC_CF_1617_box, scale = 1)
+ggsave("Colombia Data/local GWR PML result predicted prices/Box plot of local GWR PML coeficients.png", PML_gwr_coefs_AUC_CF_1617_box, scale = 1)
+
+PML_gwr_coefs_AUC_CF_1617_violin <- ggplot(PML_gwr_coefs_AUC_CF_1617_tbl_for_box, aes(x = var_name, y = coefficients)) + 
+  geom_violin(trim = FALSE, fill = "grey50") +
+  geom_boxplot(width = 0.1, outlier.shape = NA) + 
+  geom_hline(yintercept=0, linetype = "dashed") +
+  labs(x="") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        text = element_text(size = 20)) +
+  ylim(-10, 10)
+ggsave("Colombia Data/local GWR PML result predicted prices/Violin box plot of local GWR PML coeficients (truncated).png", PML_gwr_coefs_AUC_CF_1617_violin, scale = 1)
+
+PML_gwr_coefs_AUC_CF_1617_violin <- ggplot(PML_gwr_coefs_AUC_CF_1617_tbl_for_box, aes(x = var_name, y = coefficients)) + 
+  geom_violin(trim = FALSE, fill = "grey50") +
+  geom_boxplot(width = 0.1, outlier.shape = NA) + 
+  geom_hline(yintercept=0, linetype = "dashed") +
+  labs(x="") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        text = element_text(size = 20))
+ggsave("Colombia Data/local GWR PML result predicted prices/Violin box plot of local GWR PML coeficients.png", PML_gwr_coefs_AUC_CF_1617_violin, scale = 1)
+
 # the number of municipios with y=1
 regression_data_CF_2013 %>% filter(hyd_destination == 1) %>% nrow # 157
 regression_data_CF_2014 %>% filter(hyd_destination == 1) %>% nrow # 278
 regression_data_CF_2016 %>% filter(hyd_destination == 1) %>% nrow # 123
 regression_data_CF_2017 %>% filter(hyd_destination == 1) %>% nrow # 365
+regression_data_CF_1617 %>% filter(hyd_destination == 1) %>% nrow # 384
 
 ROC_pred <- function(GWR_pred) {
   result <- roc(GWR_pred$y, GWR_pred$pi_hat, positive = "1", quiet = T)
@@ -808,42 +846,42 @@ confusion_matrix_pred(global_reg_prediction_year_CF(global_reg_coefs_CF_2016, re
 confusion_matrix_pred(global_reg_prediction_year_CF(global_reg_coefs_CF_2017, regression_data_CF_2017, "hyd_destination", no_price=T, threshold = 0.302))$byClass
 
 # variable influence (bX)
-influential_var <- function(GWR_coef, reg_data_year_in, dep_var, no_price) {
-  indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "armed_group", "lab_reported", "lab_residual")
-  dep_var_index <- which(names(reg_data_year_in) == dep_var)
-  names(reg_data_year_in)[dep_var_index] <- "y"
-  if (grepl("hyd", dep_var)) {
-    reg_data_year <- reg_data_year_in %>% 
+influential_var <- function(GWR_coef, reg_data_year, dep_var_, price) {
+  dep_var_index <- which(names(reg_data_year) == dep_var_)
+  names(reg_data_year)[dep_var_index] <- "y"
+  
+  if (grepl("hyd", dep_var_)) {
+    reg_data_year <- reg_data_year %>% 
       select(-PPI_lab, -PPI_lab_res, -base_avg, -base_seizures) %>%
       rename(price_avg=hyd_avg, lab_reported=hyd_lab, lab_residual=hyd_lab_res, seizures=hyd_seizures) %>% 
       select(id, y, all_of(indep_vars))
   }else{
-    reg_data_year <- reg_data_year_in %>% 
+    reg_data_year <- reg_data_year %>% 
       select(-hyd_lab, -hyd_lab_res, -hyd_avg, -hyd_seizures) %>%
       rename(price_avg=base_avg, lab_reported=PPI_lab, lab_residual=PPI_lab_res, seizures=base_seizures) %>% 
       select(id, y, all_of(indep_vars))
   }
   
-  if (no_price) {
-    reg_data_year$price_avg <- NULL 
-  }
+  if (!price) reg_data_year <- reg_data_year %>% select(-price_avg)
+  title_for_price <- ifelse(price, "with price", "no price")
   
   reg_data_year <- reg_data_year %>% arrange(id)
-  coefs_data <- GWR_coef %>% filter(id %in% reg_data_year$id) %>% arrange(id) %>% select(Intercept, any_of(indep_vars))
+  coefs_data <- GWR_coef %>% filter(id %in% reg_data_year$id) %>% arrange(id) %>% select(Intercept, any_of(indep_vars), left_right)
   
   coefs_data[is.na(coefs_data)] <- 0
-  influences <- as_tibble(as.matrix(coefs_data)[,-1] * as.matrix(reg_data_year %>% select(-id, -y))) %>% 
-    mutate(id = reg_data_year$id, Intercept = coefs_data$Intercept) %>% relocate(id, Intercept)
+  reg_data_year_mat <- left_join(GWR_coef %>% select(id), reg_data_year, by="id")
+  influences <- as_tibble(as.matrix(coefs_data)[,-1] * as.matrix(reg_data_year_mat %>% select(-id, -y))) %>% 
+    mutate(id = reg_data_year_mat$id, Intercept = coefs_data$Intercept) %>% relocate(id, Intercept)
   return(influences)
 }
 
-variable_influence_CF_2013 <- influential_var(PML_gwr_coefs_AUC_CF_2013, regression_data_CF_2013, "hyd_destination", no_price=T)
-variable_influence_CF_2014 <- influential_var(PML_gwr_coefs_AUC_CF_2014, regression_data_CF_2014, "hyd_destination", no_price=T)
-variable_influence_CF_2016 <- influential_var(PML_gwr_coefs_AUC_CF_2016, regression_data_CF_2016, "hyd_destination", no_price=T)
-variable_influence_CF_2017 <- influential_var(PML_gwr_coefs_AUC_CF_2017, regression_data_CF_2017, "hyd_destination", no_price=T)
+variable_influence_CF_2013 <- influential_var(PML_gwr_coefs_AUC_CF_2013, regression_data_CF_2013, "hyd_destination", price=T)
+variable_influence_CF_2014 <- influential_var(PML_gwr_coefs_AUC_CF_2014, regression_data_CF_2014, "hyd_destination", price=T)
+variable_influence_CF_2016 <- influential_var(PML_gwr_coefs_AUC_CF_2016, regression_data_CF_2016, "hyd_destination", price=T)
+variable_influence_CF_2017 <- influential_var(PML_gwr_coefs_AUC_CF_2017, regression_data_CF_2017, "hyd_destination", price=T)
+variable_influence_CF_1617 <- influential_var(PML_gwr_coefs_AUC_CF_1617, regression_data_CF_1617, "hyd_destination", price=T)
 
-variable_influence_map_CF <- function(variable_influence_CF_year, selected_id=NULL, dep_var, n_drop, year_, price) {
-  title_for_price <- ifelse(price, "with price", "no price")
+variable_influence_map_CF <- function(variable_influence_CF_year, selected_id=NULL, dep_var, n_drop, year_) {
   
   for (i in c(2:length(variable_influence_CF_year))) {
     var_name <- names(variable_influence_CF_year)[i]
@@ -864,6 +902,7 @@ variable_influence_map_CF <- function(variable_influence_CF_year, selected_id=NU
                    linewidth = 0.1) +
       expand_limits(x = depto_map$long, y = depto_map$lat) +
       coord_quickmap() +
+      # scale_fill_viridis_c(na.value = "white") +
       scale_fill_gradientn(colors = c("blue","skyblue","grey40", "yellow","red"),
                            values = scales::rescale(c(-1, -.Machine$double.eps, 0 , .Machine$double.eps, max_coef/abs(min_coef))),
                            na.value = "white") +
@@ -877,19 +916,29 @@ variable_influence_map_CF <- function(variable_influence_CF_year, selected_id=NU
       )
     
     if (is.null(selected_id)) {
-      ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/VI maps CF/%s (%i)/local GWR PML variable influence %s %s all var drop %i %i data %s CF.png",
-                     dep_var, year_, var_name, dep_var, n_drop, year_, title_for_price),
+      ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/VI maps CF/%s (%i)/local GWR PML variable influence %s %s n_drop %i %i data CF.png",
+                     dep_var, year_, var_name, dep_var, n_drop, year_),
              gwr_VI_map, scale=1)
     }else{
-      ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/VI maps CF (y=1)/%s (%i)/local GWR PML variable influence %s %s all var drop %i %i data %s CF.png",
+      ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/VI maps CF/VI maps CF (y=1)/%s (%i)/local GWR PML variable influence %s %s all var drop %i %i data %s CF.png",
                      dep_var, year_, var_name, dep_var, n_drop, year_, title_for_price),
              gwr_VI_map, scale=1)
     }
   }
 }
 
+variable_influence_map_CF(variable_influence_CF_1617,
+                          dep_var = "hyd_destination",
+                          n_drop = 10,
+                          year_ = 1617)
+
+variable_influence_CF_1617_y <- variable_influence_CF_1617 %>% left_join(regression_data_CF_1617 %>% select(id, hyd_destination) %>% rename(y = hyd_destination), by = "id") %>% relocate(id, y)
+variable_influence_CF_1617_y %>% apply(1,
+                                       function(x) ifelse(x[2] == 1,
+                                                          names(variable_influence_CF_1617 %>% select(-id, -Intercept))[which.max(x[4:17])],
+                                                          names(variable_influence_CF_1617 %>% select(-id, -Intercept))[which.min(x[4:17])]))
+
 variable_influence_map_CF(variable_influence_CF_2013,
-                          selected_id = GWR_predict_2013_CF_with_2013_coef %>% filter(y == 1) %>% pull(id),
                           dep_var = "hyd_destination",
                           n_drop = 10,
                           year_ = 2013,

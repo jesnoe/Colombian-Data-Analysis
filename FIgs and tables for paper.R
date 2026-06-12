@@ -198,12 +198,111 @@ for (year_ in c(2013, 2014, 2016, 2017)) { # area maps
          hyd_destination_map_ggplot, scale=1)
 }
 
+data_map <- function(reg_data_year) {
+  binary_vars <- c("airport", "ferry", "police", "military", "lab_reported", "left_wing", "right_paramilitary")
+  for (i in 3:ncol(reg_data_year)) {
+    var_name_ <- names(reg_data_year)[i]
+    gwr_data_i <- data.frame(id=reg_data_year$id,
+                             obs=reg_data_year[[var_name_]])
+    data_map_coords <- map_df %>%
+      left_join(gwr_data_i, by="id")
+    if (var_name_ %in% binary_vars) {
+      ggplot(data_map_coords, aes(x=long, y=lat)) +
+        geom_polygon(aes(group=group, fill=as.factor(obs)),
+                     color = "black",
+                     linewidth = 0.1) +
+        expand_limits(x = depto_map$long, y = depto_map$lat) +
+        coord_quickmap() +
+        scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
+        labs(fill=var_name_, x="", y="") +
+        theme_bw() +
+        theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              axis.text = element_blank(),
+              line = element_blank()
+        ) -> data_map_i
+    }else{
+      ggplot(data_map_coords, aes(x=long, y=lat)) +
+        geom_polygon(aes(group=group, fill=obs),
+                     color = "black",
+                     linewidth = 0.1) +
+        expand_limits(x = depto_map$long, y = depto_map$lat) +
+        coord_quickmap() +
+        scale_fill_viridis_c(na.value = "white") +
+        labs(fill=var_name_, x="", y="") +
+        theme_bw() +
+        theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              axis.text = element_blank(),
+              line = element_blank()
+        ) -> data_map_i
+      # next
+    }
+    
+    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/data maps for paper/local GWR data %s.png", var_name_),
+           data_map_i, scale=1)
+  }
+}
+
+data_map(reg_data_year1)
+
+hyd_destination_1617_map_coords <- map_df %>% left_join(reg_data_year1 %>% select(id, y) %>% mutate(y = as.factor(y)), by="id")
+ggplot(hyd_destination_1617_map_coords, aes(x=long, y=lat)) +
+  geom_polygon(aes(group=group, fill=y),
+               color = "black",
+               linewidth = 0.1) +
+  expand_limits(x = depto_map$long, y = depto_map$lat) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
+  labs(fill="y", x="", y="") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        legend.position = "none",
+        axis.text = element_blank(),
+        line = element_blank()
+  ) -> hyd_destination_1617_map
+ggsave("Colombia Data/local GWR PML result predicted prices/hyd_destination maps/hyd_destination map (1617).png", hyd_destination_1617_map, scale=1)
 
 # Sensitivity analysis
 local_GWR_PML_sensitivity_hyd_dest_tbl <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx")
 sensitivity_summary <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% group_by(id) %>%
   summarize(y=y[1], n_params=n(), bw_sd=sd(bw, na.rm=T), across(Intercept:pi_hat,  \(x) sd(x, na.rm = TRUE)))
 sensitivity_summary_coef <- sensitivity_summary %>% ungroup %>% select(-pi_hat)
+
+coef_sensitivity_summary <- sensitivity_summary_coef %>%
+  summarise(across(Intercept:left_right,
+                   list(
+                     Min = ~min(., na.rm = TRUE),
+                     Q1 = ~quantile(., 0.25, na.rm = TRUE),
+                     Median = ~median(., na.rm = TRUE),
+                     Mean = ~mean(., na.rm = TRUE),
+                     Q3 = ~quantile(., 0.75, na.rm = TRUE),
+                     Max = ~max(., na.rm = TRUE)
+                   )
+  ))
+
+coef_sensitivity_table <- coef_sensitivity_summary %>%
+  pivot_longer(everything(),
+               names_to = c("Variable", ".value"),
+               names_pattern = "(.+)_(Min|Q1|Median|Mean|Q3|Max)")
+
+final_table <- coef_sensitivity_table %>%
+  select(Variable, Min, Q1, Median, Mean, Q3, Max)
+
+final_table$n_large_sd <- sensitivity_summary_coef %>% select(Intercept:left_right) %>% apply(2, function(x) sum(abs(x) > 20, na.rm=T))
+
+kable(
+  final_table,
+  format = "latex",
+  booktabs = TRUE,
+  digits = 3,
+  escape = FALSE,
+  caption = "Local GWR PML sensitivity analysis for $n_y$ and $n_{large\\_sd}$"
+)
 
 AUC_1617 <- c()
 AUC_param <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% select(n_y, n_drop) %>% unique
@@ -218,9 +317,12 @@ AUC_param$AUC <- AUC_1617
 AUC_param$n_y <- as.factor(AUC_param$n_y)
 
 AUC_param %>% print(n=48)
-AUC_param %>% ggplot + ylim(0.75, 0.85) +
+AUC_plot <- AUC_param %>% ggplot + ylim(0.75, 0.85) +
   geom_point(aes(x=n_drop, y=AUC, group=n_y, color=n_y)) +
   geom_line(aes(x=n_drop, y=AUC, group=n_y, color=n_y))
+
+ggsave("Colombia Data/local GWR PML result predicted prices/sensitivity analysis AUC.png", AUC_plot, scale=1)
+
 
 # coef, pi_hat standard deviation maps
 sensitivity_summary_tbl <- sensitivity_summary_coef
@@ -493,7 +595,7 @@ local_gwr_LASSO_coef_map_by_AUC <- function(coef_table, pval_table, dep_var, alp
         )
     }
     
-    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s (%i)/local GWR LASSO coef by AUC violence_all left-right %s %s all var drop n_drop=%i %i data %s CF.png",
+    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s (%i)/local GWR lasso coef by AUC violence_all left-right %s %s all var drop n_drop=%i %i data %s CF.png",
                    dep_var, year_, var_name, dep_var, n_drop, year_, title_for_price),
            gwr_coef_map, scale=1)
     
@@ -515,9 +617,6 @@ local_gwr_LASSO_coef_map_by_AUC_year <- function(LASSO_gwr_coefs, LASSO_gwr_pval
 }
 
 LASSO_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR LASSO coefs hyd_destination violence_all left-right by AUC n_drop=10 2016-2017 data combined no price CF.csv") %>% as_tibble
-LASSO_gwr_pvals_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR LASSO p-value hyd_destination violence_all left-right by AUC n_drop=10 2016-2017 data combined no price CF.csv") %>% as_tibble
-
-local_gwr_LASSO_coef_map_by_AUC_year(LASSO_gwr_coefs_AUC_CF_1617, LASSO_gwr_pvals_AUC_CF_1617, "hyd_destination", 1617, price_=F)
 
 LASSO_gwr_coefs_AUC_CF_1617 %>%
   reframe(across(coca_area:left_right,
@@ -552,7 +651,7 @@ gwr_table <- gwr_table %>%
 
 footer <- data.frame(
   Variable = "AUC",
-  Min = 0.72,
+  Min = 0.84,
   Q1 = NA,
   Median = NA,
   Mean = NA,
@@ -561,7 +660,7 @@ footer <- data.frame(
 )
 
 final_table <- bind_rows(gwr_table, footer)
-final_table$n_large_coef <- c(LASSO_gwr_coefs_AUC_CF_1617 %>% select(Intercept:left_right) %>% apply(2, function(x) sum(abs(x) > 1000, na.rm=T)), NA)
+# final_table$n_large_coef <- c(LASSO_gwr_coefs_AUC_CF_1617 %>% select(Intercept:left_right) %>% apply(2, function(x) sum(abs(x) > 1000, na.rm=T)), NA)
 
 kable(
   final_table,
