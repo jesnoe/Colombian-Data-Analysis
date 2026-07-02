@@ -66,8 +66,8 @@ depto_map <- suppressMessages(fortify(departamentos)) %>%
   filter(id != 88) %>% 
   left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
 
-indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "left_wing", "right_paramilitary")
-row1 <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx") %>% head(1)
+indep_vars <- c("coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "left_wing", "right_paramilitary")
+# row1 <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx") %>% head(1)
 
 dep_var_ <- "hyd_destination"; price <- F
 regression_data_CF_2013 <- read.csv("Colombia Data/regression data all municipios CF 2013.csv") %>% as_tibble
@@ -160,12 +160,12 @@ if (grepl("hyd", dep_var_)) {
     rename(price_avg=base_avg, lab_reported=PPI_lab, lab_residual=PPI_lab_res, seizures=base_seizures) %>% 
     select(id, y, all_of(indep_vars))
 }
-
-if (!price) {
-  reg_data_year1 <- reg_data_year1 %>% select(-price_avg)
-  reg_data_year2 <- reg_data_year2 %>% select(-price_avg)
-}
-title_for_price <- ifelse(price, "with price", "no price")
+# 
+# if (!price) {
+#   reg_data_year1 <- reg_data_year1 %>% select(-price_avg)
+#   reg_data_year2 <- reg_data_year2 %>% select(-price_avg)
+# }
+# title_for_price <- ifelse(price, "with price", "no price")
 
 coord_unique <- left_join(regression_data_CF_2013 %>% select(id), municipio_centroid %>% ungroup %>% select(id, long, lat), by="id") 
 gwr_data_dist <- dist(coord_unique %>% select(-id), diag=T, upper=T) %>% as.matrix
@@ -359,9 +359,9 @@ for (j in 1:nrow(PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest)) {
   if (j %% 100 == 0) print(paste0(j, "th municipio complete: ", Sys.time()))
 }
 end_time <- Sys.time()
-end_time - start_time # 1.98736 days
+end_time - start_time # 3.231634 days
 local_GWR_PML_sensitivity_hyd_dest_tbl <- bind_rows(local_GWR_PML_sensitivity_hyd_dest)
-write_xlsx(local_GWR_PML_sensitivity_hyd_dest_tbl, "Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx")
+# write_xlsx(local_GWR_PML_sensitivity_hyd_dest_tbl, "Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx")
 
 # further n_y
 local_GWR_PML_sensitivity_hyd_dest2 <- list()
@@ -373,15 +373,18 @@ for (j in 1:nrow(PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest)) {
   if (j %% 100 == 0) print(paste0(j, "th municipio complete: ", Sys.time()))
 }
 end_time <- Sys.time()
-end_time - start_time # 2.140106 days
+end_time - start_time # 3.93006 days
 local_GWR_PML_sensitivity_hyd_dest2 <- bind_rows(local_GWR_PML_sensitivity_hyd_dest2)
-write_xlsx(local_GWR_PML_sensitivity_hyd_dest2, "Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined 2 (violence left-right).xlsx")
+# write_xlsx(local_GWR_PML_sensitivity_hyd_dest2, "Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined 2 (violence left-right).xlsx")
 
 local_GWR_PML_sensitivity_hyd_dest_tbl <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx")
+local_GWR_PML_sensitivity_hyd_dest_tbl2 <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined 2 (violence left-right).xlsx")
+
 sensitivity_summary <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% group_by(id) %>%
   summarize(y=y[1], n_params=n(), bw_sd=sd(bw, na.rm=T), across(Intercept:pi_hat,  \(x) sd(x, na.rm = TRUE)))
 sensitivity_summary_coef <- sensitivity_summary %>% ungroup %>% select(-pi_hat)
 
+local_GWR_PML_sensitivity_hyd_dest_tbl <- bind_rows(local_GWR_PML_sensitivity_hyd_dest_tbl, local_GWR_PML_sensitivity_hyd_dest_tbl2)
 AUC_1617 <- c()
 AUC_param <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% select(n_y, n_drop) %>% unique
 for (i in 1:nrow(AUC_param)) {
@@ -398,6 +401,12 @@ AUC_param %>% print(n=48)
 AUC_param %>% ggplot +
   geom_point(aes(x=n_drop, y=AUC, group=n_y, color=n_y)) +
   geom_line(aes(x=n_drop, y=AUC, group=n_y, color=n_y))
+
+AUC_plot <- AUC_param %>% ggplot + ylim(0.80, 0.90) +
+  geom_point(aes(x=n_drop, y=AUC, group=n_y, color=n_y)) +
+  geom_line(aes(x=n_drop, y=AUC, group=n_y, color=n_y))
+
+# ggsave("Colombia Data/local GWR PML result predicted prices/sensitivity analysis AUC.png", AUC_plot, scale=1)
 
 # coef, pi_hat standard deviation maps
 sensitivity_summary_tbl <- sensitivity_summary_coef

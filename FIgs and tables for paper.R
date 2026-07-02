@@ -4,6 +4,7 @@ max_bwd <- 4
 library(readxl)
 library(stringi)
 library(tidyverse)
+library(ggpattern)
 library(gridExtra)
 library(lubridate)
 library(colmaps)
@@ -67,7 +68,7 @@ library(knitr)
     left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
   
   indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "left_wing", "right_paramilitary")
-  row1 <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx") %>% head(1)
+  # row1 <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx") %>% head(1)
   
   dep_var_ <- "hyd_destination"; price <- F
   regression_data_CF_2013 <- read.csv("Colombia Data/regression data all municipios CF 2013.csv") %>% as_tibble
@@ -162,11 +163,11 @@ library(knitr)
   
   PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF (05-08-2026).csv") %>% as_tibble
   indep_vars_ <- names(PML_gwr_coefs_AUC_var_drop_log_seizure_coca_10_loo_hyd_dest)[-(1:2)]
-}
 
 ROC_pred <- function(GWR_pred) {
   result <- roc(GWR_pred$y, GWR_pred$pi_hat, positive = "1", quiet = T)
   return(result)
+}
 }
 
 # data map
@@ -184,7 +185,7 @@ for (year_ in c(2013, 2014, 2016, 2017)) { # area maps
                  linewidth = 0.1) +
     expand_limits(x = map_df$long, y = map_df$lat) +
     coord_quickmap() +
-    scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
+    scale_fill_manual(values = c("0"="white", "1"="#C00000"), na.value = "white") +
     labs(fill="destination", x="", y="") +
     theme_bw() +
     theme(panel.grid.major = element_blank(),
@@ -211,10 +212,10 @@ data_map <- function(reg_data_year) {
         geom_polygon(aes(group=group, fill=as.factor(obs)),
                      color = "black",
                      linewidth = 0.1) +
-        expand_limits(x = depto_map$long, y = depto_map$lat) +
-        coord_quickmap() +
-        scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
-        labs(fill=var_name_, x="", y="") +
+        expand_limits(x = map_df$long, y = map_df$lat) +
+        coord_quickmap(expand = FALSE) +
+        scale_fill_manual(values = c("0"="white", "1"="#C00000"), na.value = "white") +
+        labs(fill=var_name_, x=NULL, y=NULL) +
         theme_bw() +
         theme(panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
@@ -227,8 +228,8 @@ data_map <- function(reg_data_year) {
         geom_polygon(aes(group=group, fill=obs),
                      color = "black",
                      linewidth = 0.1) +
-        expand_limits(x = depto_map$long, y = depto_map$lat) +
-        coord_quickmap() +
+        expand_limits(x = map_df$long, y = map_df$lat) +
+        coord_quickmap(expand = FALSE) +
         scale_fill_viridis_c(na.value = "white") +
         labs(fill=var_name_, x="", y="") +
         theme_bw() +
@@ -242,11 +243,39 @@ data_map <- function(reg_data_year) {
     }
     
     ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/data maps for paper/local GWR data %s.png", var_name_),
-           data_map_i, scale=1)
+           data_map_i, units = "in", width = 7.5, height = 7)
   }
 }
 
 data_map(reg_data_year1)
+
+regression_data_CF_1617_x_norm <- read.csv("Colombia Data/regression data all municipios CF 1617 (not normalized).csv") %>% as_tibble %>% rename(seizures = hyd_seizures)
+var_names <- c("coca_area", "seizures", "river_length", "road_length", "population")
+for (i in 1:length(var_names)) {
+  var_name_ <- var_names[i]
+  gwr_data_i <- data.frame(id=regression_data_CF_1617_x_norm$id,
+                           obs=regression_data_CF_1617_x_norm[[var_name_]])
+  data_map_coords <- map_df %>%
+    left_join(gwr_data_i, by="id")
+  
+  ggplot(data_map_coords, aes(x=long, y=lat)) +
+    geom_polygon(aes(group=group, fill=obs),
+                 color = "black",
+                 linewidth = 0.1) +
+    expand_limits(x = map_df$long, y = map_df$lat) +
+    coord_quickmap(expand = FALSE) +
+    scale_fill_viridis_c(na.value = "white") +
+    labs(fill=var_name_, x="", y="") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    ) -> data_map_i  
+  ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/data maps for paper/local GWR data %s.png", var_name_),
+         data_map_i, units = "in", width = 7.5, height = 7)
+}
 
 hyd_destination_1617_map_coords <- map_df %>% left_join(reg_data_year1 %>% select(id, y) %>% mutate(y = as.factor(y)), by="id")
 ggplot(hyd_destination_1617_map_coords, aes(x=long, y=lat)) +
@@ -255,7 +284,7 @@ ggplot(hyd_destination_1617_map_coords, aes(x=long, y=lat)) +
                linewidth = 0.1) +
   expand_limits(x = depto_map$long, y = depto_map$lat) +
   coord_quickmap() +
-  scale_fill_manual(values = c("0"="white", "1"="red"), na.value = "white") +
+  scale_fill_manual(values = c("0"="white", "1"="#C00000"), na.value = "white") +
   labs(fill="y", x="", y="") +
   theme_bw() +
   theme(panel.grid.major = element_blank(),
@@ -269,12 +298,12 @@ ggsave("Colombia Data/local GWR PML result predicted prices/hyd_destination maps
 
 # Sensitivity analysis
 local_GWR_PML_sensitivity_hyd_dest_tbl <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx")
-sensitivity_summary <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% group_by(id) %>%
-  summarize(y=y[1], n_params=n(), bw_sd=sd(bw, na.rm=T), across(Intercept:pi_hat,  \(x) sd(x, na.rm = TRUE)))
+sensitivity_summary <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% select(-price_avg) %>% group_by(id) %>%
+  summarize(y=y[1], n_params=n(), bw_sd=sd(bw, na.rm=T), across(coca_area:pi_hat,  \(x) sd(x, na.rm = TRUE)))
 sensitivity_summary_coef <- sensitivity_summary %>% ungroup %>% select(-pi_hat)
 
 coef_sensitivity_summary <- sensitivity_summary_coef %>%
-  summarise(across(Intercept:left_right,
+  summarise(across(coca_area:left_right,
                    list(
                      Min = ~min(., na.rm = TRUE),
                      Q1 = ~quantile(., 0.25, na.rm = TRUE),
@@ -293,7 +322,7 @@ coef_sensitivity_table <- coef_sensitivity_summary %>%
 final_table <- coef_sensitivity_table %>%
   select(Variable, Min, Q1, Median, Mean, Q3, Max)
 
-final_table$n_large_sd <- sensitivity_summary_coef %>% select(Intercept:left_right) %>% apply(2, function(x) sum(abs(x) > 20, na.rm=T))
+final_table$n_large_sd <- sensitivity_summary_coef %>% select(coca_area:left_right) %>% apply(2, function(x) sum(abs(x) > 20, na.rm=T))
 
 kable(
   final_table,
@@ -373,10 +402,12 @@ local_GWR_PML_sensitivity_hyd_dest_tbl %>% filter(id %in% (sensitivity_summary %
 local_gwr_PML_coef_map_by_AUC <- function(coef_table, pval_table, dep_var, alpha=0.1, n_drop, date_, year_, indep_vars_, price) {
   indep_vars_ <- c(indep_vars_, "left_wing:right_paramilitary")
   title_for_price <- ifelse(price, "with price", "no price")
+  id_excluded <- coef_table %>% filter(is.na(bw)) %>% pull(id)
   
   for (i in c(2, 4:length(coef_table))) {
     var_name <- names(coef_table)[i]
     gwr_coefs_i <- data.frame(id=coef_table$id,
+                              excluded=coef_table$id %in% id_excluded,
                               coef=coef_table[[var_name]],
                               rounded_coef=coef_table[[var_name]] %>% round(3),
                               p_value=pval_table[[var_name]])
@@ -390,13 +421,18 @@ local_gwr_PML_coef_map_by_AUC <- function(coef_table, pval_table, dep_var, alpha
     
     if (i == 2) {
       gwr_coef_map <- ggplot(coef_map_coords_bw, aes(x=long, y=lat)) +
-        geom_polygon(aes(group=group, fill=coef),
-                     color = "black",
-                     linewidth = 0.1) +
+        geom_polygon_pattern(aes(group=group, fill=coef, pattern=excluded),
+                             color = "black",
+                             linewidth = 0.1,
+                             pattern_fill = NA,         # Makes the pattern background transparent
+                             pattern_density = 0.1,     # Keeps the stripe lines thin
+                             pattern_spacing = 0.02) +
         expand_limits(x = depto_map$long, y = depto_map$lat) +
         coord_quickmap() +
         scale_fill_viridis_c(na.value = "white") +
-        labs(fill=var_name, x="", y="") +
+        scale_pattern_manual(values = c("TRUE" = "stripe", "FALSE" = "none"), 
+                             guide = "none") + # Hides the pattern legend
+        labs(fill=var_name, x=NULL, y=NULL, title=NULL) +
         theme_bw() +
         theme(panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
@@ -406,16 +442,21 @@ local_gwr_PML_coef_map_by_AUC <- function(coef_table, pval_table, dep_var, alpha
         )
     }else{
       gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) +
-        geom_polygon(aes(group=group, fill=coef),
-                     color = "black",
-                     linewidth = 0.1) +
+        geom_polygon_pattern(aes(group=group, fill=coef, pattern=excluded),
+                             color = "black",
+                             linewidth = 0.1,
+                             pattern_fill = NA,         # Makes the pattern background transparent
+                             pattern_density = 0.1,     # Keeps the stripe lines thin
+                             pattern_spacing = 0.02) +
         geom_point(aes(x=long, y=lat), data=municipio_centroid %>% filter(id %in% (gwr_coefs_i %>% filter(p_value <= alpha) %>% pull(id))), size=0.7) + # add significant locations
         expand_limits(x = depto_map$long, y = depto_map$lat) +
         coord_quickmap() +
-        scale_fill_gradientn(colors = c("blue","skyblue","grey40", "yellow","red"),
+        scale_fill_gradientn(colors = c("blue","skyblue","grey40", "yellow","#C00000"),
                              values = scales::rescale(c(-1, -.Machine$double.eps, 0 , .Machine$double.eps, max_coef/abs(min_coef))),
                              na.value = "white") +
-        labs(fill=var_name, x="", y="") +
+        scale_pattern_manual(values = c("TRUE" = "stripe", "FALSE" = "none"), 
+                             guide = "none") + # Hides the pattern legend
+        labs(fill=var_name, x=NULL, y=NULL, title=NULL) +
         theme_bw() +
         theme(panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
@@ -447,6 +488,22 @@ local_gwr_PML_coef_map_by_AUC_year <- function(PML_gwr_coefs, PML_gwr_pvals, dep
 
 PML_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF (05-08-2026).csv") %>% as_tibble
 PML_gwr_pvals_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF (05-08-2026).csv") %>% as_tibble
+# local_gwr_PML_coef_map_by_AUC_year(PML_gwr_coefs_AUC_CF_1617, PML_gwr_pvals_AUC_CF_1617, "hyd_destination", year_=1617)
+
+# GWR_predict_1617_CF_with_1617_coef %>% arrange(desc(pi_hat))
+
+# For Case Study
+PML_gwr_coefs_AUC_CF_1617 %>% filter(id %in% c(54206, 23672))
+PML_gwr_pvals_AUC_CF_1617 %>% filter(id %in% c(54206, 23672))
+regression_data_CF_1617 %>% filter(id %in% c(54206, 23672)) %>% select(-c(base_source:PPI_lab, PPI_lab_res), hyd_destination)
+municipio_centroid %>% filter(id %in% c(54206, 23672))
+
+# For Potential Destinations
+PML_gwr_coefs_AUC_CF_1617 %>% filter(id %in% c(27450, 50226))
+PML_gwr_pvals_AUC_CF_1617 %>% filter(id %in% c(27450, 50226))
+regression_data_CF_1617 %>% filter(id %in% c(27450, 50226)) %>% select(-c(base_source:PPI_lab, PPI_lab_res), hyd_destination)
+municipio_centroid %>% filter(id %in% c(27450, 50226))
+
 
 PML_gwr_pvals_AUC_CF_1617 %>% select(Intercept:left_right) %>% apply(2, function(x) sum(x <= 0.1, na.rm=T))
 
@@ -494,20 +551,22 @@ gwr_table <- gwr_summary %>%
   pivot_longer(everything(),
                names_to = c("Variable", ".value"),
                names_pattern = "(.+)_(Min|Q1|Median|Mean|Q3|Max)")
-gwr_table$OLS <- global_reg_coefs_CF_1617[ match(gwr_table$Variable, names(global_reg_coefs_CF_1617)) ]
+gwr_table$global <- global_reg_coefs_CF_1617[ match(gwr_table$Variable, names(global_reg_coefs_CF_1617)) ]
 
 gwr_table <- gwr_table %>%
-  select(Variable, OLS, Min, Q1, Median, Mean, Q3, Max)
+  select(Variable, global, Min, Q1, Median, Mean, Q3, Max)
+gwr_table$n_sig <- PML_gwr_pvals_AUC_CF_1617 %>% select(-(id:bw)) %>% apply(2, function(x) sum(x <= 0.1, na.rm=T))
 
 footer <- data.frame(
   Variable = "AUC",
-  OLS = 0.66,
-  Min = 0.81,
+  global = 0.684,
+  Min = 0.824,
   Q1 = NA,
   Median = NA,
   Mean = NA,
   Q3 = NA,
-  Max = NA
+  Max = NA,
+  n_sig = NA
 )
 
 final_table <- bind_rows(gwr_table, footer)
@@ -518,38 +577,41 @@ kable(
   booktabs = TRUE,
   digits = 3,
   escape = FALSE,
-  caption = "OLS and GWR Results"
+  caption = "global and GWR Results"
 )
 
-final_table %>%
-  kbl(
-    format = "latex",
-    booktabs = TRUE,
-    digits = 3,
-    escape = FALSE,
-    caption = "OLS and GWR Results"
-  ) %>%
-  add_header_above(c(
-    " " = 2,
-    "GWR Spatially Varying Coefficients (SVCs)" = 6
-  )) %>%
-  kable_styling(
-    latex_options = c("hold_position")
-  )
+PML_gwr_coefs_AUC_CF_1617 %>% summary
+
+# final_table %>%
+#   kbl(
+#     format = "latex",
+#     booktabs = TRUE,
+#     digits = 3,
+#     escape = FALSE,
+#     caption = "global and GWR Results"
+#   ) %>%
+#   add_header_above(c(
+#     " " = 2,
+#     "GWR Spatially Varying Coefficients (SVCs)" = 6
+#   )) %>%
+#   kable_styling(
+#     latex_options = c("hold_position")
+#   )
 
 
 #### For LASSO
 # coef map by AUC scores
-local_gwr_LASSO_coef_map_by_AUC <- function(coef_table, pval_table, dep_var, alpha=0.1, n_drop, date_, year_, indep_vars_, price) {
+local_gwr_LASSO_coef_map_by_AUC <- function(coef_table, PML_coef_table, dep_var, alpha=0.1, n_drop, date_, year_, indep_vars_, price) {
   indep_vars_ <- c(indep_vars_, "left_wing:right_paramilitary")
   title_for_price <- ifelse(price, "with price", "no price")
+  id_excluded <- PML_coef_table %>% filter(is.na(bw)) %>% pull(id)
   
   for (i in c(2, 4:length(coef_table))) {
     var_name <- names(coef_table)[i]
     gwr_coefs_i <- data.frame(id=coef_table$id,
+                              excluded=coef_table$id %in% id_excluded,
                               coef=coef_table[[var_name]],
-                              rounded_coef=coef_table[[var_name]] %>% round(3),
-                              p_value=pval_table[[var_name]])
+                              rounded_coef=coef_table[[var_name]] %>% round(3))
     min_coef <- min(gwr_coefs_i$coef, na.rm=T)
     max_coef <- max(gwr_coefs_i$coef, na.rm=T)
     coef_map_coords_bw <- map_df %>%
@@ -560,13 +622,18 @@ local_gwr_LASSO_coef_map_by_AUC <- function(coef_table, pval_table, dep_var, alp
     
     if (i == 2) {
       gwr_coef_map <- ggplot(coef_map_coords_bw, aes(x=long, y=lat)) +
-        geom_polygon(aes(group=group, fill=coef),
-                     color = "black",
-                     linewidth = 0.1) +
+        geom_polygon_pattern(aes(group=group, fill=coef, pattern=excluded),
+                             color = "black",
+                             linewidth = 0.1,
+                             pattern_fill = NA,         # Makes the pattern background transparent
+                             pattern_density = 0.1,     # Keeps the stripe lines thin
+                             pattern_spacing = 0.02) +
         expand_limits(x = depto_map$long, y = depto_map$lat) +
         coord_quickmap() +
         scale_fill_viridis_c(na.value = "white") +
-        labs(fill=var_name, x="", y="") +
+        scale_pattern_manual(values = c("TRUE" = "stripe", "FALSE" = "none"), 
+                             guide = "none") + # Hides the pattern legend
+        labs(fill=var_name, x=NULL, y=NULL, title=NULL) +
         theme_bw() +
         theme(panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
@@ -576,16 +643,20 @@ local_gwr_LASSO_coef_map_by_AUC <- function(coef_table, pval_table, dep_var, alp
         )
     }else{
       gwr_coef_map <- ggplot(coef_map_coords, aes(x=long, y=lat)) +
-        geom_polygon(aes(group=group, fill=coef),
-                     color = "black",
-                     linewidth = 0.1) +
-        geom_point(aes(x=long, y=lat), data=municipio_centroid %>% filter(id %in% (gwr_coefs_i %>% filter(p_value <= alpha) %>% pull(id))), size=0.7) + # add significant locations
+        geom_polygon_pattern(aes(group=group, fill=coef, pattern=excluded),
+                             color = "black",
+                             linewidth = 0.1,
+                             pattern_fill = NA,         # Makes the pattern background transparent
+                             pattern_density = 0.1,     # Keeps the stripe lines thin
+                             pattern_spacing = 0.02) +
         expand_limits(x = depto_map$long, y = depto_map$lat) +
         coord_quickmap() +
-        scale_fill_gradientn(colors = c("blue","skyblue","grey40", "yellow","red"),
+        scale_fill_gradientn(colors = c("blue","skyblue","grey40", "yellow","#C00000"),
                              values = scales::rescale(c(-1, -.Machine$double.eps, 0 , .Machine$double.eps, max_coef/abs(min_coef))),
                              na.value = "white") +
-        labs(fill=var_name, x="", y="") +
+        labs(fill=var_name, x=NULL, y=NULL, title=NULL) +
+        scale_pattern_manual(values = c("TRUE" = "stripe", "FALSE" = "none"), 
+                             guide = "none") + # Hides the pattern legend
         theme_bw() +
         theme(panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
@@ -595,7 +666,7 @@ local_gwr_LASSO_coef_map_by_AUC <- function(coef_table, pval_table, dep_var, alp
         )
     }
     
-    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s (%i)/local GWR lasso coef by AUC violence_all left-right %s %s all var drop n_drop=%i %i data %s CF.png",
+    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s (%s)/local GWR lasso coef by AUC violence_all left-right %s %s %i %s data combined %s CF.png",
                    dep_var, year_, var_name, dep_var, n_drop, year_, title_for_price),
            gwr_coef_map, scale=1)
     
@@ -603,7 +674,7 @@ local_gwr_LASSO_coef_map_by_AUC <- function(coef_table, pval_table, dep_var, alp
 }
 
 ## coef map by AUC var drop 
-local_gwr_LASSO_coef_map_by_AUC_year <- function(LASSO_gwr_coefs, LASSO_gwr_pvals, dep_var_, year_, price_=F) {
+local_gwr_LASSO_coef_map_by_AUC_year <- function(LASSO_gwr_coefs, PML_gwr_coefs, dep_var_, year_, price_=F) {
   if (price_) {
     indep_vars_in <- indep_vars
     title_for_price <- "with price"
@@ -613,10 +684,14 @@ local_gwr_LASSO_coef_map_by_AUC_year <- function(LASSO_gwr_coefs, LASSO_gwr_pval
   } 
   indep_vars_in <- c("Intercept", indep_vars_in)
   
-  local_gwr_LASSO_coef_map_by_AUC(LASSO_gwr_coefs, LASSO_gwr_pvals, dep_var = dep_var_, indep_vars_ = indep_vars_in, n_drop=10, date_="", year_=year_, price=price_)
+  local_gwr_LASSO_coef_map_by_AUC(LASSO_gwr_coefs, PML_gwr_coefs, dep_var = dep_var_, indep_vars_ = indep_vars_in, n_drop=10, date_="", year_=year_, price=price_)
 }
 
 LASSO_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR LASSO coefs hyd_destination violence_all left-right by AUC n_drop=10 2016-2017 data combined no price CF.csv") %>% as_tibble
+
+excluded_index <- which(is.na(PML_gwr_coefs_AUC_CF_1617$bw))
+LASSO_gwr_coefs_AUC_CF_1617[excluded_index, -1] <- NA
+local_gwr_LASSO_coef_map_by_AUC_year(LASSO_gwr_coefs_AUC_CF_1617, PML_gwr_coefs_AUC_CF_1617, "hyd_destination", "2016-2017")
 
 LASSO_gwr_coefs_AUC_CF_1617 %>%
   reframe(across(coca_area:left_right,
