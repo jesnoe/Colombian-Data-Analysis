@@ -1,4 +1,5 @@
-indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "left_wing", "right_paramilitary")
+# indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "left_wing", "right_paramilitary")
+indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_residual", "left_wing", "right_paramilitary")
 max_bwd <- 4
 # setwd("C:/Users/User/Documents/R")
 library(readxl)
@@ -67,7 +68,8 @@ library(knitr)
     filter(id != 88) %>% 
     left_join(municipios_capital %>% mutate(id=as.numeric(id_depto)) %>% select(id, depto) %>% unique, by="id")
   
-  indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "left_wing", "right_paramilitary")
+  # indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_reported", "lab_residual", "left_wing", "right_paramilitary")
+  indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_residual", "left_wing", "right_paramilitary")
   # row1 <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx") %>% head(1)
   
   dep_var_ <- "hyd_destination"; price <- F
@@ -491,6 +493,39 @@ PML_gwr_pvals_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predic
 # local_gwr_PML_coef_map_by_AUC_year(PML_gwr_coefs_AUC_CF_1617, PML_gwr_pvals_AUC_CF_1617, "hyd_destination", year_=1617)
 
 # GWR_predict_1617_CF_with_1617_coef %>% arrange(desc(pi_hat))
+
+# Region-specific factors
+sig_level <- 0.1
+n_sig_depto <- PML_gwr_pvals_AUC_CF_1617 %>% 
+  left_join(municipios_capital %>% select(id, depto), by = "id") %>% 
+  group_by(depto) %>% 
+  summarize(across(coca_area:left_right, ~ sum(.x <= sig_level, na.rm = T))) %>% 
+  left_join(municipios_capital %>% select(id_depto, depto) %>% unique, by = "depto") %>%
+  relocate(id_depto, depto)
+
+n_sig_depto
+for (i in 3:ncol(n_sig_depto)) {
+  n_sig_map_coords <- depto_map %>% left_join(n_sig_depto[,c(1,i)] %>% rename(id = id_depto) %>% mutate(id = as.integer(id)), by="id")
+  var_name <- names(n_sig_depto)[i]
+  names(n_sig_map_coords)[ncol(n_sig_map_coords)] <- "n_sig"
+  
+  n_sig_map <- ggplot(n_sig_map_coords, aes(x=long, y=lat)) +
+    geom_polygon(aes(group=group, fill=n_sig),
+                         color = "black",
+                         linewidth = 0.1) +
+    expand_limits(x = depto_map$long, y = depto_map$lat) +
+    coord_quickmap() +
+    scale_fill_viridis_c(na.value = "white") +
+    labs(fill=var_name, x=NULL, y=NULL, title=NULL) +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.text = element_blank(),
+          line = element_blank()
+    )
+  ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/n_sig maps/local GWR PML n_sig %s.png", var_name), n_sig_map, scale=1)
+}
 
 # For Case Study
 PML_gwr_coefs_AUC_CF_1617 %>% filter(id %in% c(54206, 23672))
