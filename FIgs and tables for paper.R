@@ -468,7 +468,7 @@ local_gwr_PML_coef_map_by_AUC <- function(coef_table, pval_table, dep_var, alpha
         )
     }
     
-    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s (%i)/local GWR PML coef by AUC violence_all left-right %s %s all var drop n_drop=%i %i data %s CF.png",
+    ggsave(sprintf("Colombia Data/local GWR PML result predicted prices/coef maps/%s (%i)/local GWR PML coef by AUC violence_all left-right %s %s all var drop n_drop=%i %i data %s.png",
                    dep_var, year_, var_name, dep_var, n_drop, year_, title_for_price),
            gwr_coef_map, scale=1)
   }
@@ -488,8 +488,8 @@ local_gwr_PML_coef_map_by_AUC_year <- function(PML_gwr_coefs, PML_gwr_pvals, dep
   local_gwr_PML_coef_map_by_AUC(PML_gwr_coefs, PML_gwr_pvals, dep_var = dep_var_, indep_vars_ = indep_vars_in, n_drop=10, date_="", year_=year_, price=price_)
 }
 
-PML_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF (05-08-2026).csv") %>% as_tibble
-PML_gwr_pvals_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF (05-08-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price lab_residual (07-15-2026).csv") %>% as_tibble
+PML_gwr_pvals_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price lab_residual (07-15-2026).csv") %>% as_tibble
 # local_gwr_PML_coef_map_by_AUC_year(PML_gwr_coefs_AUC_CF_1617, PML_gwr_pvals_AUC_CF_1617, "hyd_destination", year_=1617)
 
 # GWR_predict_1617_CF_with_1617_coef %>% arrange(desc(pi_hat))

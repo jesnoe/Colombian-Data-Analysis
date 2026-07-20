@@ -138,7 +138,9 @@ library(logistf)
 }
 
 ## Box plot of coefs
-PML_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF lab_residual (07-15-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price lab_residual (07-15-2026).csv") %>% as_tibble
+PML_gwr_coefs_AUC_CF_1617 %>% filter(abs(lab_residual) > 10)
+
 PML_gwr_coefs_AUC_CF_1617_tbl_for_box <- PML_gwr_coefs_AUC_CF_1617 %>% pivot_longer(coca_area:left_right, names_to = "var_name", values_to = "coefficients") %>% 
   mutate(var_name = factor(var_name, levels = c("seizures", "coca_area", "lab_residual", "left_wing", "right_paramilitary", "left_right", "population", "river_length", "road_length", "airport", "ferry", "military", "police")))
 
