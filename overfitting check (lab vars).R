@@ -63,6 +63,53 @@ library(collinear)
     )
 }
 
+## lab_prob model
+
+# local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo
+# rm(local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo)
+load("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price lab_prob (07-15-2026).RData")
+
+PML_gwr_coefs_AUC_lab_prob_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price lab_prob (07-15-2026).csv") %>% as_tibble
+lab_var_check <- PML_gwr_coefs_AUC_lab_prob_1617 %>% select(id, bw, lab_prob)
+
+PML_gwr_coefs_AUC_lab_prob_1617 %>% filter(abs(lab_prob) >= 130)
+
+id_j <- 15109
+id_j <- 15131
+bw_j <- lab_var_check %>% filter(id == id_j) %>% pull(bw)
+municipios_capital %>% filter(id == id_j)
+GWR_j <- local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo[[paste0("id_", id_j)]][[paste0("bw_", bw_j)]]
+GWR_j$model %>% select(-y) %>% cor
+GWR_j %>% summary
+GWR_j$model %>% arrange(y)
+GWR_j$model %>% arrange(lab_reported)
+logistf(y~., GWR_j$model %>% select(-population))
+logistf(y~., GWR_j$model %>% select(-lab_reported))
+
+
+indep_vars <- c("coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_prob", "left_wing", "right_paramilitary", "left_wing:right_paramilitary")
+var_names <- tibble(var_name = indep_vars)
+VIF_tbl <- matrix(NA, nrow(PML_gwr_coefs_AUC_lab_prob_1617), 1+length(indep_vars))
+colnames(VIF_tbl) <- c("id", indep_vars)
+for (i in 1:nrow(lab_var_check)) {
+  id_i <- lab_var_check$id[i]
+  bw_i <- lab_var_check$bw[i]
+  model_i <- local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo[[paste0("id_", id_i)]][[paste0("bw_", bw_i)]]
+  if (is.null(model_i)) {
+    VIF_tbl[i,1] <- id_i
+    next
+  }
+  coef_names_i <- names(coef(model_i))[-1]
+  VIF_i <- left_join(var_names, vif_df(model_i$model, coef_names_i) %>% rename(var_name = predictor), by="var_name")
+  VIF_tbl[i,1] <- id_i
+  VIF_tbl[i,-1] <- VIF_i$vif
+}
+VIF_tbl_lab_prob <- VIF_tbl %>% as_tibble
+VIF_tbl_lab_prob <- left_join(VIF_tbl_lab_prob, PML_gwr_coefs_AUC_lab_prob_1617 %>% select(id, lab_prob) %>% rename(coef_lab_prob = lab_prob), by="id")
+VIF_tbl_lab_prob
+
+######
+
 PML_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF (05-08-2026).csv") %>% as_tibble
 PML_gwr_pvals_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML p-value hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF (05-08-2026).csv") %>% as_tibble
 

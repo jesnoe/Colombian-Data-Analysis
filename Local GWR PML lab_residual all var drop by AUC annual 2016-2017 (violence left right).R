@@ -565,9 +565,7 @@ PML_gwr_coefs_AUC_CF_2013 <- read.csv("Colombia Data/local GWR PML result predic
 PML_gwr_coefs_AUC_CF_2014 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 2014 data no price CF (04-13-2026).csv") %>% as_tibble
 PML_gwr_coefs_AUC_CF_2016 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 2016 data no price CF (04-13-2026).csv") %>% as_tibble
 PML_gwr_coefs_AUC_CF_2017 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 2017 data no price CF (04-13-2026).csv") %>% as_tibble
-PML_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price CF lab_residual (07-15-2026).csv") %>% as_tibble
-
-PML_gwr_coefs_AUC_CF_2013 %>% filter(seizures > 100)
+PML_gwr_coefs_AUC_CF_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price lab_residual (07-15-2026).csv") %>% as_tibble
 
 GWR_predict_year_CF <- function(PML_gwr_coefs, reg_data_year, dep_var, no_price, threshold=0.5) {
   indep_vars <- c("price_avg", "coca_area", "seizures", "river_length", "road_length", "population", "airport", "ferry", "police", "military", "lab_residual", "left_wing", "right_paramilitary")
@@ -613,6 +611,9 @@ GWR_predict_2016_CF_with_2016_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2
 GWR_predict_2017_CF_with_2017_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2017, regression_data_CF_2017, "hyd_destination", no_price=T)
 GWR_predict_2017_CF_with_2016_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2017, regression_data_CF_2016, "hyd_destination", no_price=T)
 GWR_predict_1617_CF_with_1617_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_1617, regression_data_CF_1617, "hyd_destination", no_price=T)
+
+GWR_predict_1617_CF_with_1617_coef %>% arrange(desc(pi_hat))
+GWR_predict_1617_CF_with_1617_coef %>% filter(y == 0) %>% arrange(desc(pi_hat))
 
 GWR_predict_2014_CF_with_2013_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2014, regression_data_CF_2013, "hyd_destination", no_price=T)
 GWR_predict_2016_CF_with_2014_coef <- GWR_predict_year_CF(PML_gwr_coefs_AUC_CF_2016, regression_data_CF_2014, "hyd_destination", no_price=T)
