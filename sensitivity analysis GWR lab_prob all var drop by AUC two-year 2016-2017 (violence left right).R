@@ -180,6 +180,7 @@ neighbor_id <- function(id_i, bw_i, scale_11_, gwr_data_) {
 }
 
 local_GWR_PML_sensitivity <- function(id_i, gwr_PML_data_1, indep_vars, weight_=NULL, sig_level_=0.1, n_drop_max, n_drop_min, n_y_max, n_y_min) {
+  # id_i=id_j; gwr_PML_data_1=gwr_data1; weight_=NULL; sig_level_=0.1; n_drop_max=20; n_drop_min=5; n_y_max=9; n_y_min=7
   bwd_range <- seq(0.5, 4, by=0.1)
   local_GWR_coefs_PML_result <- list()
   AUC_i <- list()
@@ -232,7 +233,7 @@ local_GWR_PML_sensitivity <- function(id_i, gwr_PML_data_1, indep_vars, weight_=
           n_unique_vals[["road_length"]] <- n_drop_
         }
         if (n_unique_vals[["lab_prob"]] < n_drop_) {
-          neighbor_ij$lab_prob <- NULL
+          neighbor_ij_param$lab_prob <- NULL
           n_unique_vals[["lab_prob"]] <- n_drop_
         }
         
@@ -337,7 +338,7 @@ for (j in 1:nrow(PML_gwr_coefs_AUC_lab_prob_1617)) {
   if (j %% 100 == 0) print(paste0(j, "th municipio complete: ", Sys.time()))
 }
 end_time <- Sys.time()
-end_time - start_time # 3.231634 days
+end_time - start_time # 2.67558 days
 local_GWR_PML_sensitivity_hyd_dest_tbl <- bind_rows(local_GWR_PML_sensitivity_hyd_dest)
 # write_xlsx(local_GWR_PML_sensitivity_hyd_dest_tbl, "Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined lab_prob (violence left-right).xlsx")
 
