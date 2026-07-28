@@ -303,8 +303,9 @@ ggplot(hyd_destination_1617_map_coords, aes(x=long, y=lat)) +
 ggsave("Colombia Data/local GWR PML result predicted prices/hyd_destination maps/hyd_destination map (1617).png", hyd_destination_1617_map, scale=1)
 
 # Sensitivity analysis
-local_GWR_PML_sensitivity_hyd_dest_tbl <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx")
-sensitivity_summary <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% select(-price_avg) %>% group_by(id) %>%
+# local_GWR_PML_sensitivity_hyd_dest_tbl <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined (violence left-right).xlsx")
+local_GWR_PML_sensitivity_hyd_dest_tbl <- read_xlsx("Colombia Data/local GWR PML result predicted prices/sensitivity analysis hyd destination 2016-2017 combined lab_prob (violence left-right).xlsx")
+sensitivity_summary <- local_GWR_PML_sensitivity_hyd_dest_tbl %>% group_by(id) %>%
   summarize(y=y[1], n_params=n(), bw_sd=sd(bw, na.rm=T), across(coca_area:pi_hat,  \(x) sd(x, na.rm = TRUE)))
 sensitivity_summary_coef <- sensitivity_summary %>% ungroup %>% select(-pi_hat)
 
@@ -352,7 +353,7 @@ AUC_param$AUC <- AUC_1617
 AUC_param$n_y <- as.factor(AUC_param$n_y)
 
 AUC_param %>% print(n=48)
-AUC_plot <- AUC_param %>% ggplot + ylim(0.75, 0.85) +
+AUC_plot <- AUC_param %>% ggplot + ylim(0.80, 0.90) +
   geom_point(aes(x=n_drop, y=AUC, group=n_y, color=n_y)) +
   geom_line(aes(x=n_drop, y=AUC, group=n_y, color=n_y))
 

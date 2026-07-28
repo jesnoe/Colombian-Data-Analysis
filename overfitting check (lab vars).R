@@ -72,10 +72,11 @@ load("Colombia Data/local GWR PML result predicted prices/local GWR PML hyd_dest
 PML_gwr_coefs_AUC_lab_prob_1617 <- read.csv("Colombia Data/local GWR PML result predicted prices/local GWR PML coefs hyd_destination violence_all left-right all var drop by AUC n_drop=10 1617 data no price lab_prob (07-15-2026).csv") %>% as_tibble
 lab_var_check <- PML_gwr_coefs_AUC_lab_prob_1617 %>% select(id, bw, lab_prob)
 
-PML_gwr_coefs_AUC_lab_prob_1617 %>% filter(abs(lab_prob) >= 130)
+PML_gwr_coefs_AUC_lab_prob_1617 %>% filter(abs(lab_prob) >= 60)
 
 id_j <- 15109
 id_j <- 15131
+id_j <- 15276
 bw_j <- lab_var_check %>% filter(id == id_j) %>% pull(bw)
 municipios_capital %>% filter(id == id_j)
 GWR_j <- local_GWR_coefs_PML_var_drop_log_seizure_scaled_loo[[paste0("id_", id_j)]][[paste0("bw_", bw_j)]]
