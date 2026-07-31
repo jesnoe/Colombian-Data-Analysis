@@ -526,7 +526,7 @@ regression_data_CF_1617 <- create_reg_data_combined_year_x_norm(anecdotal_annual
 # write.csv(regression_data_CF_1617, "Colombia Data/regression data all municipios CF 1617 (not normalized).csv", row.names = F)
 
 regression_data_lab_prob_1617 <- create_reg_data_combined_year_x_norm(anecdotal_annual, labs_reg_data_1617, c(2016, 2017), is_CF=F)
-# write.csv(regression_data_CF_1617, "Colombia Data/regression data all municipios lab_prob 1617 (not normalized).csv", row.names = F)
+# write.csv(regression_data_lab_prob_1617, "Colombia Data/regression data all municipios lab_prob 1617 (not normalized).csv", row.names = F)
 
 regression_data_CF_2013 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
 regression_data_CF_2014 %>% select(base_source:hyd_destination) %>% apply(2, function(x) sum(x == "1"))
